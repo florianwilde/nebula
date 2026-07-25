@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
 
-/** Groesste akzeptierte JSON-Nutzlast. */
+/** Groesste akzeptierte JSON-Nutzlast im Normalfall. */
 const MAX_BODY_BYTES = 256 * 1024;
+
+/**
+ * Groessere Obergrenze fuer den Import: eine Exportdatei mit vielen Notizen
+ * sprengt 256 KB schnell.
+ */
+export const IMPORT_MAX_BODY_BYTES = 8 * 1024 * 1024;
 
 export function jsonError(
   message: string,
@@ -34,6 +40,7 @@ export type BodyResult<T> =
  */
 export async function readJsonBody<T = unknown>(
   request: Request,
+  maxBytes: number = MAX_BODY_BYTES,
 ): Promise<BodyResult<T>> {
   const contentType = request.headers.get("content-type") ?? "";
   if (!contentType.toLowerCase().includes("application/json")) {
@@ -44,7 +51,7 @@ export async function readJsonBody<T = unknown>(
   }
 
   const declaredLength = Number(request.headers.get("content-length") ?? "0");
-  if (Number.isFinite(declaredLength) && declaredLength > MAX_BODY_BYTES) {
+  if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
     return { ok: false, response: jsonError("Anfrage zu gross.", 413) };
   }
 
@@ -55,7 +62,7 @@ export async function readJsonBody<T = unknown>(
     return { ok: false, response: jsonError("Anfrage konnte nicht gelesen werden.", 400) };
   }
 
-  if (raw.length > MAX_BODY_BYTES) {
+  if (raw.length > maxBytes) {
     return { ok: false, response: jsonError("Anfrage zu gross.", 413) };
   }
 
