@@ -1,0 +1,163 @@
+// ─────────────────────────────────────────────────────────────
+//  Nebula – Datenmodell
+//  Datenbank: PostgreSQL (lokal oder via docker compose)
+// ─────────────────────────────────────────────────────────────
+
+generator client {
+  provider = "prisma-client-js"
+  // linux-musl-openssl-3.0.x wird fuer das Alpine-Docker-Image benoetigt.
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// Lebenszyklus eines Projekts. IDEA ist der Startzustand fuer
+/// frisch notierte Einfaelle, ARCHIVED blendet Projekte aus dem
+/// Standard-Board aus, ohne sie zu loeschen.
+enum ProjectStatus {
+  IDEA
+  OPEN
+  PLANNING
+  IN_DEVELOPMENT
+  DONE
+  ARCHIVED
+}
+
+/// Unterstuetzte Git-Systeme.
+enum GitProvider {
+  GITHUB
+  GITLAB
+  GITEA
+}
+
+/// Eine Verbindung zu einem Git-System inkl. verschluesseltem Token.
+model GitConnection {
+  id        String      @id @default(cuid())
+  name      String
+  provider  GitProvider
+  /// Basis-URL der Instanz, z. B. https://github.com, https://gitlab.com,
+  /// https://git.meine-domain.de
+  baseUrl   String
+  /// Optionaler Benutzername – rein informativ fuer die Anzeige.
+  username  String?
+
+  /// Personal Access Token, AES-256-GCM-verschluesselt (siehe src/lib/crypto.ts).
+  tokenCipher String?
+  /// Gekuerzte Darstellung des Tokens fuer die UI, z. B. "ghp_…4f2a".
+  tokenHint   String?
+
+  lastCheckedAt     DateTime?
+  lastCheckOk       Boolean?
+  lastCheckMessage  String?
+
+  projects  Project[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([name])
+  @@index([provider])
+}
+
+/// Ein Vibe-Coding-Projekt – von der reinen Idee bis zum fertigen Repo.
+model Project {
+  id          String        @id @default(cuid())
+  name        String
+  slug        String        @unique
+  /// Einzeiler fuer die Karte im Dashboard.
+  summary     String?
+  /// Ausfuehrliche Beschreibung / Ideenskizze (Markdown-freundlich).
+  description String?
+  status      ProjectStatus @default(IDEA)
+  /// 1 = niedrig, 2 = normal, 3 = hoch, 4 = kritisch
+  priority    Int           @default(2)
+  /// Fortschritt in Prozent (0–100)
+  progress    Int           @default(0)
+  /// Akzentfarbe der Karte: violet | cyan | emerald | amber | rose | blue
+  accent      String        @default("violet")
+  tags        String[]      @default([])
+  favorite    Boolean       @default(false)
+
+  // ── Git-Anbindung ──────────────────────────────────────────
+  repoUrl       String?
+  /// Owner bzw. Namespace/Gruppe (bei GitLab auch verschachtelt: "gruppe/subgruppe")
+  repoOwner     String?
+  repoName      String?
+  defaultBranch String?
+  connectionId  String?
+  connection    GitConnection? @relation(fields: [connectionId], references: [id], onDelete: SetNull)
+
+  lastSyncedAt DateTime?
+  syncError    String?
+
+  notes    Note[]
+  snapshot RepoSnapshot?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([connectionId])
+  @@index([updatedAt])
+}
+
+/// Freie Notizen zu einem Projekt.
+model Note {
+  id        String   @id @default(cuid())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title     String?
+  content   String
+  pinned    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([projectId])
+  @@index([pinned])
+}
+
+/// Zwischengespeicherter Stand des verknuepften Repositories. Wird beim
+/// Sync ueberschrieben, damit das Dashboard auch ohne Netz Daten zeigt.
+model RepoSnapshot {
+  id        String  @id @default(cuid())
+  projectId String  @unique
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  fullName      String?
+  description   String?
+  defaultBranch String?
+  htmlUrl       String?
+  visibility    String?
+
+  stars            Int @default(0)
+  forks            Int @default(0)
+  openIssues       Int @default(0)
+  openPullRequests Int @default(0)
+  sizeKb           Int @default(0)
+
+  lastCommitSha     String?
+  lastCommitMessage String?
+  lastCommitAuthor  String?
+  lastCommitAt      DateTime?
+
+  latestTag         String?
+  latestRelease     String?
+  latestReleaseAt   DateTime?
+
+  branchCount Int @default(0)
+  tagCount    Int @default(0)
+
+  /// Rohdaten der Listen – bewusst als JSON, damit providerspezifische
+  /// Zusatzfelder nicht verloren gehen.
+  branches  Json @default("[]")
+  tags      Json @default("[]")
+  commits   Json @default("[]")
+  releases  Json @default("[]")
+  languages Json @default("{}")
+
+  pushedAt  DateTime?
+  fetchedAt DateTime @default(now())
+}
