@@ -298,6 +298,8 @@ nebula/
 | `npm run db:seed` | Beispielprojekte anlegen |
 | `npm run db:studio` | Prisma Studio öffnen |
 | `npm run db:reset` | Datenbank zurücksetzen (**löscht alles**) |
+| `npm test` | Unit-Tests (Vitest), unter einer Sekunde |
+| `npm run test:watch` | Tests im Beobachtungsmodus |
 | `npm run typecheck` | TypeScript prüfen |
 | `npm run docker:db` | Nur die Datenbank starten |
 | `npm run docker:up` / `docker:down` | Kompletten Stack starten / stoppen |
@@ -332,6 +334,7 @@ ausschließlich Daten des angemeldeten Kontos.
 | `GET` | `/api/projects/:id/export` | Ein Projekt (`?format=md` für Markdown) |
 | `POST` | `/api/projects/import` | Import, mit `dryRun` für die Vorschau |
 | `GET` | `/api/admin/backup` | Vollständige Sicherung als JSON (Admin) |
+| `GET` | `/api/search?q=` | Volltextsuche über die eigenen Notizen |
 | `GET` `PATCH` `DELETE` | `/api/projects/:id` | Projekt lesen / ändern / löschen |
 | `POST` | `/api/projects/:id/sync` | Repo-Daten vom Git-System holen |
 | `GET` `POST` | `/api/projects/:id/notes` | Notizen des Projekts |

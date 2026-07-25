@@ -107,9 +107,27 @@ Der Status ist **direkt auf der Projektkarte** umschaltbar, ohne den Detailberei
 - **Statusfilter** als Chips mit Trefferzähler, mehrere gleichzeitig kombinierbar.
 - **Sortierung** nach zuletzt geändert, Anlagedatum, Name, Fortschritt oder Priorität —
   Favoriten bleiben stets oben.
-- **Zwei Ansichten**: freies Raster oder nach Status gruppierte Abschnitte.
+- **Drei Ansichten**: freies Raster, nach Status gruppierte Abschnitte oder **Kanban**.
+- **Volltextsuche über Notizen.** Die Suche im Board arbeitet auf den geladenen Projekten
+  (Name, Kurzbeschreibung, Tags, Repo-Pfad). Notizen liegen dort nicht vor — sie
+  mitzuladen würde die Seite aufblähen. Stattdessen sucht Postgres serverseitig mit
+  seiner deutschen Textsuche, entprellt ab zwei Zeichen. Treffer erscheinen als eigene
+  Liste mit hervorgehobener Fundstelle, die betroffenen Projekte werden zusätzlich
+  eingeblendet. Deutsche Stammformen greifen: „Webhook" findet auch „Webhooks".
 - **Archiv** ist standardmäßig ausgeblendet und per Schalter einblendbar.
 - **Leerzustände** mit direktem Einstieg statt einer leeren Fläche.
+
+### Kanban
+
+Spalten je Status, Karten per Ziehen verschiebbar. Der Wechsel wird sofort angezeigt und
+erst danach gespeichert; scheitert das Speichern, springt die Karte zurück.
+
+- Gezogen wird am Griff links, nicht an der ganzen Karte — so bleibt der Titel ein
+  normaler Link.
+- Das Ziehen startet erst nach ein paar Pixeln Bewegung, damit Klicks weiter funktionieren.
+  Auf Touchgeräten nach kurzem Halten.
+- Die Reihenfolge innerhalb einer Spalte folgt der gewählten Sortierung. Frei sortieren
+  ginge nur mit einer gespeicherten Position — bewusst nicht gebaut.
 
 ### Projektkarte auf einen Blick
 
@@ -122,6 +140,10 @@ Anzahl Notizen · Warnung bei Sync-Fehler · Tags · Statusauswahl · Priorität
 ## 3. Notizen
 
 - **Beliebig viele Notizen pro Projekt**, mit optionalem Titel und mehrzeiligem Text.
+- **Markdown wird dargestellt** — Überschriften, Listen, Tabellen, Codeblöcke, Zitate und
+  Links. Aus `- [ ] Aufgabe` werden echte Checklisten. Gilt auch für die Projekt-
+  beschreibung. Rohes HTML wird beim Rendern entfernt (`rehype-sanitize`) — der Inhalt
+  stammt vom Benutzer und wäre sonst ein XSS-Loch.
 - **Anpinnen** — angepinnte Notizen stehen oben und sind farblich hervorgehoben.
 - **Bearbeiten und Löschen** direkt in der Liste; Löschen fragt nach.
 - **Zeitstempel**: Anlagedatum immer, „bearbeitet vor …" nur bei echter Änderung.
@@ -164,11 +186,27 @@ Firmen-Gitea nebeneinander.
 | --- | --- |
 | Repository | Voller Pfad, Beschreibung, Default-Branch, Sichtbarkeit, Größe, letzte Aktivität |
 | Kennzahlen | Stars, Forks, offene Issues, offene Pull-/Merge-Requests |
+| **Pull-/Merge-Requests** | bis zu 50 offene, mit Nummer, Titel, Autor, Alter, Labels, Entwurfskennzeichnung und Link |
+| **Issues** | bis zu 50 offene, gleiche Angaben. Bei GitHub und Gitea werden PRs herausgefiltert, die dort in derselben Liste stecken |
+| **CI-Status** | Letzter Lauf auf dem Default-Branch: erfolgreich, fehlgeschlagen, läuft, wartet oder abgebrochen — mit Name und Link |
 | Branches | bis zu 50, mit SHA, Default-Markierung, Schutzstatus und (wo die API es liefert) letztem Commit |
 | Tags | bis zu 25, mit SHA, Nachricht und Datum |
-| Commits | die letzten 15, mit Kurz-SHA, Nachricht, Autor, Datum und Link |
+| Commits | die letzten 15 zur Anzeige; geholt werden 100 für die Aktivitätskurve |
+| **Commit-Aktivität** | Balkenreihe der letzten Tage, auf Karte und Projektseite |
 | Releases | bis zu 10, inklusive Pre-Release- und Draft-Kennzeichnung |
 | Sprachen | Verteilung als Balken mit Prozentwerten |
+
+Woher der CI-Status kommt:
+
+| System | Quelle |
+| --- | --- |
+| GitHub | `actions/runs` für den Default-Branch; Lauf-Status und Ergebnis werden zusammengeführt |
+| GitLab | `pipelines` für den Default-Branch |
+| Gitea | Kombinierter Commit-Status — deckt Gitea Actions **und** externe Systeme wie Woodpecker ab, anders als ein reiner Actions-Endpunkt, den ältere Instanzen nicht kennen |
+
+Zur Ehrlichkeit der Aktivitätskurve: geholt wird eine Seite mit 100 Commits. Reicht die
+nicht über den ganzen Zeitraum, wird die Kurve auf den tatsächlich belegten Ausschnitt
+gekürzt — eine Null zu zeichnen, wo wir schlicht nichts wissen, wäre falsch.
 
 - **Snapshot-Prinzip**: Alle Daten werden in der Datenbank abgelegt. Das Dashboard bleibt
   ohne Netzverbindung oder bei erreichtem Rate-Limit vollständig nutzbar.
@@ -328,7 +366,22 @@ nicht verloren gehen. Indizes auf Status, Verbindung und Änderungsdatum.
 - **Setup-Skript** erzeugt die `.env` samt zufälligem `APP_SECRET`.
 - **Seed-Daten** auf Wunsch, idempotent — mehrfaches Ausführen legt nichts doppelt an.
 
-### 6.4 API
+### 6.4 Tests
+
+`npm test` führt die Unit-Tests aus — reine Logik, kein DOM, keine Datenbank, unter einer
+Sekunde:
+
+| Bereich | Was geprüft wird |
+| --- | --- |
+| `utils` | Slug-Erzeugung inklusive Umlauten und Längenbegrenzung, Tag-Aufbereitung, Kürzen, Zahlenformat |
+| `git/parse` | URL-Zerlegung für https, SSH, verschachtelte GitLab-Gruppen und Oberflächenpfade; Provider-Erkennung; Bildung der Aktivitätskurve |
+| `security/ssrf` | Sperrlisten für Loopback, Link-Local, Metadaten-Endpunkt, CGNAT und Multicast; Formprüfung; die drei Umgebungsschalter |
+| `auth/password` | scrypt-Rundlauf, unterschiedliches Salz, Ablageformat, Verhalten bei kaputten Hashes, Passwortregeln |
+
+Bewusst ohne Datenbank- und Browsertests: die brauchen Infrastruktur und gehören in eine
+CI-Pipeline. Das steht in der [ROADMAP](ROADMAP.md).
+
+### 6.5 API
 
 Zehn REST-Endpunkte für Projekte, Notizen, Verbindungen, Sync, Repo-Listen und Health.
 Alles, was die Oberfläche kann, ist damit auch scriptbar. Übersicht in der
