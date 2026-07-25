@@ -48,6 +48,88 @@ export const connectionCreateSchema = z.object({
 
 export const connectionUpdateSchema = connectionCreateSchema.partial();
 
+// ── Benutzer, Anmeldung, Verwaltung ──────────────────────────
+
+/** Benutzernamen werden immer kleingeschrieben gespeichert und verglichen. */
+export const usernameSchema = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .min(3, "Mindestens 3 Zeichen")
+  .max(32, "Hoechstens 32 Zeichen")
+  .regex(
+    /^[a-z0-9][a-z0-9._-]*$/,
+    "Erlaubt sind Kleinbuchstaben, Ziffern, Punkt, Bindestrich und Unterstrich",
+  );
+
+const passwordField = z.string().min(1, "Passwort fehlt").max(200);
+const emailField = z.preprocess(
+  emptyToNull,
+  z.string().trim().toLowerCase().email("Keine gueltige E-Mail-Adresse").nullable().optional(),
+);
+const displayNameField = z.preprocess(
+  emptyToNull,
+  z.string().trim().max(80).nullable().optional(),
+);
+
+export const setupSchema = z.object({
+  username: usernameSchema,
+  displayName: displayNameField,
+  email: emailField,
+  password: passwordField,
+  /** Betriebsart, die beim Einrichten gewaehlt wurde. */
+  mode: z.enum(["SINGLE_USER", "MULTI_USER"]).default("SINGLE_USER"),
+});
+
+export const loginSchema = z.object({
+  username: z.string().trim().toLowerCase().min(1, "Benutzername fehlt").max(64),
+  password: passwordField,
+});
+
+export const registerSchema = z.object({
+  username: usernameSchema,
+  displayName: displayNameField,
+  email: emailField,
+  password: passwordField,
+});
+
+export const changePasswordSchema = z.object({
+  /** Entfaellt bei Konten, die bisher nur einen Passkey haben. */
+  currentPassword: z.preprocess(emptyToNull, z.string().max(200).nullable().optional()),
+  newPassword: passwordField,
+});
+
+export const profileUpdateSchema = z.object({
+  displayName: displayNameField,
+  email: emailField,
+});
+
+export const adminSettingsSchema = z.object({
+  mode: z.enum(["SINGLE_USER", "MULTI_USER"]).optional(),
+  allowRegistration: z.boolean().optional(),
+});
+
+export const adminUserCreateSchema = z.object({
+  username: usernameSchema,
+  displayName: displayNameField,
+  email: emailField,
+  password: passwordField,
+  role: z.enum(["ADMIN", "USER"]).default("USER"),
+});
+
+export const adminUserUpdateSchema = z.object({
+  displayName: displayNameField,
+  email: emailField,
+  role: z.enum(["ADMIN", "USER"]).optional(),
+  isActive: z.boolean().optional(),
+  /** Neues Passwort setzen; leer lassen heisst unveraendert. */
+  password: z.preprocess(emptyToNull, z.string().max(200).nullable().optional()),
+});
+
+export const passkeyNameSchema = z.object({
+  name: z.preprocess(emptyToNull, z.string().trim().max(60).nullable().optional()),
+});
+
 export type ProjectCreateInput = z.infer<typeof projectCreateSchema>;
 export type ProjectUpdateInput = z.infer<typeof projectUpdateSchema>;
 export type NoteCreateInput = z.infer<typeof noteCreateSchema>;

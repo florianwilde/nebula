@@ -1,8 +1,18 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { GitBranch, LayoutDashboard, Sparkles } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import {
+  GitBranch,
+  LayoutDashboard,
+  LogOut,
+  Settings,
+  ShieldCheck,
+  Sparkles,
+  UserRound,
+} from "lucide-react";
+import type { SessionUser } from "@/lib/auth/session";
 import { cn } from "@/lib/utils";
 
 const LINKS = [
@@ -10,7 +20,15 @@ const LINKS = [
   { href: "/connections", label: "Git-Verbindungen", icon: GitBranch },
 ];
 
-export function TopNav() {
+export function TopNav({
+  user,
+  appName,
+  tagline,
+}: {
+  user: SessionUser | null;
+  appName: string;
+  tagline: string;
+}) {
   const pathname = usePathname();
 
   return (
@@ -22,35 +40,145 @@ export function TopNav() {
           </span>
           <span className="flex flex-col leading-none">
             <span className="text-gradient text-lg font-semibold tracking-tight">
-              Nebula
+              {appName}
             </span>
             <span className="mt-0.5 text-[10px] uppercase tracking-[0.2em] text-slate-500">
-              Vibe Coding
+              {tagline}
             </span>
           </span>
         </Link>
 
-        <nav className="flex items-center gap-1">
-          {LINKS.map(({ href, label, icon: Icon }) => {
-            const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
-            return (
-              <Link
-                key={href}
-                href={href}
-                className={cn(
-                  "flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors",
-                  active
-                    ? "bg-white/8 text-white"
-                    : "text-slate-400 hover:bg-white/5 hover:text-slate-100",
-                )}
-              >
-                <Icon className="h-4 w-4" />
-                <span className="hidden sm:inline">{label}</span>
-              </Link>
-            );
-          })}
-        </nav>
+        {user ? (
+          <>
+            <nav className="flex items-center gap-1">
+              {LINKS.map(({ href, label, icon: Icon }) => {
+                const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
+                return (
+                  <Link
+                    key={href}
+                    href={href}
+                    className={cn(
+                      "flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors",
+                      active
+                        ? "bg-white/8 text-white"
+                        : "text-slate-400 hover:bg-white/5 hover:text-slate-100",
+                    )}
+                  >
+                    <Icon className="h-4 w-4" />
+                    <span className="hidden sm:inline">{label}</span>
+                  </Link>
+                );
+              })}
+            </nav>
+
+            <div className="ml-auto">
+              <UserMenu user={user} />
+            </div>
+          </>
+        ) : null}
       </div>
     </header>
+  );
+}
+
+function UserMenu({ user }: { user: SessionUser }) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onPointerDown(event: MouseEvent) {
+      if (!containerRef.current?.contains(event.target as Node)) setOpen(false);
+    }
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  async function logout() {
+    setBusy(true);
+    await fetch("/api/auth/logout", { method: "POST" }).catch(() => undefined);
+    setOpen(false);
+    router.replace("/login");
+    router.refresh();
+  }
+
+  const label = user.displayName?.trim() || user.username;
+  const initials = label.slice(0, 2).toUpperCase();
+
+  return (
+    <div className="relative" ref={containerRef}>
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/4 py-1.5 pl-1.5 pr-3 text-sm text-slate-200 transition-colors hover:bg-white/8"
+        aria-haspopup="menu"
+        aria-expanded={open}
+      >
+        <span className="grid h-7 w-7 place-items-center rounded-lg bg-gradient-to-br from-violet-500/80 to-cyan-400/70 text-[11px] font-semibold text-white">
+          {initials}
+        </span>
+        <span className="hidden max-w-[10rem] truncate sm:inline">{label}</span>
+        {user.role === "ADMIN" ? (
+          <ShieldCheck className="hidden h-3.5 w-3.5 text-violet-300 sm:inline" />
+        ) : null}
+      </button>
+
+      {open ? (
+        <div
+          role="menu"
+          className="glass fade-up absolute right-0 z-50 mt-2 w-60 overflow-hidden p-1.5"
+        >
+          <div className="border-b border-white/6 px-3 py-2">
+            <p className="truncate text-sm text-slate-100">{label}</p>
+            <p className="truncate text-[11px] text-slate-500">
+              @{user.username}
+              {user.role === "ADMIN" ? " · Administrator" : ""}
+            </p>
+          </div>
+
+          <Link
+            href="/account"
+            role="menuitem"
+            onClick={() => setOpen(false)}
+            className="mt-1 flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-slate-300 transition-colors hover:bg-white/6 hover:text-white"
+          >
+            <UserRound className="h-4 w-4" />
+            Mein Konto
+          </Link>
+
+          {user.role === "ADMIN" ? (
+            <Link
+              href="/admin"
+              role="menuitem"
+              onClick={() => setOpen(false)}
+              className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-slate-300 transition-colors hover:bg-white/6 hover:text-white"
+            >
+              <Settings className="h-4 w-4" />
+              Admin-Einstellungen
+            </Link>
+          ) : null}
+
+          <button
+            type="button"
+            role="menuitem"
+            onClick={logout}
+            disabled={busy}
+            className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm text-rose-200 transition-colors hover:bg-rose-500/10 disabled:opacity-50"
+          >
+            <LogOut className="h-4 w-4" />
+            Abmelden
+          </button>
+        </div>
+      ) : null}
+    </div>
   );
 }
