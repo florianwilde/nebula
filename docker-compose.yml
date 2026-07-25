@@ -1,0 +1,78 @@
+name: nebula
+
+# ─────────────────────────────────────────────────────────────
+#  Zwei Betriebsarten aus einer Datei:
+#
+#  1) Standalone-Entwicklung – nur die Datenbank im Container:
+#       docker compose up -d db
+#       npm run dev
+#
+#  2) Alles im Container:
+#       docker compose --profile full up -d --build
+#
+#  Optionales DB-Webinterface:
+#       docker compose --profile tools up -d adminer   → http://localhost:8080
+# ─────────────────────────────────────────────────────────────
+
+services:
+  db:
+    image: postgres:17-alpine
+    container_name: nebula-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-nebula}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nebula}
+      POSTGRES_DB: ${POSTGRES_DB:-nebula}
+      # Deterministische Sortierung unabhaengig vom Host-Locale
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8"
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - nebula-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-nebula} -d ${POSTGRES_DB:-nebula}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  app:
+    profiles: ["full"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: nebula-app:latest
+    container_name: nebula-app
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-nebula}:${POSTGRES_PASSWORD:-nebula}@db:5432/${POSTGRES_DB:-nebula}?schema=public
+      # Unbedingt in der .env ueberschreiben – verschluesselt die Git-Tokens.
+      APP_SECRET: ${APP_SECRET:-nebula-dev-secret-bitte-in-der-env-aendern}
+      GIT_API_TIMEOUT_MS: ${GIT_API_TIMEOUT_MS:-15000}
+      NODE_ENV: production
+      PORT: 3000
+      HOSTNAME: 0.0.0.0
+    ports:
+      - "${APP_PORT:-3000}:3000"
+
+  adminer:
+    profiles: ["tools"]
+    image: adminer:latest
+    container_name: nebula-adminer
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      ADMINER_DEFAULT_SERVER: db
+      ADMINER_DESIGN: dracula
+    ports:
+      - "${ADMINER_PORT:-8080}:8080"
+
+volumes:
+  nebula-db-data:
+    name: nebula-db-data
