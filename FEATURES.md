@@ -215,6 +215,42 @@ Dateneinsicht. Ein Administrator sieht dadurch weiterhin keine fremden Projekte.
 
 ---
 
+## 4a. Export, Import und Sicherung
+
+### Projekte mitnehmen
+
+- **JSON-Export** einzeln oder für alle Projekte: Stammdaten, Notizen, Tags,
+  Repo-Verknüpfung. **Ohne Access Tokens** — die Verbindung wird nur beschrieben, das
+  Token muss beim Import neu hinterlegt werden. Auch ohne Snapshots (reproduzierbar) und
+  ohne Datenbank-IDs (gelten nur in der Quellinstanz).
+- **Markdown-Export** eines Projekts: Beschreibung, Kennzahlen, Notizen und der letzte
+  bekannte Git-Stand als lesbare Datei.
+- **Import mit Vorschau.** Die Datei wird streng geprüft, bevor irgendetwas passiert.
+  Abgeglichen wird über den Slug; bei Treffern stehen drei Strategien bereit:
+
+  | Strategie | Wirkung |
+  | --- | --- |
+  | Überspringen | Vorhandene bleiben unverändert |
+  | Zusätzlich anlegen | Kopie mit freiem Slug (`nebula` → `nebula-2`) |
+  | Ersetzen | Stammdaten überschreiben, Notizen austauschen |
+
+  Die Vorschau zeigt je Projekt, was geschähe, und weist auf fehlende Git-Verbindungen
+  hin. Erst ein zweiter Klick schreibt.
+
+### Sicherung
+
+- **JSON-Sicherung** im Adminbereich: Einstellungen, Konten, Verbindungen, Projekte und
+  Notizen in einer Datei. Passwörter als scrypt-Hash, Git-Tokens als Chiffrat — ohne
+  dasselbe `APP_SECRET` wertlos. Sitzungen und Passkeys bleiben draußen: erstere sind
+  kurzlebig, letztere hängen an Gerät und rpID.
+- **Datenbank-Sicherung** über `scripts/backup.*`: `pg_dump` im Container, mit
+  `--clean --if-exists`, also für sich allein einspielbar. Gegenstück ist
+  `scripts/restore.*`, das vor dem Überschreiben nachfragt und sich über einen Parameter
+  auf eine Wegwerf-Datenbank umlenken lässt — damit sich eine Sicherung prüfen lässt,
+  ohne die echte anzufassen.
+
+---
+
 ## 5. Oberfläche
 
 - **Dark Glassmorphism**: milchige Glasflächen, driftende Nebel im Hintergrund, feines

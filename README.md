@@ -199,6 +199,63 @@ Wer lieber von außen taktet, lässt den Automatismus aus und ruft
 
 ---
 
+## Export, Import und Sicherung
+
+### Projekte mitnehmen
+
+| Weg | Wo | Inhalt |
+| --- | --- | --- |
+| **Alle Projekte als JSON** | Dashboard → Datenbank-Symbol | Stammdaten, Notizen, Repo-Verknüpfung |
+| **Ein Projekt als JSON** | Projektseite → Download-Symbol | dasselbe, für ein Projekt |
+| **Ein Projekt als Markdown** | Projektseite → Download-Symbol | lesbar, inklusive letztem Git-Stand |
+| **Import** | Dashboard → Datenbank-Symbol | JSON einlesen, mit Vorschau |
+
+**Access Tokens sind nie enthalten.** Die Git-Verbindung wird nur beschrieben (Name,
+System, Basis-URL); nach dem Import muss das Token neu hinterlegt werden. Verweist eine
+importierte Datei auf eine hier unbekannte Verbindung, wird das Projekt ohne Verknüpfung
+angelegt und in der Vorschau angezeigt.
+
+Beim Import wird über den Slug abgeglichen. Für Treffer gibt es drei Strategien:
+
+- **Überspringen** — Vorhandene bleiben unverändert
+- **Zusätzlich anlegen** — Kopie mit freiem Slug (`nebula` → `nebula-2`)
+- **Ersetzen** — Stammdaten überschreiben, Notizen austauschen
+
+Vor dem Schreiben zeigt eine Vorschau, was passieren würde. Erst dann wird geschrieben.
+
+### Sicherung
+
+Zwei Wege, mit unterschiedlichem Zweck:
+
+**JSON-Sicherung** (Admin-Einstellungen → Sicherung) enthält Einstellungen, Konten,
+Verbindungen, Projekte und Notizen. Gut zum Umziehen. Passwörter liegen als scrypt-Hash
+vor, Git-Tokens als Chiffrat — ohne dasselbe `APP_SECRET` sind sie wertlos. Trotzdem
+vertraulich behandeln.
+
+**Datenbank-Sicherung** über `pg_dump` — das, was man zum Wiederherstellen einer kaputten
+Instanz braucht:
+
+```powershell
+.\scripts\backup.ps1                    # → .\backups\nebula-<datum>.sql
+.\scripts\restore.ps1 -File .\backups\nebula-....sql
+```
+
+```bash
+./scripts/backup.sh                     # → ./backups/nebula-<datum>.sql
+./scripts/restore.sh backups/nebula-....sql
+```
+
+Die Skripte lesen Benutzer und Datenbankname aus der `.env` und führen `pg_dump` im
+Container aus — auf dem Rechner selbst muss nichts installiert sein.
+
+> Eine Sicherung ist erst dann eine Sicherung, wenn du sie einmal zurückgespielt hast.
+> Das geht ohne Risiko in eine Wegwerf-Datenbank:
+>
+> ```powershell
+> docker exec nebula-db psql -U nebula -d postgres -c "CREATE DATABASE nebula_test"
+> .\scripts\restore.ps1 -File .\backups\nebula-....sql -Database nebula_test -Force
+> ```
+
 ## Projektstruktur
 
 ```
@@ -271,6 +328,10 @@ ausschließlich Daten des angemeldeten Kontos.
 | `GET` `POST` | `/api/admin/users` | Konten auflisten / anlegen (Admin) |
 | `PATCH` `DELETE` | `/api/admin/users/:id` | Konto ändern / löschen (Admin) |
 | `GET` `POST` | `/api/projects` | Projekte auflisten / anlegen |
+| `GET` | `/api/projects/export` | Alle eigenen Projekte als JSON |
+| `GET` | `/api/projects/:id/export` | Ein Projekt (`?format=md` für Markdown) |
+| `POST` | `/api/projects/import` | Import, mit `dryRun` für die Vorschau |
+| `GET` | `/api/admin/backup` | Vollständige Sicherung als JSON (Admin) |
 | `GET` `PATCH` `DELETE` | `/api/projects/:id` | Projekt lesen / ändern / löschen |
 | `POST` | `/api/projects/:id/sync` | Repo-Daten vom Git-System holen |
 | `GET` `POST` | `/api/projects/:id/notes` | Notizen des Projekts |

@@ -11,28 +11,7 @@ Was bereits steht, listet [FEATURES.md](FEATURES.md).
 
 ## 1 · Als Nächstes empfohlen
 
-### 1.1 Export und Import `M`
-
-Dein Vorschlag, in vier Stufen — jede für sich nutzbar:
-
-| Stufe | Inhalt |
-| --- | --- |
-| **Projekt-Export** | Ein Projekt oder alle als JSON: Stammdaten, Notizen, Repo-Verknüpfung. Ein Klick auf der Projektseite, einer im Dashboard für alles. |
-| **Projekt-Import** | JSON hochladen, Vorschau, dann übernehmen. Konfliktstrategie wählbar: überspringen · umbenennen · überschreiben. |
-| **Markdown-Export** | Ein Projekt als lesbares `.md` — Beschreibung, Notizen, aktueller Git-Stand. Gut zum Archivieren oder für ein README. |
-| **Voll-Backup** | `pg_dump` aus dem Container heraus, per Knopf im Adminbereich als Datei. Plus dokumentierter Rückweg. |
-
-**Offene Fragen, die wir klären sollten:**
-- **Git-Tokens mitexportieren?** Mein Vorschlag: **nein**. Die Verbindung wird
-  mitexportiert (Name, System, Basis-URL), das Token muss beim Import neu
-  hinterlegt werden. Ein Export-JSON landet sonst schnell irgendwo, wo es
-  nicht hingehört.
-- **Reichweite:** Export der eigenen Daten für jeden — Voll-Backup nur für
-  Administratoren?
-- **Snapshots mitnehmen?** Ich würde sie weglassen: sie sind reproduzierbar
-  und blähen die Datei auf. Ein Sync nach dem Import holt sie zurück.
-
-### 1.2 Markdown in Beschreibung und Notizen `S`
+### 1.1 Markdown in Beschreibung und Notizen `S`
 
 Heute wird alles als reiner Text dargestellt. Mit Markdown werden aus
 `- [ ] Aufgabe` echte Checklisten, Codeblöcke bekommen Hervorhebung, Links
@@ -41,13 +20,13 @@ werden klickbar.
 Zu beachten: HTML muss beim Rendern entfernt werden, sonst reißt es ein
 XSS-Loch. Mit `react-markdown` plus `rehype-sanitize` ist das sauber lösbar.
 
-### 1.3 Volltextsuche über Notizen `S`
+### 1.2 Volltextsuche über Notizen `S`
 
 Die Suche im Board deckt Namen, Kurzbeschreibung und Tags ab — Notizen nicht.
 Postgres kann das nativ (`tsvector` mit deutscher Konfiguration), also ohne
 zusätzlichen Dienst.
 
-### 1.4 Kanban-Board mit Drag & Drop `M`
+### 1.3 Kanban-Board mit Drag & Drop `M`
 
 Die gruppierte Ansicht gibt es schon, aber Statuswechsel geht nur über das
 Menü. Spalten mit Ziehen und Ablegen wären der natürlichere Weg.
@@ -176,3 +155,9 @@ Damit klar ist, was **nicht** kommt und warum:
 | Härtung: CSRF, CSP, SSRF, Ratenbegrenzung, Datentrennung | ✓ |
 | Docker- und Standalone-Betrieb | ✓ |
 | Automatischer Abgleich mit Zeitplan | ✓ |
+| Export, Import und Sicherung | ✓ |
+
+Zur Entscheidung beim Export: Git-Tokens gehen **nicht** mit. Die Verbindung wird nur
+beschrieben, das Token ist nach dem Import neu zu hinterlegen. Snapshots bleiben
+ebenfalls draußen — sie sind reproduzierbar. Der Projekt-Export steht jedem Konto für
+seine eigenen Daten offen, die Voll-Sicherung nur Administratoren.
