@@ -1,6 +1,6 @@
 {
   "name": "nebula",
-  "version": "0.1.0",
+  "version": "0.4.0",
   "private": true,
   "description": "Nebula – Dashboard fuer Vibe-Coding Projekte mit Git-Anbindung (GitHub, GitLab, Gitea)",
   "scripts": {
@@ -23,12 +23,17 @@
     "docker:logs": "docker compose --profile full logs -f app",
     "docker:tools": "docker compose --profile tools up -d",
     "setup": "node scripts/setup.mjs",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/modifiers": "^9.0.0",
+    "@dnd-kit/sortable": "^10.0.0",
     "@prisma/client": "^6.8.2",
     "@simplewebauthn/browser": "^13.3.0",
     "@simplewebauthn/server": "^13.3.2",
@@ -36,6 +41,9 @@
     "next": "^15.3.3",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
+    "react-markdown": "^10.1.0",
+    "rehype-sanitize": "^6.0.0",
+    "remark-gfm": "^4.0.1",
     "zod": "^3.25.28"
   },
   "devDependencies": {
@@ -46,7 +54,8 @@
     "prisma": "^6.8.2",
     "tailwindcss": "^4.1.7",
     "tsx": "^4.19.4",
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "vitest": "^4.1.10"
   },
   "engines": {
     "node": ">=20.11"

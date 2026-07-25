@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { FileText } from "lucide-react";
 import { GitPanel } from "@/components/GitPanel";
+import { Markdown } from "@/components/Markdown";
 import { NotesPanel } from "@/components/NotesPanel";
 import { ProjectHeader } from "@/components/ProjectHeader";
 import { requireUserPage } from "@/lib/auth/guard";
@@ -66,9 +67,7 @@ export default async function ProjectPage({ params }: PageProps) {
               Beschreibung
             </h2>
             {detail.description ? (
-              <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-relaxed text-slate-300">
-                {detail.description}
-              </p>
+              <Markdown className="mt-3">{detail.description}</Markdown>
             ) : (
               <p className="mt-3 text-sm text-slate-500">
                 Keine Beschreibung hinterlegt. Ueber „Bearbeiten“ kannst du die Idee ausformulieren.

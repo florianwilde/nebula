@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, NotebookPen, Pencil, Pin, PinOff, Plus, Trash2, X } from "lucide-react";
 import type { Note } from "@prisma/client";
+import { Markdown } from "@/components/Markdown";
 import { cn, formatDateTime, formatRelative } from "@/lib/utils";
 
 /** Nur als "bearbeitet" zaehlen, wenn wirklich spaeter geaendert wurde. */
@@ -118,7 +119,7 @@ export function NotesPanel({ projectId, notes }: { projectId: string; notes: Not
           />
           <textarea
             className="field min-h-32 resize-y font-mono text-[13px] leading-relaxed"
-            placeholder="Gedanken, Todos, Snippets… Zeilenumbrueche bleiben erhalten."
+            placeholder={"Gedanken, Todos, Snippets…\n\nMarkdown wird dargestellt:\n- [ ] offene Aufgabe\n**fett**, `code`, [Link](https://…)"}
             value={content}
             onChange={(event) => setContent(event.target.value)}
             autoFocus
@@ -161,9 +162,7 @@ export function NotesPanel({ projectId, notes }: { projectId: string; notes: Not
                     {note.title}
                   </h3>
                 ) : null}
-                <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-relaxed text-slate-300">
-                  {note.content}
-                </p>
+                <Markdown className="mt-1">{note.content}</Markdown>
                 <p className="mt-2.5 text-[11px] text-slate-600" suppressHydrationWarning>
                   {formatDateTime(note.createdAt)}
                   {wasEdited(note) ? ` · bearbeitet ${formatRelative(note.updatedAt)}` : null}
