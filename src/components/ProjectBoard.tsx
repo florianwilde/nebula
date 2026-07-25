@@ -1,10 +1,22 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { LayoutGrid, ListFilter, Plus, Rows3, Search, X } from "lucide-react";
+import { useMemo, useRef, useState } from "react";
+import {
+  Database,
+  Download,
+  LayoutGrid,
+  ListFilter,
+  Plus,
+  Rows3,
+  Search,
+  Upload,
+  X,
+} from "lucide-react";
 import type { ProjectStatus } from "@prisma/client";
+import { ImportDialog } from "@/components/ImportDialog";
 import { ProjectCard } from "@/components/ProjectCard";
 import { ProjectDialog } from "@/components/ProjectDialog";
+import { Popover } from "@/components/ui/Popover";
 import { STATUS_META, STATUS_ORDER } from "@/lib/status";
 import { cn } from "@/lib/utils";
 import type { ConnectionSafe, ProjectListItem } from "@/types";
@@ -33,6 +45,9 @@ export function ProjectBoard({
   const [view, setView] = useState<ViewMode>("grid");
   const [showArchived, setShowArchived] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [dataMenuOpen, setDataMenuOpen] = useState(false);
+  const dataButtonRef = useRef<HTMLButtonElement>(null);
 
   const counts = useMemo(() => {
     const map = new Map<ProjectStatus, number>();
@@ -165,6 +180,19 @@ export function ProjectBoard({
               </button>
             </div>
 
+            <button
+              ref={dataButtonRef}
+              type="button"
+              onClick={() => setDataMenuOpen((value) => !value)}
+              className="rounded-xl border border-white/9 p-2 text-slate-500 transition-colors hover:text-white"
+              aria-label="Daten exportieren oder importieren"
+              title="Export und Import"
+              aria-haspopup="menu"
+              aria-expanded={dataMenuOpen}
+            >
+              <Database className="h-4 w-4" />
+            </button>
+
             <button type="button" className="btn btn-primary" onClick={() => setDialogOpen(true)}>
               <Plus className="h-4 w-4" />
               <span className="hidden sm:inline">Neues Projekt</span>
@@ -267,11 +295,54 @@ export function ProjectBoard({
         </div>
       )}
 
+      <Popover
+        anchorRef={dataButtonRef}
+        open={dataMenuOpen}
+        onClose={() => setDataMenuOpen(false)}
+        width={260}
+      >
+        <a
+          href="/api/projects/export"
+          download
+          role="menuitem"
+          onClick={() => setDataMenuOpen(false)}
+          className="flex items-start gap-2.5 rounded-lg px-3 py-2 text-sm text-slate-300 transition-colors hover:bg-white/6 hover:text-white"
+        >
+          <Download className="mt-0.5 h-4 w-4 shrink-0 text-violet-300" />
+          <span>
+            Alle Projekte exportieren
+            <span className="mt-0.5 block text-[11px] text-slate-500">
+              JSON mit Notizen, ohne Access Tokens
+            </span>
+          </span>
+        </a>
+
+        <button
+          type="button"
+          role="menuitem"
+          onClick={() => {
+            setDataMenuOpen(false);
+            setImportOpen(true);
+          }}
+          className="flex w-full items-start gap-2.5 rounded-lg px-3 py-2 text-left text-sm text-slate-300 transition-colors hover:bg-white/6 hover:text-white"
+        >
+          <Upload className="mt-0.5 h-4 w-4 shrink-0 text-cyan-300" />
+          <span>
+            Projekte importieren
+            <span className="mt-0.5 block text-[11px] text-slate-500">
+              Mit Vorschau vor dem Schreiben
+            </span>
+          </span>
+        </button>
+      </Popover>
+
       <ProjectDialog
         open={dialogOpen}
         onClose={() => setDialogOpen(false)}
         connections={connections}
       />
+
+      <ImportDialog open={importOpen} onClose={() => setImportOpen(false)} />
     </section>
   );
 }

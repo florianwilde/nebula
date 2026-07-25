@@ -5,12 +5,15 @@ import { useRouter } from "next/navigation";
 import {
   Ban,
   CheckCircle2,
+  Database,
+  Download,
   Fingerprint,
   FolderGit2,
   Loader2,
   Lock,
   Plus,
   RefreshCw,
+  ShieldAlert,
   ShieldCheck,
   Trash2,
   User,
@@ -224,6 +227,40 @@ export function AdminManager({ data }: { data: AdminData }) {
             </dd>
           </div>
         </dl>
+      </section>
+
+      {/* ── Sicherung ───────────────────────────────────── */}
+      <section className="glass p-5">
+        <div className="mb-4 flex items-start gap-3">
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-amber-500/12 text-amber-300">
+            <Database className="h-4 w-4" />
+          </span>
+          <div>
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-200">
+              Sicherung
+            </h2>
+            <p className="mt-1 max-w-2xl text-sm text-slate-400">
+              Vollstaendige Sicherung der Instanz als JSON: Einstellungen, Konten,
+              Verbindungen, Projekte und Notizen.
+            </p>
+          </div>
+        </div>
+
+        <a href="/api/admin/backup" download className="btn btn-ghost">
+          <Download className="h-4 w-4" />
+          Sicherung herunterladen
+        </a>
+
+        <p className="mt-3 flex items-start gap-2 rounded-lg border border-amber-500/25 bg-amber-500/8 px-3 py-2 text-[11px] leading-snug text-amber-200/90">
+          <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <span>
+            Die Datei enthaelt Passwort-Hashes und verschluesselte Git-Tokens. Die Tokens
+            sind nur mit demselben <code>APP_SECRET</code> wieder lesbar, Passwoerter
+            liegen als scrypt-Hash vor – trotzdem vertraulich behandeln. Fuer eine
+            byteweise Sicherung der Datenbank gibt es <code>scripts/backup.ps1</code>{" "}
+            beziehungsweise <code>scripts/backup.sh</code> mit <code>pg_dump</code>.
+          </span>
+        </p>
       </section>
 
       {/* ── Benutzer ────────────────────────────────────── */}

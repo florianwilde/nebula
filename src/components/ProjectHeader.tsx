@@ -1,12 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowLeft,
   CalendarDays,
+  Download,
   ExternalLink,
+  FileJson,
+  FileText,
   Loader2,
   Pencil,
   Star,
@@ -14,6 +17,7 @@ import {
 } from "lucide-react";
 import { ProjectDialog } from "@/components/ProjectDialog";
 import { StatusSelect } from "@/components/StatusSelect";
+import { Popover } from "@/components/ui/Popover";
 import { PRIORITY_META, accentOf } from "@/lib/status";
 import { cn, formatDate } from "@/lib/utils";
 import type { ConnectionSafe, ProjectDetail } from "@/types";
@@ -30,6 +34,8 @@ export function ProjectHeader({
   const priority = PRIORITY_META[project.priority] ?? PRIORITY_META[2];
 
   const [editOpen, setEditOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
+  const exportButtonRef = useRef<HTMLButtonElement>(null);
   const [favorite, setFavorite] = useState(project.favorite);
   const [progress, setProgress] = useState(project.progress);
   const [deleting, setDeleting] = useState(false);
@@ -163,6 +169,17 @@ export function ProjectHeader({
           <StatusSelect projectId={project.id} status={project.status} />
           <div className="flex gap-2">
             <button
+              ref={exportButtonRef}
+              type="button"
+              className="btn btn-ghost px-2.5 py-1.5 text-xs"
+              onClick={() => setExportOpen((value) => !value)}
+              aria-haspopup="menu"
+              aria-expanded={exportOpen}
+              title="Exportieren"
+            >
+              <Download className="h-3.5 w-3.5" />
+            </button>
+            <button
               type="button"
               className="btn btn-ghost px-3 py-1.5 text-xs"
               onClick={() => setEditOpen(true)}
@@ -210,6 +227,44 @@ export function ProjectHeader({
           style={{ "--fill": `${progress}%` } as React.CSSProperties}
         />
       </div>
+
+      <Popover
+        anchorRef={exportButtonRef}
+        open={exportOpen}
+        onClose={() => setExportOpen(false)}
+        width={250}
+      >
+        <a
+          href={`/api/projects/${project.id}/export`}
+          download
+          role="menuitem"
+          onClick={() => setExportOpen(false)}
+          className="flex items-start gap-2.5 rounded-lg px-3 py-2 text-sm text-slate-300 transition-colors hover:bg-white/6 hover:text-white"
+        >
+          <FileJson className="mt-0.5 h-4 w-4 shrink-0 text-violet-300" />
+          <span>
+            Als JSON
+            <span className="mt-0.5 block text-[11px] text-slate-500">
+              Zum Wiedereinlesen, mit Notizen
+            </span>
+          </span>
+        </a>
+        <a
+          href={`/api/projects/${project.id}/export?format=md`}
+          download
+          role="menuitem"
+          onClick={() => setExportOpen(false)}
+          className="flex items-start gap-2.5 rounded-lg px-3 py-2 text-sm text-slate-300 transition-colors hover:bg-white/6 hover:text-white"
+        >
+          <FileText className="mt-0.5 h-4 w-4 shrink-0 text-cyan-300" />
+          <span>
+            Als Markdown
+            <span className="mt-0.5 block text-[11px] text-slate-500">
+              Lesbar, inklusive Git-Stand
+            </span>
+          </span>
+        </a>
+      </Popover>
 
       <ProjectDialog
         open={editOpen}
