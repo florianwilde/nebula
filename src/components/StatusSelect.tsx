@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Check, ChevronDown, Loader2 } from "lucide-react";
 import type { ProjectStatus } from "@prisma/client";
+import { Popover } from "@/components/ui/Popover";
 import { STATUS_META, STATUS_ORDER, statusOf } from "@/lib/status";
 import { cn } from "@/lib/utils";
 
@@ -22,6 +23,7 @@ export function StatusSelect({
   onChanged,
 }: StatusSelectProps) {
   const router = useRouter();
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
   const [current, setCurrent] = useState<ProjectStatus>(status);
   const [pending, startTransition] = useTransition();
@@ -54,10 +56,12 @@ export function StatusSelect({
   }
 
   return (
-    <div className="relative">
+    <>
       <button
+        ref={triggerRef}
         type="button"
         onClick={(event) => {
+          // Die Karte im Board ist ein Link – der darf hier nicht ausloesen.
           event.preventDefault();
           event.stopPropagation();
           setOpen((value) => !value);
@@ -82,60 +86,49 @@ export function StatusSelect({
         <ChevronDown className="h-3 w-3 opacity-60" />
       </button>
 
-      {open ? (
-        <>
-          <button
-            type="button"
-            aria-label="Auswahl schliessen"
-            className="fixed inset-0 z-30 cursor-default"
-            onClick={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              setOpen(false);
-            }}
-          />
-          <div
-            role="listbox"
-            className="glass fade-up absolute right-0 z-40 mt-2 w-60 overflow-hidden p-1.5"
-          >
-            {STATUS_ORDER.map((value) => {
-              const option = STATUS_META[value];
-              const active = value === current;
-              return (
-                <button
-                  key={value}
-                  type="button"
-                  role="option"
-                  aria-selected={active}
-                  onClick={(event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    void select(value);
-                  }}
-                  className={cn(
-                    "flex w-full items-start gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors",
-                    active ? "bg-white/8" : "hover:bg-white/5",
-                  )}
-                >
-                  <span
-                    className="mt-1.5 h-2 w-2 shrink-0 rounded-full"
-                    style={{ backgroundColor: option.color }}
-                  />
-                  <span className="min-w-0 flex-1">
-                    <span className="flex items-center gap-2 text-sm text-slate-100">
-                      {option.label}
-                      {active ? <Check className="h-3 w-3 text-violet-300" /> : null}
-                    </span>
-                    <span className="mt-0.5 block text-[11px] leading-snug text-slate-500">
-                      {option.description}
-                    </span>
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </>
-      ) : null}
-    </div>
+      <Popover
+        anchorRef={triggerRef}
+        open={open}
+        onClose={() => setOpen(false)}
+        role="listbox"
+        width={264}
+      >
+        {STATUS_ORDER.map((value) => {
+          const option = STATUS_META[value];
+          const active = value === current;
+          return (
+            <button
+              key={value}
+              type="button"
+              role="option"
+              aria-selected={active}
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                void select(value);
+              }}
+              className={cn(
+                "flex w-full items-start gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors",
+                active ? "bg-white/8" : "hover:bg-white/6",
+              )}
+            >
+              <span
+                className="mt-1.5 h-2 w-2 shrink-0 rounded-full"
+                style={{ backgroundColor: option.color }}
+              />
+              <span className="min-w-0 flex-1">
+                <span className="flex items-center gap-2 text-sm text-slate-100">
+                  {option.label}
+                  {active ? <Check className="h-3 w-3 text-violet-300" /> : null}
+                </span>
+                <span className="mt-0.5 block text-[11px] leading-snug text-slate-500">
+                  {option.description}
+                </span>
+              </span>
+            </button>
+          );
+        })}
+      </Popover>
+    </>
   );
 }

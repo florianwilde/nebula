@@ -69,6 +69,24 @@
     opacity: 0.85;
   }
 
+  /**
+   * Flaeche fuer alles, was ueber dem Inhalt schwebt: Menues, Dialoge.
+   *
+   * Bewusst nahezu deckend statt Glas. Ein Overlay muss lesbar sein, egal
+   * was darunter liegt - bei 3,5 % Deckkraft schien der Inhalt dahinter
+   * durch. backdrop-filter hilft hier nicht: liegt das Element in einem
+   * Vorfahren, der selbst backdrop-filter setzt (unsere Karten), bleibt die
+   * Weichzeichnung wirkungslos.
+   */
+  .popover {
+    background: rgba(9, 11, 24, 0.97);
+    border: 1px solid rgba(255, 255, 255, 0.11);
+    border-radius: 0.9rem;
+    box-shadow:
+      0 1px 0 0 rgba(255, 255, 255, 0.07) inset,
+      0 28px 70px -24px rgba(0, 0, 0, 0.95);
+  }
+
   /* ── Text & Akzente ───────────────────────────────────────── */
 
   .text-gradient {

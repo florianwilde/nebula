@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -12,6 +12,7 @@ import {
   Sparkles,
   UserRound,
 } from "lucide-react";
+import { Popover } from "@/components/ui/Popover";
 import type { SessionUser } from "@/lib/auth/session";
 import { cn } from "@/lib/utils";
 
@@ -85,23 +86,7 @@ function UserMenu({ user }: { user: SessionUser }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    function onPointerDown(event: MouseEvent) {
-      if (!containerRef.current?.contains(event.target as Node)) setOpen(false);
-    }
-    function onKey(event: KeyboardEvent) {
-      if (event.key === "Escape") setOpen(false);
-    }
-    document.addEventListener("mousedown", onPointerDown);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onPointerDown);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [open]);
+  const triggerRef = useRef<HTMLButtonElement>(null);
 
   async function logout() {
     setBusy(true);
@@ -115,8 +100,9 @@ function UserMenu({ user }: { user: SessionUser }) {
   const initials = label.slice(0, 2).toUpperCase();
 
   return (
-    <div className="relative" ref={containerRef}>
+    <>
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setOpen((value) => !value)}
         className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/4 py-1.5 pl-1.5 pr-3 text-sm text-slate-200 transition-colors hover:bg-white/8"
@@ -132,53 +118,48 @@ function UserMenu({ user }: { user: SessionUser }) {
         ) : null}
       </button>
 
-      {open ? (
-        <div
-          role="menu"
-          className="glass fade-up absolute right-0 z-50 mt-2 w-60 overflow-hidden p-1.5"
-        >
-          <div className="border-b border-white/6 px-3 py-2">
-            <p className="truncate text-sm text-slate-100">{label}</p>
-            <p className="truncate text-[11px] text-slate-500">
-              @{user.username}
-              {user.role === "ADMIN" ? " · Administrator" : ""}
-            </p>
-          </div>
+      <Popover anchorRef={triggerRef} open={open} onClose={() => setOpen(false)} width={240}>
+        <div className="border-b border-white/6 px-3 py-2">
+          <p className="truncate text-sm text-slate-100">{label}</p>
+          <p className="truncate text-[11px] text-slate-500">
+            @{user.username}
+            {user.role === "ADMIN" ? " · Administrator" : ""}
+          </p>
+        </div>
 
+        <Link
+          href="/account"
+          role="menuitem"
+          onClick={() => setOpen(false)}
+          className="mt-1 flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-slate-300 transition-colors hover:bg-white/6 hover:text-white"
+        >
+          <UserRound className="h-4 w-4" />
+          Mein Konto
+        </Link>
+
+        {user.role === "ADMIN" ? (
           <Link
-            href="/account"
+            href="/admin"
             role="menuitem"
             onClick={() => setOpen(false)}
-            className="mt-1 flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-slate-300 transition-colors hover:bg-white/6 hover:text-white"
+            className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-slate-300 transition-colors hover:bg-white/6 hover:text-white"
           >
-            <UserRound className="h-4 w-4" />
-            Mein Konto
+            <Settings className="h-4 w-4" />
+            Admin-Einstellungen
           </Link>
+        ) : null}
 
-          {user.role === "ADMIN" ? (
-            <Link
-              href="/admin"
-              role="menuitem"
-              onClick={() => setOpen(false)}
-              className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-slate-300 transition-colors hover:bg-white/6 hover:text-white"
-            >
-              <Settings className="h-4 w-4" />
-              Admin-Einstellungen
-            </Link>
-          ) : null}
-
-          <button
-            type="button"
-            role="menuitem"
-            onClick={logout}
-            disabled={busy}
-            className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm text-rose-200 transition-colors hover:bg-rose-500/10 disabled:opacity-50"
-          >
-            <LogOut className="h-4 w-4" />
-            Abmelden
-          </button>
-        </div>
-      ) : null}
-    </div>
+        <button
+          type="button"
+          role="menuitem"
+          onClick={logout}
+          disabled={busy}
+          className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm text-rose-200 transition-colors hover:bg-rose-500/10 disabled:opacity-50"
+        >
+          <LogOut className="h-4 w-4" />
+          Abmelden
+        </button>
+      </Popover>
+    </>
   );
 }

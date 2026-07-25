@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -14,6 +15,14 @@ interface ModalProps {
   width?: "md" | "lg" | "xl";
 }
 
+/**
+ * Dialog per Portal am body.
+ *
+ * Ohne Portal waere "position: fixed" wirkungslos: Dialoge werden aus Karten
+ * heraus geoeffnet, und deren backdrop-filter erzeugt einen neuen
+ * Bezugsrahmen. Der Dialog wuerde sich dann an der Karte ausrichten statt am
+ * Fenster.
+ */
 export function Modal({
   open,
   title,
@@ -23,6 +32,10 @@ export function Modal({
   footer,
   width = "lg",
 }: ModalProps) {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => setMounted(true), []);
+
   useEffect(() => {
     if (!open) return;
     const onKey = (event: KeyboardEvent) => {
@@ -37,22 +50,22 @@ export function Modal({
     };
   }, [open, onClose]);
 
-  if (!open) return null;
+  if (!mounted || !open) return null;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-4 sm:p-8">
+  return createPortal(
+    <div className="fixed inset-0 z-[120] flex items-start justify-center overflow-y-auto p-4 sm:p-8">
       <button
         type="button"
         aria-label="Dialog schliessen"
         onClick={onClose}
-        className="fixed inset-0 cursor-default bg-[#03040c]/80 backdrop-blur-sm"
+        className="fixed inset-0 cursor-default bg-[#03040c]/85 backdrop-blur-sm"
       />
       <div
         role="dialog"
         aria-modal="true"
         aria-label={title}
         className={cn(
-          "glass fade-up relative z-10 my-auto w-full p-6",
+          "popover fade-up relative z-10 my-auto w-full rounded-2xl p-6",
           width === "md" && "max-w-lg",
           width === "lg" && "max-w-2xl",
           width === "xl" && "max-w-4xl",
@@ -79,6 +92,7 @@ export function Modal({
 
         {footer ? <div className="mt-6 flex justify-end gap-2">{footer}</div> : null}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
