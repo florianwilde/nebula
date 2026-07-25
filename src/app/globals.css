@@ -1,8 +1,14 @@
 @import "tailwindcss";
+@import "./components.css";
 
 /* ─────────────────────────────────────────────────────────────
    Nebula – Designsystem
    Dark Glassmorphism mit Neon-Akzenten.
+
+   Hier stehen Theme-Variablen, Grundlayout und Hintergrund.
+   Die wiederverwendbaren Bausteine (.glass, .btn, .field …) liegen in
+   components.css, damit sie in @layer components landen und Tailwind-
+   Utilities sie ueberschreiben koennen.
    ───────────────────────────────────────────────────────────── */
 
 @theme {
@@ -25,22 +31,50 @@
   --glass-highlight: rgba(255, 255, 255, 0.16);
 }
 
-* {
-  border-color: var(--glass-border);
-}
+@layer base {
+  * {
+    border-color: var(--glass-border);
+  }
 
-html,
-body {
-  min-height: 100%;
-}
+  html,
+  body {
+    min-height: 100%;
+  }
 
-body {
-  background-color: var(--color-void);
-  color: #e6e8f5;
-  font-family: var(--font-sans);
-  -webkit-font-smoothing: antialiased;
-  text-rendering: optimizeLegibility;
-  overflow-x: hidden;
+  body {
+    background-color: var(--color-void);
+    color: #e6e8f5;
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    overflow-x: hidden;
+  }
+
+  ::selection {
+    background: rgba(139, 92, 246, 0.35);
+    color: #fff;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.22);
+    border-radius: 9999px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(167, 139, 250, 0.5);
+    background-clip: content-box;
+  }
 }
 
 /* ── Hintergrund: langsam driftende Nebel ───────────────────── */
@@ -125,176 +159,7 @@ body {
   to { transform: translate3d(4rem, -6rem, 0) scale(1.1); }
 }
 
-/* ── Glasflaechen ───────────────────────────────────────────── */
-
-.glass {
-  position: relative;
-  background: var(--glass-bg);
-  border: 1px solid var(--glass-border);
-  backdrop-filter: blur(18px) saturate(140%);
-  -webkit-backdrop-filter: blur(18px) saturate(140%);
-  border-radius: var(--radius-card);
-  box-shadow:
-    0 1px 0 0 var(--glass-highlight) inset,
-    0 24px 60px -30px rgba(0, 0, 0, 0.9);
-}
-
-.glass-soft {
-  background: rgba(255, 255, 255, 0.025);
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border-radius: 0.9rem;
-}
-
-/* Karte mit Akzent-Glow. --accent-from/--accent-to setzt die Komponente. */
-.card-glow {
-  transition:
-    transform 0.35s cubic-bezier(0.22, 1, 0.36, 1),
-    box-shadow 0.35s ease,
-    border-color 0.35s ease;
-}
-
-.card-glow::before {
-  content: "";
-  position: absolute;
-  inset: -1px;
-  border-radius: inherit;
-  padding: 1px;
-  background: linear-gradient(135deg, var(--accent-from, #8b5cf6), var(--accent-to, #d946ef));
-  -webkit-mask:
-    linear-gradient(#000 0 0) content-box,
-    linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  opacity: 0;
-  transition: opacity 0.35s ease;
-  pointer-events: none;
-}
-
-.card-glow:hover {
-  transform: translateY(-4px);
-  box-shadow:
-    0 1px 0 0 var(--glass-highlight) inset,
-    0 30px 70px -30px rgba(0, 0, 0, 0.95),
-    0 0 46px -12px var(--accent-from, #8b5cf6);
-}
-
-.card-glow:hover::before {
-  opacity: 0.85;
-}
-
-/* ── Text & Akzente ─────────────────────────────────────────── */
-
-.text-gradient {
-  background: linear-gradient(120deg, #c4b5fd 0%, #67e8f9 45%, #f0abfc 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-}
-
-.accent-bar {
-  background: linear-gradient(90deg, var(--accent-from, #8b5cf6), var(--accent-to, #d946ef));
-}
-
-.accent-dot {
-  box-shadow: 0 0 12px 1px currentColor;
-}
-
-/* ── Buttons ────────────────────────────────────────────────── */
-
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  border-radius: 0.75rem;
-  font-size: 0.875rem;
-  font-weight: 500;
-  padding: 0.55rem 1rem;
-  transition: all 0.2s ease;
-  cursor: pointer;
-  white-space: nowrap;
-  border: 1px solid transparent;
-}
-
-.btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.btn-primary {
-  background: linear-gradient(120deg, #7c3aed, #c026d3);
-  color: #fff;
-  box-shadow: 0 10px 30px -12px rgba(168, 85, 247, 0.9);
-}
-
-.btn-primary:hover:not(:disabled) {
-  filter: brightness(1.12);
-  box-shadow: 0 14px 36px -12px rgba(168, 85, 247, 1);
-}
-
-.btn-ghost {
-  background: rgba(255, 255, 255, 0.04);
-  border-color: rgba(255, 255, 255, 0.1);
-  color: #cbd5f5;
-}
-
-.btn-ghost:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.09);
-  color: #fff;
-}
-
-.btn-danger {
-  background: rgba(244, 63, 94, 0.12);
-  border-color: rgba(244, 63, 94, 0.35);
-  color: #fda4af;
-}
-
-.btn-danger:hover:not(:disabled) {
-  background: rgba(244, 63, 94, 0.22);
-  color: #fff;
-}
-
-/* ── Formularfelder ─────────────────────────────────────────── */
-
-.field {
-  width: 100%;
-  border-radius: 0.75rem;
-  background: rgba(8, 10, 24, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.09);
-  padding: 0.6rem 0.85rem;
-  font-size: 0.875rem;
-  color: #e6e8f5;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
-}
-
-.field::placeholder {
-  color: rgba(148, 163, 184, 0.6);
-}
-
-.field:focus {
-  outline: none;
-  border-color: rgba(167, 139, 250, 0.6);
-  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.18);
-}
-
-.field-label {
-  display: block;
-  font-size: 0.7rem;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: rgba(148, 163, 184, 0.85);
-  margin-bottom: 0.4rem;
-}
-
-select.field option {
-  background: #0a0c1a;
-  color: #e6e8f5;
-}
-
-/* ── Sonstiges ──────────────────────────────────────────────── */
+/* ── Bewegung & Effekte ─────────────────────────────────────── */
 
 .shimmer {
   background: linear-gradient(
@@ -329,29 +194,6 @@ select.field option {
   0% { box-shadow: 0 0 0 0 currentColor; opacity: 0.7; }
   70% { box-shadow: 0 0 0 8px transparent; opacity: 0; }
   100% { box-shadow: 0 0 0 0 transparent; opacity: 0; }
-}
-
-::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  background: rgba(148, 163, 184, 0.22);
-  border-radius: 9999px;
-  border: 2px solid transparent;
-  background-clip: content-box;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(167, 139, 250, 0.5);
-  background-clip: content-box;
-}
-
-::selection {
-  background: rgba(139, 92, 246, 0.35);
-  color: #fff;
 }
 
 @media (prefers-reduced-motion: reduce) {
