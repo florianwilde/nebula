@@ -172,6 +172,38 @@ Firmen-Gitea nebeneinander.
 
 - **Snapshot-Prinzip**: Alle Daten werden in der Datenbank abgelegt. Das Dashboard bleibt
   ohne Netzverbindung oder bei erreichtem Rate-Limit vollständig nutzbar.
+
+### 4.4 Automatischer Abgleich
+
+Standardmäßig **aus** — jeder Durchlauf verbraucht fremde API-Kontingente, das soll eine
+bewusste Entscheidung sein. Einschalten in den Admin-Einstellungen.
+
+| Einstellung | Bedeutung |
+| --- | --- |
+| Abstand | 15 Minuten bis täglich |
+| Projekte je Durchlauf | 1–100, Voreinstellung 25 |
+| Fertige und archivierte auslassen | Dort ändert sich selten noch etwas |
+
+Wie der Durchlauf arbeitet:
+
+- Der Zeitgeber läuft im Serverprozess selbst (`instrumentation.ts`), prüft minütlich, ob
+  ein Durchlauf fällig ist, und startet ihn. Kein zusätzlicher Container, kein externer
+  Cron. Zwei Durchläufe überschneiden sich nie.
+- **Am längsten nicht abgeglichene zuerst.** Was nicht in den Durchlauf passt, kommt beim
+  nächsten Mal.
+- **Zurückhalten nach Fehlschlägen:** Nach jedem Fehlversuch verdoppelt sich der Abstand
+  bis zum nächsten Versuch (gedeckelt beim 16-fachen). Ein Repository mit abgelaufenem
+  Token blockiert damit nicht dauerhaft das Kontingent.
+- Kurze Pause zwischen zwei Projekten, damit kein Schwall entsteht.
+- **Pro Projekt abschaltbar** über einen Schalter im Projektdialog. Manuell
+  synchronisieren geht unabhängig davon immer.
+- Der Adminbereich zeigt letzten und nächsten Durchlauf sowie einen Kurzbericht
+  (aktualisiert / fehlgeschlagen / zurückgestellt) und hat einen Knopf **Jetzt abgleichen**.
+- Wer lieber von außen taktet, lässt den Automatismus aus und ruft
+  `POST /api/admin/sync/run` per eigenem Cron auf.
+
+Der Abgleich läuft über alle Konten hinweg — er ist ein Serverauftrag, keine
+Dateneinsicht. Ein Administrator sieht dadurch weiterhin keine fremden Projekte.
 - **URL-Erkennung** für `https://…`, `git@host:owner/repo.git` und GitLab-Weboberflächen-URLs
   mit `/-/tree/…`; verschachtelte Gruppenpfade bleiben erhalten.
 - **Ohne Token** funktionieren öffentliche Repositories, mit deutlich strengerem Rate-Limit.
@@ -270,14 +302,5 @@ Alles, was die Oberfläche kann, ist damit auch scriptbar. Übersicht in der
 
 ## 7. Ideen für später
 
-Bewusst nicht umgesetzt, aber vorgemerkt:
-
-- Kanban-Board mit Drag & Drop zwischen den Statusspalten
-- Webhooks, damit Pushes den Snapshot ohne Knopfdruck aktualisieren
-- Markdown-Rendering in Beschreibung und Notizen
-- Volltextsuche über Notizen hinweg
-- Export eines Projekts als Markdown
-- Automatischer Sync im Hintergrund (Intervall pro Verbindung)
-- Passwort-Zurücksetzen per E-Mail (aktuell setzt ein Administrator das Passwort neu)
-- Zwei-Faktor per TOTP als Alternative zum Passkey
-- Geteilte Projekte zwischen Konten (heute ist die Trennung absichtlich hart)
+Was als Nächstes kommen könnte, steht mit Aufwandsschätzung und offenen Fragen in
+**[ROADMAP.md](ROADMAP.md)** — gedacht zum Durchsprechen und schrittweisen Abarbeiten.

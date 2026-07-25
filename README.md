@@ -30,7 +30,8 @@ den Admin-Einstellungen.
 Alle Daten liegen in **deiner lokalen PostgreSQL**. Es gibt keinen Cloud-Dienst dahinter,
 Access Tokens werden verschlüsselt abgelegt.
 
-Eine vollständige Auflistung aller Funktionen steht in **[FEATURES.md](FEATURES.md)**.
+Eine vollständige Auflistung aller Funktionen steht in **[FEATURES.md](FEATURES.md)**,
+geplante Erweiterungen in **[ROADMAP.md](ROADMAP.md)**.
 
 ---
 
@@ -181,6 +182,21 @@ Nebula auffindbare Credentials nutzt.
 Der Snapshot bleibt in der Datenbank, das Dashboard funktioniert also auch offline.
 Ohne Token gehen nur öffentliche Repositories, mit strengem Rate-Limit.
 
+### Automatisch statt auf Knopfdruck
+
+Unter **Admin-Einstellungen → Automatischer Abgleich** lässt sich der Sync in den
+Hintergrund verlegen: Abstand von 15 Minuten bis täglich, Anzahl Projekte je Durchlauf,
+und wahlweise ohne fertige und archivierte Projekte. Standardmäßig ist er **aus**, weil
+jeder Durchlauf API-Kontingent verbraucht.
+
+Der Zeitgeber läuft im Serverprozess — kein zusätzlicher Container, kein externer Cron.
+Nach Fehlschlägen wird ein Repository mit wachsendem Abstand zurückgehalten, damit ein
+abgelaufener Token nicht dauerhaft Kontingent verbrennt. Einzelne Projekte lassen sich im
+Projektdialog ausnehmen; manuell synchronisieren geht immer.
+
+Wer lieber von außen taktet, lässt den Automatismus aus und ruft
+`POST /api/admin/sync/run` per eigenem Cron auf.
+
 ---
 
 ## Projektstruktur
@@ -250,7 +266,8 @@ ausschließlich Daten des angemeldeten Kontos.
 | `POST` | `/api/account/password` | Eigenes Passwort setzen |
 | `GET` `DELETE` | `/api/account/sessions` | Eigene Sitzungen / überall abmelden |
 | `PATCH` `DELETE` | `/api/account/passkeys/:id` | Passkey umbenennen / entfernen |
-| `GET` `PATCH` | `/api/admin/settings` | Betriebsart und Registrierung (Admin) |
+| `GET` `PATCH` | `/api/admin/settings` | Betriebsart, Registrierung, Abgleich (Admin) |
+| `POST` | `/api/admin/sync/run` | Abgleich sofort anstoßen (Admin) |
 | `GET` `POST` | `/api/admin/users` | Konten auflisten / anlegen (Admin) |
 | `PATCH` `DELETE` | `/api/admin/users/:id` | Konto ändern / löschen (Admin) |
 | `GET` `POST` | `/api/projects` | Projekte auflisten / anlegen |
