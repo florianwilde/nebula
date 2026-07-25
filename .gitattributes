@@ -1,0 +1,12 @@
+# Zeilenenden vereinheitlichen – wichtig fuer Shell-Skripte im Docker-Image.
+* text=auto eol=lf
+
+*.sh text eol=lf
+Dockerfile text eol=lf
+*.ps1 text eol=crlf
+
+*.png binary
+*.jpg binary
+*.ico binary
+*.woff binary
+*.woff2 binary

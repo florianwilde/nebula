@@ -1,0 +1,52 @@
+{
+  "name": "nebula",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Nebula – Dashboard fuer Vibe-Coding Projekte mit Git-Anbindung (GitHub, GitLab, Gitea)",
+  "scripts": {
+    "dev": "next dev",
+    "build": "prisma generate && next build",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate deploy",
+    "db:migrate:dev": "prisma migrate dev",
+    "db:push": "prisma db push",
+    "db:studio": "prisma studio",
+    "db:seed": "prisma db seed",
+    "db:reset": "prisma migrate reset",
+    "docker:db": "docker compose up -d db",
+    "docker:db:down": "docker compose stop db",
+    "docker:up": "docker compose --profile full up -d --build",
+    "docker:down": "docker compose --profile full down",
+    "docker:logs": "docker compose --profile full logs -f app",
+    "docker:tools": "docker compose --profile tools up -d",
+    "setup": "node scripts/setup.mjs",
+    "postinstall": "prisma generate"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.8.2",
+    "lucide-react": "^0.511.0",
+    "next": "^15.3.3",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "zod": "^3.25.28"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.7",
+    "@types/node": "^22.15.21",
+    "@types/react": "^19.1.5",
+    "@types/react-dom": "^19.1.5",
+    "prisma": "^6.8.2",
+    "tailwindcss": "^4.1.7",
+    "tsx": "^4.19.4",
+    "typescript": "^5.8.3"
+  },
+  "engines": {
+    "node": ">=20.11"
+  }
+}
