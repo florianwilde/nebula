@@ -244,6 +244,23 @@ curl -X POST http://localhost:3000/api/projects \
 | Sync meldet `403 Rate-Limit` | Ohne Token ist das Limit sehr niedrig — Token hinterlegen |
 | Tokens plötzlich ungültig | `APP_SECRET` wurde geändert — Tokens neu eintragen |
 | Port 3000 belegt | `APP_PORT` in der `.env` ändern (Docker) bzw. `npm run dev -- -p 3001` |
+| `package.json#prisma is deprecated` | Harmlose Warnung von Prisma 6.19. Die Umstellung auf `prisma.config.ts` steht aus, weil dann die `.env` nicht mehr automatisch geladen wird — vor Prisma 7 zu erledigen |
+
+---
+
+## Getestet mit
+
+Stand 25.07.2026 gegen echte Systeme verifiziert — beide Betriebsarten, alle drei
+Git-Adapter (GitHub, GitLab und Gitea jeweils gegen die öffentliche Instanz).
+
+| | Version |
+| --- | --- |
+| Node.js | 26.5.0 |
+| npm | 11.17.0 |
+| Next.js | 15.5.21 |
+| Prisma | 6.19.3 |
+| PostgreSQL | 17 (Alpine) |
+| Docker / Compose | 29.6.2 / v5.3.1 |
 
 ---
 
