@@ -4,11 +4,16 @@
 # ─────────────────────────────────────────────────────────────
 set -e
 
-PRISMA_CLI="/app/node_modules/prisma/build/index.js"
+PRISMA_CLI="/opt/prisma-cli/node_modules/prisma/build/index.js"
 SCHEMA="/app/prisma/schema.prisma"
 
 if [ -z "$DATABASE_URL" ]; then
   echo "[nebula] FEHLER: DATABASE_URL ist nicht gesetzt." >&2
+  exit 1
+fi
+
+if [ ! -f "$PRISMA_CLI" ]; then
+  echo "[nebula] FEHLER: Prisma-CLI nicht unter $PRISMA_CLI gefunden." >&2
   exit 1
 fi
 

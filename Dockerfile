@@ -39,12 +39,22 @@ ENV HOSTNAME=0.0.0.0
 
 RUN addgroup -g 1001 -S nodejs && adduser -S nextjs -u 1001
 
+# Prisma-CLI fuer "migrate deploy" beim Containerstart. Sie bekommt eine
+# eigene, minimale Installation unter /opt: aus dem Builder laesst sie sich
+# nicht herausloesen, weil @prisma/config einen ganzen Abhaengigkeitsbaum
+# nachzieht (effect, c12, …). Die Version wird aus dem Builder uebernommen,
+# damit CLI und generierter Client nicht auseinanderlaufen.
+COPY --from=builder /app/node_modules/prisma/package.json /tmp/prisma-cli.json
+RUN npm install --prefix /opt/prisma-cli --no-save --no-audit --no-fund \
+      "prisma@$(node -p "require('/tmp/prisma-cli.json').version")" \
+ && rm -f /tmp/prisma-cli.json \
+ && npm cache clean --force
+
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
-# Prisma-CLI, Engines und Schema fuer "migrate deploy" beim Containerstart.
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/prisma ./node_modules/prisma
+# Query-Engine und Schema fuer die Laufzeit bzw. die Migration.
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/@prisma ./node_modules/@prisma
 COPY --from=builder --chown=nextjs:nodejs /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
