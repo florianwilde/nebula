@@ -52,7 +52,16 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-nebula}:${POSTGRES_PASSWORD:-nebula}@db:5432/${POSTGRES_DB:-nebula}?schema=public
       # Unbedingt in der .env ueberschreiben – verschluesselt die Git-Tokens.
       APP_SECRET: ${APP_SECRET:-nebula-dev-secret-bitte-in-der-env-aendern}
+      # Name und oeffentliche Adresse. APP_URL bestimmt die WebAuthn-rpID –
+      # passt sie nicht zur aufgerufenen Adresse, scheitern Passkeys.
+      APP_NAME: ${APP_NAME:-Nebula}
+      APP_TAGLINE: ${APP_TAGLINE:-Vibe Coding}
+      APP_URL: ${APP_URL:-http://localhost:3000}
+      SESSION_TTL_DAYS: ${SESSION_TTL_DAYS:-30}
       GIT_API_TIMEOUT_MS: ${GIT_API_TIMEOUT_MS:-15000}
+      GIT_ALLOW_LOOPBACK: ${GIT_ALLOW_LOOPBACK:-false}
+      GIT_BLOCK_PRIVATE: ${GIT_BLOCK_PRIVATE:-false}
+      GIT_ALLOWED_HOSTS: ${GIT_ALLOWED_HOSTS:-}
       NODE_ENV: production
       PORT: 3000
       HOSTNAME: 0.0.0.0
