@@ -12,6 +12,12 @@ function trimmed(value: string | undefined): string | null {
   return result ? result : null;
 }
 
+/**
+ * Version aus der package.json – eine einzige Quelle. Vorher stand sie
+ * zusaetzlich in der Fusszeile und lief prompt auseinander.
+ */
+export { version as APP_VERSION } from "../../package.json";
+
 /** Anzeigename der Instanz – Seitentitel, Kopfzeile, Passkey-Dialog. */
 export const APP_NAME = trimmed(process.env.APP_NAME) ?? "Nebula";
 

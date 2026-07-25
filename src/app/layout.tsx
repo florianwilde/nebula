@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { TopNav } from "@/components/TopNav";
 import { getSessionUser } from "@/lib/auth/session";
-import { APP_NAME, APP_TAGLINE } from "@/lib/config";
+import { APP_NAME, APP_TAGLINE, APP_VERSION } from "@/lib/config";
 import "./globals.css";
 
 /**
@@ -52,7 +52,7 @@ export default async function RootLayout({
         <footer className="mx-auto w-full max-w-[1400px] px-4 pb-10 text-xs text-slate-500 sm:px-6 lg:px-8">
           <div className="flex flex-wrap items-center justify-between gap-2 border-t border-white/5 pt-6">
             <span>{APP_NAME} · lokal betrieben, Daten bleiben in deiner PostgreSQL.</span>
-            <span className="font-mono text-slate-600">v0.2.0</span>
+            <span className="font-mono text-slate-600">v{APP_VERSION}</span>
           </div>
         </footer>
       </body>
