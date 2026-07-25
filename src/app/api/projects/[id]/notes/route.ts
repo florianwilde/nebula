@@ -1,13 +1,30 @@
 import { NextResponse } from "next/server";
+import { requireUserApi } from "@/lib/auth/guard";
 import { prisma } from "@/lib/db";
+import { jsonError, readJsonBody } from "@/lib/security/request";
 import { formatZodError, noteCreateSchema } from "@/lib/validation";
 
 export const dynamic = "force-dynamic";
 
 type Params = { params: Promise<{ id: string }> };
 
+/** Prueft in einem Zug Existenz und Besitz des Projekts. */
+async function ownedProject(projectId: string, ownerId: string) {
+  return prisma.project.findFirst({
+    where: { id: projectId, ownerId },
+    select: { id: true },
+  });
+}
+
 export async function GET(_request: Request, { params }: Params) {
+  const auth = await requireUserApi();
+  if (!auth.ok) return auth.response;
+
   const { id } = await params;
+  if (!(await ownedProject(id, auth.user.id))) {
+    return jsonError("Projekt nicht gefunden", 404);
+  }
+
   const notes = await prisma.note.findMany({
     where: { projectId: id },
     orderBy: [{ pinned: "desc" }, { updatedAt: "desc" }],
@@ -16,21 +33,18 @@ export async function GET(_request: Request, { params }: Params) {
 }
 
 export async function POST(request: Request, { params }: Params) {
+  const auth = await requireUserApi();
+  if (!auth.ok) return auth.response;
+
   const { id } = await params;
-
-  const project = await prisma.project.findUnique({ where: { id }, select: { id: true } });
-  if (!project) {
-    return NextResponse.json({ error: "Projekt nicht gefunden" }, { status: 404 });
+  if (!(await ownedProject(id, auth.user.id))) {
+    return jsonError("Projekt nicht gefunden", 404);
   }
 
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: "Ungueltiger JSON-Body" }, { status: 400 });
-  }
+  const body = await readJsonBody(request);
+  if (!body.ok) return body.response;
 
-  const parsed = noteCreateSchema.safeParse(body);
+  const parsed = noteCreateSchema.safeParse(body.data);
   if (!parsed.success) {
     return NextResponse.json(
       { error: "Validierung fehlgeschlagen", fields: formatZodError(parsed.error) },

@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
+import { requireUserApi } from "@/lib/auth/guard";
 import { prisma } from "@/lib/db";
 import { parseRepoUrl } from "@/lib/git";
 import { projectDetailInclude, projectListInclude, uniqueSlug } from "@/lib/projects";
+import { jsonError, readJsonBody } from "@/lib/security/request";
 import { formatZodError, projectUpdateSchema } from "@/lib/validation";
 
 export const dynamic = "force-dynamic";
@@ -9,29 +11,32 @@ export const dynamic = "force-dynamic";
 type Params = { params: Promise<{ id: string }> };
 
 export async function GET(_request: Request, { params }: Params) {
+  const auth = await requireUserApi();
+  if (!auth.ok) return auth.response;
+
   const { id } = await params;
-  const project = await prisma.project.findUnique({
-    where: { id },
+  const project = await prisma.project.findFirst({
+    where: { id, ownerId: auth.user.id },
     include: projectDetailInclude,
   });
 
-  if (!project) {
-    return NextResponse.json({ error: "Projekt nicht gefunden" }, { status: 404 });
-  }
+  // Fremde Projekte werden wie nicht vorhandene behandelt – die Antwort
+  // verraet also nicht, dass es die ID gibt.
+  if (!project) return jsonError("Projekt nicht gefunden", 404);
+
   return NextResponse.json({ project });
 }
 
 export async function PATCH(request: Request, { params }: Params) {
+  const auth = await requireUserApi();
+  if (!auth.ok) return auth.response;
+
   const { id } = await params;
 
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: "Ungueltiger JSON-Body" }, { status: 400 });
-  }
+  const body = await readJsonBody(request);
+  if (!body.ok) return body.response;
 
-  const parsed = projectUpdateSchema.safeParse(body);
+  const parsed = projectUpdateSchema.safeParse(body.data);
   if (!parsed.success) {
     return NextResponse.json(
       { error: "Validierung fehlgeschlagen", fields: formatZodError(parsed.error) },
@@ -39,19 +44,38 @@ export async function PATCH(request: Request, { params }: Params) {
     );
   }
 
-  const existing = await prisma.project.findUnique({ where: { id } });
-  if (!existing) {
-    return NextResponse.json({ error: "Projekt nicht gefunden" }, { status: 404 });
-  }
+  const existing = await prisma.project.findFirst({
+    where: { id, ownerId: auth.user.id },
+  });
+  if (!existing) return jsonError("Projekt nicht gefunden", 404);
 
   const data = parsed.data;
+
+  if (data.connectionId) {
+    const connection = await prisma.gitConnection.findFirst({
+      where: { id: data.connectionId, ownerId: auth.user.id },
+      select: { id: true },
+    });
+    if (!connection) return jsonError("Git-Verbindung nicht gefunden.", 404);
+  }
+
   const update: Record<string, unknown> = {};
 
   if (data.name !== undefined && data.name !== existing.name) {
     update.name = data.name;
-    update.slug = await uniqueSlug(data.name, id);
+    update.slug = await uniqueSlug(data.name, auth.user.id, id);
   }
-  for (const key of ["summary", "description", "status", "priority", "progress", "accent", "tags", "favorite", "connectionId"] as const) {
+  for (const key of [
+    "summary",
+    "description",
+    "status",
+    "priority",
+    "progress",
+    "accent",
+    "tags",
+    "favorite",
+    "connectionId",
+  ] as const) {
     if (data[key] !== undefined) update[key] = data[key];
   }
 
@@ -79,11 +103,16 @@ export async function PATCH(request: Request, { params }: Params) {
 }
 
 export async function DELETE(_request: Request, { params }: Params) {
+  const auth = await requireUserApi();
+  if (!auth.ok) return auth.response;
+
   const { id } = await params;
-  try {
-    await prisma.project.delete({ where: { id } });
-    return NextResponse.json({ ok: true });
-  } catch {
-    return NextResponse.json({ error: "Projekt nicht gefunden" }, { status: 404 });
-  }
+
+  // deleteMany mit Besitzerbedingung: trifft fremde Projekte gar nicht erst.
+  const result = await prisma.project.deleteMany({
+    where: { id, ownerId: auth.user.id },
+  });
+  if (result.count === 0) return jsonError("Projekt nicht gefunden", 404);
+
+  return NextResponse.json({ ok: true });
 }

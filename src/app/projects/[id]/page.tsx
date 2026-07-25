@@ -4,6 +4,8 @@ import { FileText } from "lucide-react";
 import { GitPanel } from "@/components/GitPanel";
 import { NotesPanel } from "@/components/NotesPanel";
 import { ProjectHeader } from "@/components/ProjectHeader";
+import { requireUserPage } from "@/lib/auth/guard";
+import { getSessionUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
 import { connectionSafeSelect, projectDetailInclude } from "@/lib/projects";
 import type { ConnectionSafe, ProjectDetail } from "@/types";
@@ -13,9 +15,12 @@ export const dynamic = "force-dynamic";
 type PageProps = { params: Promise<{ id: string }> };
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const user = await getSessionUser();
+  if (!user) return { title: "Projekt" };
+
   const { id } = await params;
-  const project = await prisma.project.findUnique({
-    where: { id },
+  const project = await prisma.project.findFirst({
+    where: { id, ownerId: user.id },
     select: { name: true, summary: true },
   });
   return {
@@ -25,11 +30,21 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 }
 
 export default async function ProjectPage({ params }: PageProps) {
+  const user = await requireUserPage();
   const { id } = await params;
 
   const [project, connections] = await Promise.all([
-    prisma.project.findUnique({ where: { id }, include: projectDetailInclude }),
-    prisma.gitConnection.findMany({ select: connectionSafeSelect, orderBy: { name: "asc" } }),
+    // findFirst mit Besitzerbedingung: ein fremdes Projekt fuehrt zu 404,
+    // nicht zu einer Fehlermeldung, die seine Existenz bestaetigt.
+    prisma.project.findFirst({
+      where: { id, ownerId: user.id },
+      include: projectDetailInclude,
+    }),
+    prisma.gitConnection.findMany({
+      where: { ownerId: user.id },
+      select: connectionSafeSelect,
+      orderBy: { name: "asc" },
+    }),
   ]);
 
   if (!project) notFound();

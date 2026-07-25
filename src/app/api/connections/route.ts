@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
+import { requireUserApi } from "@/lib/auth/guard";
 import { encryptSecret, tokenHint } from "@/lib/crypto";
 import { prisma } from "@/lib/db";
 import { normalizeBaseUrl } from "@/lib/git/http";
 import { connectionSafeSelect } from "@/lib/projects";
+import { LIMITS, rateLimit } from "@/lib/security/rateLimit";
+import { clientIp, jsonError, readJsonBody, tooManyRequests } from "@/lib/security/request";
+import { BlockedHostError, assertAllowedUrl } from "@/lib/security/ssrf";
 import { connectionCreateSchema, formatZodError } from "@/lib/validation";
 
 export const dynamic = "force-dynamic";
@@ -14,7 +18,11 @@ const safeSelect = {
 };
 
 export async function GET() {
+  const auth = await requireUserApi();
+  if (!auth.ok) return auth.response;
+
   const connections = await prisma.gitConnection.findMany({
+    where: { ownerId: auth.user.id },
     select: safeSelect,
     orderBy: { name: "asc" },
   });
@@ -22,14 +30,20 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: "Ungueltiger JSON-Body" }, { status: 400 });
-  }
+  const auth = await requireUserApi();
+  if (!auth.ok) return auth.response;
 
-  const parsed = connectionCreateSchema.safeParse(body);
+  const limited = rateLimit(
+    `mutate:${clientIp(request)}`,
+    LIMITS.mutation.limit,
+    LIMITS.mutation.windowMs,
+  );
+  if (!limited.ok) return tooManyRequests(limited.retryAfter);
+
+  const body = await readJsonBody(request);
+  if (!body.ok) return body.response;
+
+  const parsed = connectionCreateSchema.safeParse(body.data);
   if (!parsed.success) {
     return NextResponse.json(
       { error: "Validierung fehlgeschlagen", fields: formatZodError(parsed.error) },
@@ -39,16 +53,37 @@ export async function POST(request: Request) {
 
   const { name, provider, baseUrl, username, token } = parsed.data;
 
-  const duplicate = await prisma.gitConnection.findUnique({ where: { name } });
+  // Die Basis-URL wird spaeter serverseitig abgerufen – hier pruefen, damit
+  // sie nicht auf interne Dienste oder Metadaten-Endpunkte zeigt.
+  try {
+    await assertAllowedUrl(normalizeBaseUrl(baseUrl));
+  } catch (error) {
+    if (error instanceof BlockedHostError) {
+      return NextResponse.json(
+        { error: error.message, fields: { baseUrl: error.message } },
+        { status: 422 },
+      );
+    }
+    throw error;
+  }
+
+  const duplicate = await prisma.gitConnection.findFirst({
+    where: { name, ownerId: auth.user.id },
+    select: { id: true },
+  });
   if (duplicate) {
     return NextResponse.json(
-      { error: "Es gibt bereits eine Verbindung mit diesem Namen.", fields: { name: "Name bereits vergeben" } },
+      {
+        error: "Es gibt bereits eine Verbindung mit diesem Namen.",
+        fields: { name: "Name bereits vergeben" },
+      },
       { status: 409 },
     );
   }
 
   const connection = await prisma.gitConnection.create({
     data: {
+      ownerId: auth.user.id,
       name,
       provider,
       baseUrl: normalizeBaseUrl(baseUrl),

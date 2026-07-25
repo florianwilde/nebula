@@ -1,6 +1,7 @@
 import { CircleDot, GitBranch, Lightbulb, Rocket, Trophy } from "lucide-react";
 import { ProjectBoard } from "@/components/ProjectBoard";
 import { StatCard } from "@/components/StatCard";
+import { requireUserPage } from "@/lib/auth/guard";
 import { prisma } from "@/lib/db";
 import { connectionSafeSelect, projectListInclude } from "@/lib/projects";
 import { STATUS_META } from "@/lib/status";
@@ -9,12 +10,16 @@ import type { ConnectionSafe, ProjectListItem } from "@/types";
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
+  const user = await requireUserPage();
+
   const [projects, connections] = await Promise.all([
     prisma.project.findMany({
+      where: { ownerId: user.id },
       include: projectListInclude,
       orderBy: [{ favorite: "desc" }, { updatedAt: "desc" }],
     }),
     prisma.gitConnection.findMany({
+      where: { ownerId: user.id },
       select: connectionSafeSelect,
       orderBy: { name: "asc" },
     }),

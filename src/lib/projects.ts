@@ -2,16 +2,23 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { slugify } from "@/lib/utils";
 
-/** Erzeugt einen eindeutigen Slug, notfalls mit angehaengtem Zaehler. */
-export async function uniqueSlug(name: string, ignoreId?: string): Promise<string> {
+/**
+ * Erzeugt einen je Besitzer eindeutigen Slug, notfalls mit angehaengtem
+ * Zaehler. Zwei Benutzer duerfen also beide ein Projekt "dashboard" haben.
+ */
+export async function uniqueSlug(
+  name: string,
+  ownerId: string,
+  ignoreId?: string,
+): Promise<string> {
   const base = slugify(name) || "projekt";
   let candidate = base;
   let counter = 2;
 
   // In der Praxis endet die Schleife nach wenigen Runden.
   for (let attempt = 0; attempt < 50; attempt += 1) {
-    const existing = await prisma.project.findUnique({
-      where: { slug: candidate },
+    const existing = await prisma.project.findFirst({
+      where: { slug: candidate, ownerId },
       select: { id: true },
     });
     if (!existing || existing.id === ignoreId) return candidate;
