@@ -33,6 +33,113 @@ enum GitProvider {
   GITEA
 }
 
+/// ADMIN darf Benutzer und Einstellungen verwalten. Auf fremde Projekte hat
+/// auch ein Admin keinen Zugriff – die Trennung ist bewusst hart.
+enum UserRole {
+  ADMIN
+  USER
+}
+
+/// SINGLE_USER: genau ein Konto, keine Registrierung, keine Benutzerliste.
+/// MULTI_USER:  mehrere Konten, jedes mit streng getrennten Daten.
+enum AppMode {
+  SINGLE_USER
+  MULTI_USER
+}
+
+/// Ein Benutzerkonto. Das Passwort ist optional, weil ein Konto auch
+/// ausschliesslich per Passkey nutzbar sein darf.
+model User {
+  id           String    @id @default(cuid())
+  /// Immer kleingeschrieben gespeichert, damit die Anmeldung
+  /// gross-/kleinschreibungsunabhaengig funktioniert.
+  username     String    @unique
+  displayName  String?
+  email        String?   @unique
+  /// scrypt-Hash im Format scrypt$N$r$p$<salt>$<hash>; null = nur Passkey.
+  passwordHash String?
+  role         UserRole  @default(USER)
+  isActive     Boolean   @default(true)
+
+  lastLoginAt      DateTime?
+  /// Zaehler und Sperre gegen Passwortraten.
+  failedLoginCount Int       @default(0)
+  lockedUntil      DateTime?
+
+  sessions    Session[]
+  credentials Credential[]
+  projects    Project[]
+  connections GitConnection[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([role])
+}
+
+/// Serverseitige Sitzung. In der Datenbank liegt nur der SHA-256-Hash des
+/// Cookie-Tokens, damit ein Datenbankleck keine uebernehmbaren Sitzungen ergibt.
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique
+  expiresAt DateTime
+  lastSeenAt DateTime @default(now())
+  userAgent String?
+  ip        String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+/// Ein registrierter Passkey (WebAuthn-Credential).
+model Credential {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// base64url-kodierte Credential-ID des Authenticators.
+  credentialId String   @unique
+  publicKey    Bytes
+  counter      Int      @default(0)
+  transports   String[] @default([])
+  deviceType   String?
+  backedUp     Boolean  @default(false)
+  /// Frei waehlbarer Name, z. B. "MacBook Touch ID".
+  name         String?
+  lastUsedAt   DateTime?
+  createdAt    DateTime @default(now())
+
+  @@index([userId])
+}
+
+/// Kurzlebige WebAuthn-Challenge. Wird nach Gebrauch geloescht, damit sie
+/// kein zweites Mal verwendet werden kann.
+model WebAuthnChallenge {
+  id        String   @id @default(cuid())
+  challenge String   @unique
+  /// null bei der Anmeldung ueber auffindbare Passkeys.
+  userId    String?
+  /// "registration" oder "authentication"
+  purpose   String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([expiresAt])
+}
+
+/// Einstellungen der Instanz. Genau eine Zeile mit der id "singleton".
+model AppSettings {
+  id                String   @id @default("singleton")
+  mode              AppMode  @default(SINGLE_USER)
+  /// Nur im Mehrbenutzerbetrieb wirksam.
+  allowRegistration Boolean  @default(false)
+  /// Anzeigename gegenueber dem Authenticator beim Anlegen eines Passkeys.
+  rpName            String   @default("Nebula")
+  updatedAt         DateTime @updatedAt
+}
+
 /// Eine Verbindung zu einem Git-System inkl. verschluesseltem Token.
 model GitConnection {
   id        String      @id @default(cuid())
@@ -53,20 +160,28 @@ model GitConnection {
   lastCheckOk       Boolean?
   lastCheckMessage  String?
 
+  /// Besitzer. Nullable, damit Bestandsdaten aus der Zeit vor der
+  /// Benutzerverwaltung erhalten bleiben; beim Einrichten des ersten
+  /// Kontos werden sie diesem zugeordnet.
+  ownerId String?
+  owner   User?   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
   projects  Project[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([name])
+  @@unique([ownerId, name])
   @@index([provider])
+  @@index([ownerId])
 }
 
 /// Ein Vibe-Coding-Projekt – von der reinen Idee bis zum fertigen Repo.
 model Project {
   id          String        @id @default(cuid())
   name        String
-  slug        String        @unique
+  /// Pro Besitzer eindeutig – siehe @@unique unten.
+  slug        String
   /// Einzeiler fuer die Karte im Dashboard.
   summary     String?
   /// Ausfuehrliche Beschreibung / Ideenskizze (Markdown-freundlich).
@@ -93,15 +208,22 @@ model Project {
   lastSyncedAt DateTime?
   syncError    String?
 
+  /// Besitzer. Nullable wie bei GitConnection, damit Bestandsdaten beim
+  /// Einrichten des ersten Kontos uebernommen werden koennen.
+  ownerId String?
+  owner   User?   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
   notes    Note[]
   snapshot RepoSnapshot?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@unique([ownerId, slug])
   @@index([status])
   @@index([connectionId])
   @@index([updatedAt])
+  @@index([ownerId])
 }
 
 /// Freie Notizen zu einem Projekt.

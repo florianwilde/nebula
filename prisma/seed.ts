@@ -86,9 +86,12 @@ async function main() {
     },
   ];
 
+  // Der Slug ist seit der Benutzerverwaltung nur je Besitzer eindeutig.
+  // Die Seed-Projekte entstehen ohne Besitzer und werden beim Einrichten
+  // des ersten Kontos uebernommen.
   for (const sample of samples) {
-    const existing = await prisma.project.findUnique({
-      where: { slug: sample.slug },
+    const existing = await prisma.project.findFirst({
+      where: { slug: sample.slug, ownerId: null },
     });
     if (existing) {
       console.log(`  · uebersprungen (existiert): ${sample.slug}`);
