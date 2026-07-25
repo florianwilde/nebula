@@ -298,11 +298,23 @@ model RepoSnapshot {
 
   /// Rohdaten der Listen – bewusst als JSON, damit providerspezifische
   /// Zusatzfelder nicht verloren gehen.
-  branches  Json @default("[]")
-  tags      Json @default("[]")
-  commits   Json @default("[]")
-  releases  Json @default("[]")
-  languages Json @default("{}")
+  branches      Json @default("[]")
+  tags          Json @default("[]")
+  commits       Json @default("[]")
+  releases      Json @default("[]")
+  languages     Json @default("{}")
+  pullRequests  Json @default("[]")
+  issues        Json @default("[]")
+  /// Commits je Tag der letzten 30 Tage, aeltester zuerst.
+  commitActivity Json @default("[]")
+
+  // ── Letzter CI-Lauf auf dem Default-Branch ─────────────────
+  /// success | failure | running | pending | cancelled
+  ciState      String?
+  ciName       String?
+  ciBranch     String?
+  ciUrl        String?
+  ciFinishedAt DateTime?
 
   pushedAt  DateTime?
   fetchedAt DateTime @default(now())

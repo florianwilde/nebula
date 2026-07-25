@@ -1,6 +1,8 @@
 import { getJson, getJsonSafe, normalizeBaseUrl, shortSha, toIso } from "./http";
 import type {
   BranchInfo,
+  CiInfo,
+  CiState,
   CommitInfo,
   ConnectionCheck,
   GitClient,
@@ -10,7 +12,9 @@ import type {
   RepoRef,
   RepoSnapshotData,
   TagInfo,
+  TicketInfo,
 } from "./types";
+import { bucketCommitActivity } from "./types";
 
 /**
  * GitLab – gitlab.com und selbst gehostete Instanzen (API v4).
@@ -80,16 +84,26 @@ export class GitLabClient implements GitClient {
 
     const project = await getJson<GitLabProject>(`${base}?statistics=true`, { headers });
 
-    const [branches, tags, commits, releases, languages, mergeRequests] = await Promise.all([
-      getJsonSafe<GitLabBranch[]>(`${base}/repository/branches?per_page=50`, [], { headers }),
-      getJsonSafe<GitLabTag[]>(`${base}/repository/tags?per_page=25`, [], { headers }),
-      getJsonSafe<GitLabCommit[]>(`${base}/repository/commits?per_page=15`, [], { headers }),
-      getJsonSafe<GitLabRelease[]>(`${base}/releases?per_page=10`, [], { headers }),
-      getJsonSafe<Record<string, number>>(`${base}/languages`, {}, { headers }),
-      getJsonSafe<GitLabMergeRequest[]>(`${base}/merge_requests?state=opened&per_page=100`, [], {
-        headers,
-      }),
-    ]);
+    const defaultBranch = project.default_branch ?? "";
+
+    const [branches, tags, commits, releases, languages, mergeRequests, issues, pipelines] =
+      await Promise.all([
+        getJsonSafe<GitLabBranch[]>(`${base}/repository/branches?per_page=50`, [], { headers }),
+        getJsonSafe<GitLabTag[]>(`${base}/repository/tags?per_page=25`, [], { headers }),
+        // 100 statt 15: die aelteren brauchen wir fuer die Aktivitaetskurve.
+        getJsonSafe<GitLabCommit[]>(`${base}/repository/commits?per_page=100`, [], { headers }),
+        getJsonSafe<GitLabRelease[]>(`${base}/releases?per_page=10`, [], { headers }),
+        getJsonSafe<Record<string, number>>(`${base}/languages`, {}, { headers }),
+        getJsonSafe<GitLabMergeRequest[]>(`${base}/merge_requests?state=opened&per_page=50`, [], {
+          headers,
+        }),
+        getJsonSafe<GitLabIssue[]>(`${base}/issues?state=opened&per_page=50`, [], { headers }),
+        getJsonSafe<GitLabPipeline[]>(
+          `${base}/pipelines?per_page=1${defaultBranch ? `&ref=${encodeURIComponent(defaultBranch)}` : ""}`,
+          [],
+          { headers },
+        ),
+      ]);
 
     const mappedBranches: BranchInfo[] = branches.map((branch) => ({
       name: branch.name,
@@ -128,6 +142,37 @@ export class GitLabClient implements GitClient {
       draft: false,
     }));
 
+    const mappedMergeRequests: TicketInfo[] = mergeRequests.map((entry) => ({
+      number: entry.iid,
+      title: entry.title,
+      author: entry.author?.username ?? null,
+      createdAt: toIso(entry.created_at),
+      url: entry.web_url ?? null,
+      draft: Boolean(entry.draft),
+      labels: entry.labels ?? [],
+    }));
+
+    const mappedIssues: TicketInfo[] = issues.map((entry) => ({
+      number: entry.iid,
+      title: entry.title,
+      author: entry.author?.username ?? null,
+      createdAt: toIso(entry.created_at),
+      url: entry.web_url ?? null,
+      draft: false,
+      labels: entry.labels ?? [],
+    }));
+
+    const pipeline = pipelines[0];
+    const ci: CiInfo | null = pipeline
+      ? {
+          state: mapPipelineState(pipeline.status),
+          name: pipeline.name ?? `Pipeline #${pipeline.id}`,
+          branch: pipeline.ref ?? null,
+          url: pipeline.web_url ?? null,
+          finishedAt: toIso(pipeline.updated_at),
+        }
+      : null;
+
     return {
       fullName: project.path_with_namespace,
       description: project.description ?? null,
@@ -144,10 +189,30 @@ export class GitLabClient implements GitClient {
       pushedAt: toIso(project.last_activity_at),
       branches: mappedBranches,
       tags: mappedTags,
-      commits: mappedCommits,
+      commits: mappedCommits.slice(0, 15),
       releases: mappedReleases,
       languages: languages ?? {},
+      pullRequests: mappedMergeRequests,
+      issues: mappedIssues,
+      ci,
+      commitActivity: bucketCommitActivity(mappedCommits.map((commit) => commit.date)),
     };
+  }
+}
+
+function mapPipelineState(status: string | null): CiState {
+  switch (status) {
+    case "success":
+      return "success";
+    case "running":
+      return "running";
+    case "failed":
+      return "failure";
+    case "canceled":
+    case "skipped":
+      return "cancelled";
+    default:
+      return "pending";
   }
 }
 
@@ -205,5 +270,29 @@ interface GitLabRelease {
 }
 
 interface GitLabMergeRequest {
+  iid: number;
+  title: string;
+  created_at: string | null;
+  web_url: string | null;
+  draft?: boolean;
+  labels?: string[];
+  author?: { username: string } | null;
+}
+
+interface GitLabIssue {
+  iid: number;
+  title: string;
+  created_at: string | null;
+  web_url: string | null;
+  labels?: string[];
+  author?: { username: string } | null;
+}
+
+interface GitLabPipeline {
   id: number;
+  name?: string | null;
+  status: string | null;
+  ref: string | null;
+  web_url: string | null;
+  updated_at: string | null;
 }

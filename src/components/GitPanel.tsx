@@ -3,7 +3,9 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
+  Activity,
   AlertTriangle,
+  CircleDot,
   ExternalLink,
   GitBranch,
   GitCommitHorizontal,
@@ -18,6 +20,8 @@ import {
   Star,
   Tag,
 } from "lucide-react";
+import { CiBadge } from "@/components/CiBadge";
+import { Sparkline } from "@/components/Sparkline";
 import { asArray, asRecord } from "@/types";
 import type {
   BranchInfo,
@@ -25,10 +29,13 @@ import type {
   ProjectDetail,
   ReleaseInfo,
   TagInfo,
+  TicketInfo,
 } from "@/types";
 import { cn, formatDateTime, formatNumber, formatRelative } from "@/lib/utils";
 
 const TABS = [
+  { key: "pulls", label: "PRs", icon: GitPullRequest },
+  { key: "issues", label: "Issues", icon: CircleDot },
   { key: "branches", label: "Branches", icon: GitBranch },
   { key: "tags", label: "Tags", icon: Tag },
   { key: "commits", label: "Commits", icon: GitCommitHorizontal },
@@ -39,7 +46,7 @@ type TabKey = (typeof TABS)[number]["key"];
 
 export function GitPanel({ project }: { project: ProjectDetail }) {
   const router = useRouter();
-  const [tab, setTab] = useState<TabKey>("branches");
+  const [tab, setTab] = useState<TabKey>("pulls");
   const [syncing, setSyncing] = useState(false);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
 
@@ -49,6 +56,9 @@ export function GitPanel({ project }: { project: ProjectDetail }) {
   const commits = asArray<CommitInfo>(snapshot?.commits);
   const releases = asArray<ReleaseInfo>(snapshot?.releases);
   const languages = asRecord(snapshot?.languages);
+  const pulls = asArray<TicketInfo>(snapshot?.pullRequests);
+  const issues = asArray<TicketInfo>(snapshot?.issues);
+  const activity = asArray<number>(snapshot?.commitActivity);
 
   const hasRepo = Boolean(project.repoOwner && project.repoName) || Boolean(project.repoUrl);
 
@@ -118,6 +128,7 @@ export function GitPanel({ project }: { project: ProjectDetail }) {
                 <ExternalLink className="h-3.5 w-3.5" />
               </a>
             ) : null}
+            <CiBadge state={snapshot?.ciState} name={snapshot?.ciName} url={snapshot?.ciUrl} />
           </div>
           <p className="mt-1 text-xs text-slate-500" suppressHydrationWarning>
             {project.lastSyncedAt
@@ -224,6 +235,24 @@ export function GitPanel({ project }: { project: ProjectDetail }) {
             </div>
           </div>
 
+          {/* Commit-Aktivitaet */}
+          {activity.some((value) => value > 0) ? (
+            <div className="glass p-4">
+              <div className="mb-2.5 flex items-center justify-between">
+                <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                  <Activity className="h-3 w-3" />
+                  {/* Der Zeitraum richtet sich danach, wie weit die geholten
+                      Commits zurueckreichen – hoechstens 30 Tage. */}
+                  Commits der letzten {activity.length} Tage
+                </p>
+                <span className="text-xs tabular-nums text-slate-400">
+                  {activity.reduce((sum, value) => sum + value, 0)}
+                </span>
+              </div>
+              <Sparkline values={activity} height={40} />
+            </div>
+          ) : null}
+
           {/* Sprachen */}
           {languageTotal > 0 ? (
             <div className="glass p-4">
@@ -263,14 +292,14 @@ export function GitPanel({ project }: { project: ProjectDetail }) {
           <div className="glass overflow-hidden">
             <div className="flex flex-wrap gap-1 border-b border-white/6 p-2">
               {TABS.map(({ key, label, icon: Icon }) => {
-                const count =
-                  key === "branches"
-                    ? branches.length
-                    : key === "tags"
-                      ? tags.length
-                      : key === "commits"
-                        ? commits.length
-                        : releases.length;
+                const count = {
+                  pulls: pulls.length,
+                  issues: issues.length,
+                  branches: branches.length,
+                  tags: tags.length,
+                  commits: commits.length,
+                  releases: releases.length,
+                }[key];
                 return (
                   <button
                     key={key}
@@ -292,6 +321,16 @@ export function GitPanel({ project }: { project: ProjectDetail }) {
             </div>
 
             <div className="max-h-[26rem] overflow-y-auto">
+              {tab === "pulls" ? (
+                <TicketList
+                  tickets={pulls}
+                  empty="Keine offenen Pull oder Merge Requests."
+                  icon={GitPullRequest}
+                />
+              ) : null}
+              {tab === "issues" ? (
+                <TicketList tickets={issues} empty="Keine offenen Issues." icon={CircleDot} />
+              ) : null}
               {tab === "branches" ? <BranchList branches={branches} /> : null}
               {tab === "tags" ? <TagList tags={tags} /> : null}
               {tab === "commits" ? <CommitList commits={commits} /> : null}
@@ -340,6 +379,67 @@ function Row({ children }: { children: React.ReactNode }) {
 
 function Empty({ text }: { text: string }) {
   return <p className="px-4 py-8 text-center text-xs text-slate-500">{text}</p>;
+}
+
+function TicketList({
+  tickets,
+  empty,
+  icon: Icon,
+}: {
+  tickets: TicketInfo[];
+  empty: string;
+  icon: typeof GitPullRequest;
+}) {
+  if (tickets.length === 0) return <Empty text={empty} />;
+  return (
+    <div>
+      {tickets.map((ticket) => (
+        <Row key={`${ticket.number}-${ticket.title}`}>
+          <div className="flex min-w-0 items-start gap-2">
+            <Icon
+              className={cn(
+                "mt-0.5 h-3.5 w-3.5 shrink-0",
+                ticket.draft ? "text-slate-600" : "text-emerald-400/70",
+              )}
+            />
+            <div className="min-w-0">
+              <p className="truncate text-xs text-slate-200">
+                {ticket.title}
+                {ticket.draft ? (
+                  <span className="ml-1.5 rounded bg-slate-500/15 px-1 py-0.5 text-[10px] text-slate-400">
+                    Entwurf
+                  </span>
+                ) : null}
+              </p>
+              <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[11px] text-slate-500">
+                <span className="font-mono text-slate-600">#{ticket.number}</span>
+                <span>{ticket.author ?? "unbekannt"}</span>
+                {ticket.labels.slice(0, 3).map((label) => (
+                  <span key={label} className="rounded bg-white/6 px-1 py-0.5 text-[10px]">
+                    {label}
+                  </span>
+                ))}
+              </p>
+            </div>
+          </div>
+          <div className="flex shrink-0 items-center gap-2 text-[11px] text-slate-500">
+            <span suppressHydrationWarning>{formatRelative(ticket.createdAt)}</span>
+            {ticket.url ? (
+              <a
+                href={ticket.url}
+                target="_blank"
+                rel="noreferrer noopener"
+                className="text-slate-600 transition-colors hover:text-violet-300"
+                aria-label="Im Git-System oeffnen"
+              >
+                <ExternalLink className="h-3 w-3" />
+              </a>
+            ) : null}
+          </div>
+        </Row>
+      ))}
+    </div>
+  );
 }
 
 function BranchList({ branches }: { branches: BranchInfo[] }) {

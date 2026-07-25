@@ -10,10 +10,12 @@ import {
   Star,
   Tag,
 } from "lucide-react";
+import { CiBadge } from "@/components/CiBadge";
+import { Sparkline } from "@/components/Sparkline";
 import { StatusSelect } from "@/components/StatusSelect";
 import { PRIORITY_META, accentOf } from "@/lib/status";
 import { cn, formatRelative, truncate } from "@/lib/utils";
-import type { ProjectListItem } from "@/types";
+import { asArray, type ProjectListItem } from "@/types";
 
 const PROVIDER_LABEL: Record<string, string> = {
   GITHUB: "GitHub",
@@ -29,6 +31,7 @@ export function ProjectCard({ project, index = 0 }: { project: ProjectListItem; 
   const accent = accentOf(project.accent);
   const priority = PRIORITY_META[project.priority] ?? PRIORITY_META[2];
   const snapshot = project.snapshot;
+  const activity = asArray<number>(snapshot?.commitActivity);
   const [favorite, setFavorite] = useState(project.favorite);
 
   async function toggleFavorite() {
@@ -110,8 +113,17 @@ export function ProjectCard({ project, index = 0 }: { project: ProjectListItem; 
           </div>
         </div>
 
+        {/* Commit-Aktivitaet */}
+        {activity.some((value) => value > 0) ? (
+          <div className="mt-3">
+            <Sparkline values={activity} height={20} />
+          </div>
+        ) : null}
+
         {/* Git-Kurzinfo */}
         <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 text-[11px] text-slate-400">
+          <CiBadge state={snapshot?.ciState} name={snapshot?.ciName} compact />
+
           {project.connection ? (
             <span className="glass-soft inline-flex items-center gap-1.5 px-2 py-1">
               <span className="h-1.5 w-1.5 rounded-full bg-violet-400" aria-hidden="true" />

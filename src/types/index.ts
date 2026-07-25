@@ -1,5 +1,12 @@
 import type { GitProvider, Note, Project, ProjectStatus, RepoSnapshot } from "@prisma/client";
-import type { BranchInfo, CommitInfo, ReleaseInfo, TagInfo } from "@/lib/git/types";
+import type {
+  BranchInfo,
+  CiInfo,
+  CommitInfo,
+  ReleaseInfo,
+  TagInfo,
+  TicketInfo,
+} from "@/lib/git/types";
 
 /** Verbindung ohne Geheimnisse – so wird sie an den Browser gegeben. */
 export interface ConnectionSafe {
@@ -44,7 +51,17 @@ export interface RepoListEntry {
   updatedAt: string | null;
 }
 
-export type { BranchInfo, CommitInfo, Note, ProjectStatus, ReleaseInfo, RepoSnapshot, TagInfo };
+export type {
+  BranchInfo,
+  CiInfo,
+  CommitInfo,
+  Note,
+  ProjectStatus,
+  ReleaseInfo,
+  RepoSnapshot,
+  TagInfo,
+  TicketInfo,
+};
 
 /** Prisma liefert Json als unknown – hier bequem in Arrays zurueckholen. */
 export function asArray<T>(value: unknown): T[] {

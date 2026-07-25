@@ -1,6 +1,8 @@
 import { getJson, getJsonSafe, normalizeBaseUrl, shortSha, toIso } from "./http";
 import type {
   BranchInfo,
+  CiInfo,
+  CiState,
   CommitInfo,
   ConnectionCheck,
   GitClient,
@@ -10,8 +12,9 @@ import type {
   RepoRef,
   RepoSnapshotData,
   TagInfo,
+  TicketInfo,
 } from "./types";
-import { GitApiError } from "./types";
+import { GitApiError, bucketCommitActivity } from "./types";
 
 /**
  * GitHub – funktioniert mit github.com und GitHub Enterprise.
@@ -85,14 +88,25 @@ export class GitHubClient implements GitClient {
 
     const repo = await getJson<GitHubRepo>(base, { headers });
 
-    const [branches, tags, commits, releases, languages, pulls] = await Promise.all([
-      getJsonSafe<GitHubBranch[]>(`${base}/branches?per_page=50`, [], { headers }),
-      getJsonSafe<GitHubTag[]>(`${base}/tags?per_page=25`, [], { headers }),
-      getJsonSafe<GitHubCommit[]>(`${base}/commits?per_page=15`, [], { headers }),
-      getJsonSafe<GitHubRelease[]>(`${base}/releases?per_page=10`, [], { headers }),
-      getJsonSafe<Record<string, number>>(`${base}/languages`, {}, { headers }),
-      getJsonSafe<GitHubPull[]>(`${base}/pulls?state=open&per_page=100`, [], { headers }),
-    ]);
+    const defaultBranch = repo.default_branch;
+
+    const [branches, tags, commits, releases, languages, pulls, issues, ciRuns] =
+      await Promise.all([
+        getJsonSafe<GitHubBranch[]>(`${base}/branches?per_page=50`, [], { headers }),
+        getJsonSafe<GitHubTag[]>(`${base}/tags?per_page=25`, [], { headers }),
+        // 100 statt 15: die aelteren brauchen wir fuer die Aktivitaetskurve.
+        getJsonSafe<GitHubCommit[]>(`${base}/commits?per_page=100`, [], { headers }),
+        getJsonSafe<GitHubRelease[]>(`${base}/releases?per_page=10`, [], { headers }),
+        getJsonSafe<Record<string, number>>(`${base}/languages`, {}, { headers }),
+        getJsonSafe<GitHubPull[]>(`${base}/pulls?state=open&per_page=50`, [], { headers }),
+        // /issues liefert bei GitHub auch Pull Requests – die filtern wir raus.
+        getJsonSafe<GitHubIssue[]>(`${base}/issues?state=open&per_page=50`, [], { headers }),
+        getJsonSafe<{ workflow_runs?: GitHubRun[] }>(
+          `${base}/actions/runs?per_page=1&branch=${encodeURIComponent(defaultBranch)}`,
+          {},
+          { headers },
+        ),
+      ]);
 
     const mappedBranches: BranchInfo[] = branches.map((branch) => ({
       name: branch.name,
@@ -131,9 +145,42 @@ export class GitHubClient implements GitClient {
       draft: Boolean(release.draft),
     }));
 
+    const mappedPulls: TicketInfo[] = pulls.map((pull) => ({
+      number: pull.number,
+      title: pull.title,
+      author: pull.user?.login ?? null,
+      createdAt: toIso(pull.created_at),
+      url: pull.html_url ?? null,
+      draft: Boolean(pull.draft),
+      labels: (pull.labels ?? []).map((label) => label.name),
+    }));
+
+    const mappedIssues: TicketInfo[] = issues
+      .filter((issue) => !issue.pull_request)
+      .map((issue) => ({
+        number: issue.number,
+        title: issue.title,
+        author: issue.user?.login ?? null,
+        createdAt: toIso(issue.created_at),
+        url: issue.html_url ?? null,
+        draft: false,
+        labels: (issue.labels ?? []).map((label) => label.name),
+      }));
+
     // open_issues_count zaehlt bei GitHub PRs mit – hier wieder herausrechnen.
     const openPullRequests = pulls.length;
     const openIssues = Math.max(0, (repo.open_issues_count ?? 0) - openPullRequests);
+
+    const run = ciRuns?.workflow_runs?.[0];
+    const ci: CiInfo | null = run
+      ? {
+          state: mapRunState(run.status, run.conclusion),
+          name: run.name ?? null,
+          branch: run.head_branch ?? null,
+          url: run.html_url ?? null,
+          finishedAt: toIso(run.updated_at),
+        }
+      : null;
 
     return {
       fullName: repo.full_name,
@@ -149,10 +196,33 @@ export class GitHubClient implements GitClient {
       pushedAt: toIso(repo.pushed_at),
       branches: mappedBranches,
       tags: mappedTags,
-      commits: mappedCommits,
+      // Angezeigt werden die letzten 15; die uebrigen dienten der Kurve.
+      commits: mappedCommits.slice(0, 15),
       releases: mappedReleases,
       languages: languages ?? {},
+      pullRequests: mappedPulls,
+      issues: mappedIssues,
+      ci,
+      commitActivity: bucketCommitActivity(mappedCommits.map((commit) => commit.date)),
     };
+  }
+}
+
+/** GitHub trennt Lauf-Status und Ergebnis; hier auf einen Wert zusammenfuehren. */
+function mapRunState(status: string | null, conclusion: string | null): CiState {
+  if (status === "queued" || status === "waiting" || status === "pending") return "pending";
+  if (status === "in_progress") return "running";
+  switch (conclusion) {
+    case "success":
+      return "success";
+    case "cancelled":
+      return "cancelled";
+    case "failure":
+    case "timed_out":
+    case "startup_failure":
+      return "failure";
+    default:
+      return conclusion ? "failure" : "pending";
   }
 }
 
@@ -206,6 +276,36 @@ interface GitHubRelease {
   draft: boolean;
 }
 
+interface GitHubLabel {
+  name: string;
+}
+
 interface GitHubPull {
-  id: number;
+  number: number;
+  title: string;
+  html_url: string | null;
+  created_at: string | null;
+  draft?: boolean;
+  user?: { login: string } | null;
+  labels?: GitHubLabel[];
+}
+
+interface GitHubIssue {
+  number: number;
+  title: string;
+  html_url: string | null;
+  created_at: string | null;
+  user?: { login: string } | null;
+  labels?: GitHubLabel[];
+  /** Gesetzt, wenn der Eintrag in Wahrheit ein Pull Request ist. */
+  pull_request?: unknown;
+}
+
+interface GitHubRun {
+  name: string | null;
+  status: string | null;
+  conclusion: string | null;
+  head_branch: string | null;
+  html_url: string | null;
+  updated_at: string | null;
 }
