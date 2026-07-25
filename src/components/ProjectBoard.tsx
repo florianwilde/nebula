@@ -1,11 +1,14 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import {
+  Columns3,
   Database,
   Download,
   LayoutGrid,
   ListFilter,
+  NotebookPen,
   Plus,
   Rows3,
   Search,
@@ -14,6 +17,7 @@ import {
 } from "lucide-react";
 import type { ProjectStatus } from "@prisma/client";
 import { ImportDialog } from "@/components/ImportDialog";
+import { KanbanBoard } from "@/components/KanbanBoard";
 import { ProjectCard } from "@/components/ProjectCard";
 import { ProjectDialog } from "@/components/ProjectDialog";
 import { Popover } from "@/components/ui/Popover";
@@ -21,8 +25,34 @@ import { STATUS_META, STATUS_ORDER } from "@/lib/status";
 import { cn } from "@/lib/utils";
 import type { ConnectionSafe, ProjectListItem } from "@/types";
 
+interface NoteHit {
+  projectId: string;
+  noteId: string;
+  title: string | null;
+  /** Ausschnitt mit [[…]] um die Fundstelle – siehe /api/search. */
+  snippet: string;
+}
+
+/**
+ * Wandelt die [[…]]-Markierungen von ts_headline in hervorgehobene Stellen.
+ * Bewusst kein HTML aus der Datenbank einbetten – der Text stammt aus einer
+ * Notiz und damit vom Benutzer.
+ */
+function highlight(snippet: string): React.ReactNode[] {
+  return snippet.split(/(\[\[.*?\]\])/g).map((part, index) => {
+    if (part.startsWith("[[") && part.endsWith("]]")) {
+      return (
+        <mark key={index} className="rounded bg-violet-500/25 px-0.5 text-violet-100">
+          {part.slice(2, -2)}
+        </mark>
+      );
+    }
+    return <span key={index}>{part}</span>;
+  });
+}
+
 type SortKey = "updated" | "created" | "name" | "progress" | "priority";
-type ViewMode = "grid" | "grouped";
+type ViewMode = "grid" | "grouped" | "kanban";
 
 const SORT_LABEL: Record<SortKey, string> = {
   updated: "Zuletzt geaendert",
@@ -48,6 +78,45 @@ export function ProjectBoard({
   const [importOpen, setImportOpen] = useState(false);
   const [dataMenuOpen, setDataMenuOpen] = useState(false);
   const dataButtonRef = useRef<HTMLButtonElement>(null);
+  const [noteHits, setNoteHits] = useState<NoteHit[]>([]);
+
+  /**
+   * Notizen liegen im Board nicht vor – sie mitzuladen wuerde die Seite
+   * unnoetig aufblaehen. Stattdessen sucht Postgres serverseitig, sobald der
+   * Begriff lang genug ist. Entprellt, damit nicht jeder Tastendruck eine
+   * Abfrage ausloest.
+   */
+  useEffect(() => {
+    const needle = query.trim();
+    if (needle.length < 2) {
+      setNoteHits([]);
+      return;
+    }
+
+    const controller = new AbortController();
+    const timer = setTimeout(async () => {
+      try {
+        const response = await fetch(`/api/search?q=${encodeURIComponent(needle)}`, {
+          signal: controller.signal,
+        });
+        if (!response.ok) return;
+        const body = (await response.json()) as { hits: NoteHit[] };
+        setNoteHits(body.hits ?? []);
+      } catch {
+        // Abgebrochene Anfragen sind der Normalfall beim Tippen.
+      }
+    }, 300);
+
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [query]);
+
+  const noteHitProjectIds = useMemo(
+    () => new Set(noteHits.map((hit) => hit.projectId)),
+    [noteHits],
+  );
 
   const counts = useMemo(() => {
     const map = new Map<ProjectStatus, number>();
@@ -71,7 +140,9 @@ export function ProjectBoard({
         (project.summary ?? "").toLowerCase().includes(needle) ||
         (project.description ?? "").toLowerCase().includes(needle) ||
         project.tags.some((tag) => tag.includes(needle)) ||
-        (project.snapshot?.fullName ?? "").toLowerCase().includes(needle)
+        (project.snapshot?.fullName ?? "").toLowerCase().includes(needle) ||
+        // Treffer in Notizen kommen vom Server dazu.
+        noteHitProjectIds.has(project.id)
       );
     });
 
@@ -92,7 +163,7 @@ export function ProjectBoard({
     });
 
     return sorted;
-  }, [projects, query, statusFilter, sort, showArchived]);
+  }, [projects, query, statusFilter, sort, showArchived, noteHitProjectIds]);
 
   const grouped = useMemo(() => {
     return STATUS_ORDER.map((status) => ({
@@ -178,6 +249,18 @@ export function ProjectBoard({
               >
                 <Rows3 className="h-4 w-4" />
               </button>
+              <button
+                type="button"
+                onClick={() => setView("kanban")}
+                className={cn(
+                  "p-2 transition-colors",
+                  view === "kanban" ? "bg-white/10 text-white" : "text-slate-500 hover:text-white",
+                )}
+                aria-label="Kanban-Spalten"
+                title="Kanban – Status per Ziehen aendern"
+              >
+                <Columns3 className="h-4 w-4" />
+              </button>
             </div>
 
             <button
@@ -256,9 +339,54 @@ export function ProjectBoard({
         </div>
       </div>
 
+      {/* Treffer in Notizen */}
+      {noteHits.length > 0 ? (
+        <div className="glass fade-up p-4">
+          <h2 className="mb-2.5 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+            <NotebookPen className="h-3.5 w-3.5 text-violet-300" />
+            Treffer in Notizen
+            <span className="rounded-full bg-white/6 px-2 py-0.5 tabular-nums text-slate-400">
+              {noteHits.length}
+            </span>
+          </h2>
+          <ul className="space-y-1">
+            {noteHits.slice(0, 8).map((hit) => {
+              const project = projects.find((entry) => entry.id === hit.projectId);
+              return (
+                <li key={hit.noteId}>
+                  <Link
+                    href={`/projects/${hit.projectId}`}
+                    className="block rounded-lg px-2.5 py-2 transition-colors hover:bg-white/5"
+                  >
+                    <span className="flex flex-wrap items-baseline gap-x-2">
+                      <span className="text-sm text-slate-200">
+                        {project?.name ?? "Projekt"}
+                      </span>
+                      {hit.title ? (
+                        <span className="text-[11px] text-slate-500">· {hit.title}</span>
+                      ) : null}
+                    </span>
+                    <span className="mt-0.5 block text-xs leading-snug text-slate-400">
+                      {highlight(hit.snippet)}
+                    </span>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+          {noteHits.length > 8 ? (
+            <p className="mt-2 px-2.5 text-[11px] text-slate-600">
+              … und {noteHits.length - 8} weitere
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+
       {/* Inhalt */}
       {visible.length === 0 ? (
         <EmptyState hasFilters={hasFilters} onCreate={() => setDialogOpen(true)} />
+      ) : view === "kanban" ? (
+        <KanbanBoard projects={visible} showArchived={showArchived} />
       ) : view === "grid" ? (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
           {visible.map((project, index) => (
