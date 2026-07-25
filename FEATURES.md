@@ -5,6 +5,52 @@ Für Installation und Betrieb siehe [README.md](README.md).
 
 ---
 
+## 0. Konten und Zugang
+
+### 0.1 Betriebsarten
+
+Beim ersten Aufruf führt `/setup` durch die Einrichtung des Administratorkontos. Dort — und
+später jederzeit unter *Admin-Einstellungen* — wird die Betriebsart gewählt:
+
+| Modus | Verhalten |
+| --- | --- |
+| **Einzelbetrieb** | Genau ein Konto. Keine Registrierung, keine Benutzerverwaltung. |
+| **Mehrbenutzerbetrieb** | Beliebig viele Konten mit strikt getrennten Daten. Selbstregistrierung optional zuschaltbar. |
+
+Der Wechsel in den Einzelbetrieb wird abgelehnt, solange mehr als ein Konto existiert —
+sonst würden Konten ausgesperrt. Nach der Einrichtung ist `/setup` dauerhaft gesperrt.
+
+### 0.2 Anmeldung
+
+- **Benutzername und Passwort.** Mindestens 10 Zeichen, offensichtliche Passwörter werden
+  abgelehnt. Hashing mit scrypt.
+- **Passkey (WebAuthn).** Fingerabdruck, Gesichtserkennung oder Sicherheitsschlüssel. Die
+  Anmeldung läuft über auffindbare Credentials, ein Benutzername ist also nicht nötig.
+  Mehrere Passkeys pro Konto, benennbar und einzeln entfernbar.
+- Ein Konto kann **ausschließlich** per Passkey nutzbar sein. Der letzte Passkey lässt sich
+  dann nicht entfernen, solange kein Passwort gesetzt ist.
+- Fehlversuche werden gezählt; nach acht sperrt sich das Konto für 15 Minuten.
+- Die Fehlermeldung ist immer dieselbe und die Antwortzeit gleich lang, egal ob es den
+  Benutzernamen gibt — so lässt sich nicht ausprobieren, welche Konten existieren.
+
+### 0.3 Mein Konto
+
+Anzeigename und E-Mail ändern · Passwort setzen oder wechseln · Passkeys verwalten ·
+aktive Sitzungen einsehen (Browser, Betriebssystem, IP, letzte Aktivität) · überall
+abmelden, wobei das eigene Gerät angemeldet bleibt.
+
+### 0.4 Benutzerverwaltung (Administratoren)
+
+- Konten anlegen, umbenennen, Rolle wechseln, deaktivieren, löschen
+- Passwort eines Kontos neu setzen — beendet dessen Sitzungen sofort
+- Übersicht je Konto: Projektzahl, Passkeys, letzte Anmeldung, Sperrstatus
+- Selbstregistrierung an- und abschaltbar
+- Schutzregeln: Der letzte aktive Administrator kann weder herabgestuft, deaktiviert noch
+  gelöscht werden; das eigene Konto lässt sich nicht löschen oder deaktivieren.
+- **Administratoren sehen keine fremden Projekte.** Sie verwalten Konten, nicht Inhalte.
+
+---
+
 ## 1. Projekte
 
 ### 1.1 Anlegen und Verwalten
@@ -157,21 +203,49 @@ Firmen-Gitea nebeneinander.
 
 | Tabelle | Inhalt |
 | --- | --- |
-| `Project` | Projektstammdaten, Status, Fortschritt, Repo-Verknüpfung |
+| `User` | Konten, Rolle, Passwort-Hash, Sperrzähler |
+| `Session` | Serverseitige Sitzungen (nur der Token-Hash) |
+| `Credential` | Passkeys inkl. öffentlichem Schlüssel und Signaturzähler |
+| `WebAuthnChallenge` | Kurzlebige, einmalig verwendbare Challenges |
+| `AppSettings` | Betriebsart und Registrierung (eine Zeile) |
+| `Project` | Projektstammdaten, Status, Fortschritt, Repo-Verknüpfung, Besitzer |
 | `Note` | Notizen (n:1 zu Projekt, Cascade-Delete) |
-| `GitConnection` | Git-Systeme inkl. verschlüsseltem Token |
+| `GitConnection` | Git-Systeme inkl. verschlüsseltem Token, Besitzer |
 | `RepoSnapshot` | Zwischengespeicherter Repo-Stand (1:1 zu Projekt) |
+
+`Project.ownerId` und `GitConnection.ownerId` sind bewusst optional: so überleben Daten aus
+der Zeit vor der Benutzerverwaltung die Migration und werden beim Anlegen des ersten Kontos
+übernommen. Slug und Verbindungsname sind je Besitzer eindeutig — zwei Personen dürfen
+beide ein Projekt „dashboard" haben.
 
 Listen wie Branches oder Commits liegen als `JSONB`, damit providerspezifische Felder
 nicht verloren gehen. Indizes auf Status, Verbindung und Änderungsdatum.
 
 ### 6.2 Sicherheit
 
+- **Zugangsschutz in zwei Ebenen.** Die Middleware prüft nur, ob ein Sitzungscookie
+  überhaupt mitkommt — im Edge-Runtime gibt es keine Datenbank. Verbindlich entschieden
+  wird serverseitig in jeder Seite und jedem Endpunkt (`requireUserPage` /
+  `requireUserApi`). Das ist die eigentliche Sicherheitsgrenze.
+- **Datentrennung** über eine Besitzerbedingung in jeder Abfrage. Schreibzugriffe laufen
+  über `updateMany`/`deleteMany` mit `ownerId` in der `where`-Klausel, treffen fremde
+  Datensätze also gar nicht erst. Fremde IDs liefern `404` statt `403`.
+- **CSRF**: Origin- bzw. `Sec-Fetch-Site`-Prüfung für alle schreibenden Methoden, dazu
+  erzwungener `Content-Type: application/json`.
+- **CSP mit Per-Request-Nonce** und `strict-dynamic`, plus `frame-ancestors 'none'`,
+  `object-src 'none'`, `base-uri 'none'` und die üblichen Schutz-Header.
+- **SSRF-Schutz** vor jedem ausgehenden Git-Aufruf: Hostname wird aufgelöst, jede
+  Antwortadresse geprüft (schützt auch gegen DNS-Rebinding über einen zweiten A-Record),
+  Redirect-Ziele werden erneut geprüft. Konfigurierbar über `GIT_ALLOW_LOOPBACK`,
+  `GIT_BLOCK_PRIVATE` und `GIT_ALLOWED_HOSTS`.
+- **Rate-Limiting** für Anmeldung (je IP und je Konto), ausgehende Git-Aufrufe und
+  WebAuthn-Optionen.
 - Access Tokens verschlüsselt mit **AES-256-GCM**, Schlüssel per **scrypt** aus
   `APP_SECRET` abgeleitet, Chiffrat versioniert (`v1.<iv>.<tag>.<data>`).
 - Tokens werden nie an den Browser gesendet — alle API-Antworten nutzen eine Feldauswahl
   ohne `tokenCipher`.
-- **Zod-Validierung** jeder Eingabe an der API-Grenze mit Feldfehlern für die UI.
+- **Zod-Validierung** jeder Eingabe an der API-Grenze mit Feldfehlern für die UI, Body auf
+  256 KB begrenzt.
 - Prisma arbeitet ausschließlich mit parametrisierten Abfragen.
 
 ### 6.3 Betrieb
@@ -204,4 +278,6 @@ Bewusst nicht umgesetzt, aber vorgemerkt:
 - Volltextsuche über Notizen hinweg
 - Export eines Projekts als Markdown
 - Automatischer Sync im Hintergrund (Intervall pro Verbindung)
-- Mehrbenutzerbetrieb mit Login
+- Passwort-Zurücksetzen per E-Mail (aktuell setzt ein Administrator das Passwort neu)
+- Zwei-Faktor per TOTP als Alternative zum Passkey
+- Geteilte Projekte zwischen Konten (heute ist die Trennung absichtlich hart)

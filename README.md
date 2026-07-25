@@ -22,6 +22,11 @@ Jedes Projekt bekommt einen **Status** (von der rohen Idee bis „Fertig"), beli
 Branches, Tags, Commits, Releases und offene Issues/PRs — egal ob **GitHub**, **GitLab**
 oder eine selbst gehostete **Gitea**-Instanz.
 
+Die Anmeldung läuft über **Benutzername und Passwort oder Passkey** (WebAuthn). Nebula
+kennt zwei Betriebsarten: **Einzelbetrieb** für ein Konto oder **Mehrbenutzerbetrieb**, in
+dem jede Person ihren eigenen, streng getrennten Bereich hat. Umschalten geht jederzeit in
+den Admin-Einstellungen.
+
 Alle Daten liegen in **deiner lokalen PostgreSQL**. Es gibt keinen Cloud-Dienst dahinter,
 Access Tokens werden verschlüsselt abgelegt.
 
@@ -106,20 +111,54 @@ Alle Variablen sind in [`.env.example`](.env.example) dokumentiert.
 
 | Variable | Bedeutung | Default |
 | --- | --- | --- |
+| `APP_NAME` | Anzeigename: Seitentitel, Kopfzeile, Passkey-Dialog | `Nebula` |
+| `APP_TAGLINE` | Kleine Zeile unter dem Namen | `Vibe Coding` |
+| `APP_URL` | Öffentliche Adresse — bestimmt die WebAuthn-RP-ID | `http://localhost:3000` |
 | `DATABASE_URL` | PostgreSQL-Verbindung (Prisma) | `postgresql://nebula:nebula@localhost:5432/nebula` |
 | `APP_SECRET` | Schlüssel für die Token-Verschlüsselung (AES-256-GCM) | — **unbedingt setzen** |
+| `SESSION_TTL_DAYS` | Lebensdauer einer Anmeldung in Tagen | `30` |
 | `PORT` | Port der Anwendung | `3000` |
 | `APP_PORT` | Host-Port-Mapping des App-Containers | `3000` |
 | `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | Zugangsdaten des DB-Containers | `nebula` |
 | `POSTGRES_PORT` | Host-Port der Datenbank | `5432` |
 | `ADMINER_PORT` | Host-Port von Adminer (`--profile tools`) | `8080` |
 | `GIT_API_TIMEOUT_MS` | Timeout für Git-API-Aufrufe | `15000` |
+| `GIT_ALLOW_LOOPBACK` | Git-Instanz auf demselben Rechner erlauben | `false` |
+| `GIT_BLOCK_PRIVATE` | Zugriff ins private LAN sperren | `false` |
+| `GIT_ALLOWED_HOSTS` | Strengster Modus: nur diese Hosts erlauben | leer |
+
+`APP_NAME`, `APP_TAGLINE` und `APP_URL` werden **zur Laufzeit** gelesen. Dasselbe
+Docker-Image lässt sich also ohne Neubau umbenennen oder unter einer anderen Adresse
+betreiben — Container neu starten genügt.
 
 > **`APP_SECRET` nachträglich ändern** macht bereits gespeicherte Git-Tokens unlesbar.
-> Sie müssen dann in den Verbindungen neu hinterlegt werden — die restlichen Daten bleiben
-> unberührt.
+> Sie müssen dann in den Verbindungen neu hinterlegt werden — Konten, Passwörter und
+> Passkeys bleiben unberührt.
+
+> **`APP_URL` nachträglich ändern** (anderer Hostname) macht bestehende **Passkeys**
+> ungültig, weil sie an die RP-ID gebunden sind. Passwörter funktionieren weiter.
 
 ---
+
+## Erste Anmeldung
+
+Beim ersten Aufruf landest du auf `/setup`. Dort legst du das Administratorkonto an und
+wählst die Betriebsart:
+
+- **Einzelbetrieb** — genau ein Konto, keine Registrierung, keine Benutzerliste.
+- **Mehrbenutzerbetrieb** — beliebig viele Konten. Projekte, Notizen und Git-Verbindungen
+  sind pro Konto strikt getrennt; auch ein Administrator sieht fremde Projekte nicht.
+
+Nach der Einrichtung ist `/setup` gesperrt. Bereits vorhandene Projekte ohne Besitzer
+(etwa aus den Seed-Daten) werden dem neuen Konto zugeordnet.
+
+**Passkey einrichten:** unter *Mein Konto → Passkeys → Passkey hinzufügen*. Danach genügt
+auf der Anmeldeseite ein Klick auf „Mit Passkey anmelden" — ohne Benutzernamen, weil
+Nebula auffindbare Credentials nutzt.
+
+> Passkeys brauchen einen sicheren Kontext. Sie funktionieren über `https://` und über
+> `http://localhost`, **nicht** über eine LAN-IP ohne TLS. `APP_URL` muss dabei exakt der
+> Adresse entsprechen, unter der du die App aufrufst.
 
 ## Git-Verbindung einrichten
 
@@ -197,9 +236,23 @@ nebula/
 
 Alle Endpunkte liefern und erwarten JSON.
 
+Bis auf `/api/health` und `/api/auth/*` erfordern alle Endpunkte eine Anmeldung und liefern
+ausschließlich Daten des angemeldeten Kontos.
+
 | Methode | Pfad | Zweck |
 | --- | --- | --- |
 | `GET` | `/api/health` | Status inkl. Datenbankverbindung (Docker-Healthcheck) |
+| `POST` | `/api/auth/setup` | Administratorkonto anlegen (nur beim ersten Mal) |
+| `POST` | `/api/auth/login` `/api/auth/logout` `/api/auth/register` | Anmeldung |
+| `GET` | `/api/auth/session` | Aktuelle Sitzung und Instanzzustand |
+| `POST` | `/api/auth/passkey/{login,register}/{options,verify}` | WebAuthn |
+| `PATCH` | `/api/account/profile` | Eigenes Profil |
+| `POST` | `/api/account/password` | Eigenes Passwort setzen |
+| `GET` `DELETE` | `/api/account/sessions` | Eigene Sitzungen / überall abmelden |
+| `PATCH` `DELETE` | `/api/account/passkeys/:id` | Passkey umbenennen / entfernen |
+| `GET` `PATCH` | `/api/admin/settings` | Betriebsart und Registrierung (Admin) |
+| `GET` `POST` | `/api/admin/users` | Konten auflisten / anlegen (Admin) |
+| `PATCH` `DELETE` | `/api/admin/users/:id` | Konto ändern / löschen (Admin) |
 | `GET` `POST` | `/api/projects` | Projekte auflisten / anlegen |
 | `GET` `PATCH` `DELETE` | `/api/projects/:id` | Projekt lesen / ändern / löschen |
 | `POST` | `/api/projects/:id/sync` | Repo-Daten vom Git-System holen |
@@ -220,16 +273,36 @@ curl -X POST http://localhost:3000/api/projects \
 
 ---
 
-## Sicherheitshinweise
+## Sicherheit
 
-- Nebula hat **keine Benutzerverwaltung** und ist für den Betrieb im eigenen Netz gedacht.
-  Vor einer Veröffentlichung im Internet unbedingt einen Reverse Proxy mit Authentifizierung
-  davorschalten.
-- Access Tokens werden mit **AES-256-GCM** verschlüsselt gespeichert, aus `APP_SECRET` per
-  scrypt abgeleitet. Sie werden ausschließlich serverseitig entschlüsselt und nie an den
-  Browser ausgeliefert — die API zeigt nur einen Hinweis wie `ghp_…9f3a`.
+| Bereich | Umsetzung |
+| --- | --- |
+| **Anmeldung** | Passwort-Hashing mit **scrypt** (N=32768, r=8, p=1), serverseitige Sitzungen — in der Datenbank liegt nur der SHA-256-Hash des Cookie-Tokens |
+| **Passkeys** | WebAuthn über SimpleWebAuthn, Challenges einmalig verwendbar und in der DB abgelegt, Signaturzähler wird fortgeschrieben |
+| **Cookies** | `HttpOnly`, `SameSite=Lax`, `Secure` automatisch bei https |
+| **CSRF** | Jede schreibende Anfrage muss vom eigenen Origin kommen (`Sec-Fetch-Site` / `Origin`); zusätzlich wird `Content-Type: application/json` erzwungen, was den Formular-Trick ohne Preflight ausschließt |
+| **CSP** | Strikte Policy mit Per-Request-**Nonce** und `strict-dynamic`, dazu `frame-ancestors 'none'`, `object-src 'none'`, `base-uri 'none'` |
+| **Weitere Header** | `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`, `Cross-Origin-Opener-Policy`, `Cross-Origin-Resource-Policy` |
+| **SSRF** | Die Basis-URL einer Git-Verbindung ist Benutzereingabe. Vor jedem ausgehenden Aufruf werden Hostname und **alle** aufgelösten IPs geprüft (auch nach Redirects); Loopback, Link-Local samt Cloud-Metadaten, Multicast und CGNAT sind gesperrt |
+| **Datentrennung** | Jede Abfrage filtert auf den Besitzer. Fremde IDs liefern `404`, nicht `403` — die Antwort verrät also nicht einmal, dass es den Datensatz gibt |
+| **Rate-Limiting** | Anmeldung pro IP und Konto, ausgehende Git-Aufrufe, WebAuthn-Optionen; Konto sperrt sich nach 8 Fehlversuchen für 15 Minuten |
+| **Eingaben** | Zod-Schemas an jeder API-Grenze, Body auf 256 KB begrenzt |
+| **Git-Tokens** | AES-256-GCM, Schlüssel per scrypt aus `APP_SECRET`. Werden nie an den Browser ausgeliefert — die API zeigt nur `ghp_…9f3a` |
+| **Sitzungsende** | Deaktivieren, Löschen oder ein neues Passwort beenden sofort alle Sitzungen des Kontos |
+
+Grenzen, die du kennen solltest:
+
 - Ist `APP_SECRET` nicht gesetzt, warnt die App beim Start und nutzt einen unsicheren
   Entwicklungsschlüssel.
+- Ohne `Origin`- **und** `Sec-Fetch-Site`-Header wird eine schreibende Anfrage
+  durchgelassen. Das betrifft nur Nicht-Browser-Clients (curl, Skripte) und ist bewusst so,
+  damit die API skriptbar bleibt — ein CSRF-Vektor ist es nicht, weil jeder Browser
+  mindestens einen der beiden Header sendet.
+- Das Rate-Limiting liegt im Arbeitsspeicher und wird beim Neustart zurückgesetzt.
+- Es gibt **kein** HSTS und keine TLS-Terminierung. Für den Betrieb im Internet gehört ein
+  Reverse Proxy mit gültigem Zertifikat davor — der ist ohnehin nötig, damit Passkeys
+  funktionieren.
+- Passwort-Zurücksetzen per E-Mail gibt es nicht; ein Administrator setzt Passwörter neu.
 
 ---
 
@@ -245,6 +318,10 @@ curl -X POST http://localhost:3000/api/projects \
 | Tokens plötzlich ungültig | `APP_SECRET` wurde geändert — Tokens neu eintragen |
 | Port 3000 belegt | `APP_PORT` in der `.env` ändern (Docker) bzw. `npm run dev -- -p 3001` |
 | `package.json#prisma is deprecated` | Harmlose Warnung von Prisma 6.19. Die Umstellung auf `prisma.config.ts` steht aus, weil dann die `.env` nicht mehr automatisch geladen wird — vor Prisma 7 zu erledigen |
+| Passkey-Knopf fehlt / „kein sicherer Kontext" | `APP_URL` zeigt weder auf `https://` noch auf `http://localhost` |
+| Passkey wird nicht akzeptiert | `APP_URL` weicht von der aufgerufenen Adresse ab, oder der Hostname wurde geändert (RP-ID) |
+| Nach `docker compose down -v` ist alles weg | Das Volume enthielt Konten und Projekte — `-v` löscht es |
+| Kein Zugriff auf die eigene Gitea im LAN | Läuft sie auf demselben Rechner? Dann `GIT_ALLOW_LOOPBACK=true` setzen |
 
 ---
 
