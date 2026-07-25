@@ -1,3 +1,4 @@
+import { BlockedHostError, assertAllowedUrl } from "@/lib/security/ssrf";
 import { GitApiError } from "./types";
 
 const DEFAULT_TIMEOUT = Number(process.env.GIT_API_TIMEOUT_MS ?? 15000);
@@ -44,6 +45,10 @@ export async function getJson<T>(
   );
 
   try {
+    // Vor jedem ausgehenden Aufruf pruefen, wohin er geht. Die Basis-URL
+    // stammt aus einem Formular, also aus Benutzereingabe.
+    await assertAllowedUrl(url);
+
     const response = await fetch(url, {
       headers: {
         Accept: "application/json",
@@ -52,7 +57,15 @@ export async function getJson<T>(
       },
       signal: controller.signal,
       cache: "no-store",
+      redirect: "follow",
     });
+
+    // Ein Redirect koennte auf eine interne Adresse zeigen (etwa bei einem
+    // umbenannten GitHub-Repo, aber eben auch boesartig). Deshalb das
+    // tatsaechliche Ziel nachtraeglich noch einmal pruefen.
+    if (response.redirected && response.url && response.url !== url) {
+      await assertAllowedUrl(response.url);
+    }
 
     if (response.status === 404 && options.allow404) {
       return null as T;
@@ -68,6 +81,9 @@ export async function getJson<T>(
     return JSON.parse(text) as T;
   } catch (error) {
     if (error instanceof GitApiError) throw error;
+    if (error instanceof BlockedHostError) {
+      throw new GitApiError(error.message, 403, url);
+    }
     if (error instanceof Error && error.name === "AbortError") {
       throw new GitApiError(
         `Zeitueberschreitung nach ${options.timeoutMs ?? DEFAULT_TIMEOUT} ms`,
