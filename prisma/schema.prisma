@@ -137,7 +137,25 @@ model AppSettings {
   allowRegistration Boolean  @default(false)
   /// Anzeigename gegenueber dem Authenticator beim Anlegen eines Passkeys.
   rpName            String   @default("Nebula")
-  updatedAt         DateTime @updatedAt
+
+  // ── Automatischer Abgleich mit den Git-Systemen ────────────
+  /// Standardmaessig aus: der Abgleich verbraucht fremde API-Kontingente,
+  /// das soll eine bewusste Entscheidung sein.
+  autoSyncEnabled         Boolean @default(false)
+  /// Abstand zwischen zwei Durchlaeufen in Minuten.
+  autoSyncIntervalMinutes Int     @default(60)
+  /// Fertige und archivierte Projekte auslassen – dort aendert sich selten
+  /// noch etwas.
+  autoSyncActiveOnly      Boolean @default(true)
+  /// Hoechstzahl Projekte je Durchlauf, damit ein grosses Board nicht auf
+  /// einen Schlag in ein Rate-Limit laeuft.
+  autoSyncBatchSize       Int     @default(25)
+
+  lastAutoSyncAt     DateTime?
+  /// Kurzbericht des letzten Durchlaufs: { synced, failed, skipped, ms }
+  lastAutoSyncReport Json?
+
+  updatedAt DateTime @updatedAt
 }
 
 /// Eine Verbindung zu einem Git-System inkl. verschluesseltem Token.
@@ -207,6 +225,12 @@ model Project {
 
   lastSyncedAt DateTime?
   syncError    String?
+  /// Am automatischen Abgleich teilnehmen. Einzeln abschaltbar, etwa bei
+  /// einem Repo, dessen Token staendig Fehler wirft.
+  autoSync     Boolean   @default(true)
+  /// Aufeinanderfolgende Fehlversuche. Steuert das Zurueckhalten: nach
+  /// jedem Fehlschlag wird der naechste Versuch weiter hinausgezoegert.
+  syncFailureCount Int   @default(0)
 
   /// Besitzer. Nullable wie bei GitConnection, damit Bestandsdaten beim
   /// Einrichten des ersten Kontos uebernommen werden koennen.

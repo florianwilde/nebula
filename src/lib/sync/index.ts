@@ -63,7 +63,12 @@ export async function syncProject(projectId: string): Promise<SyncResult> {
     const message = error instanceof Error ? error.message : String(error);
     await prisma.project.update({
       where: { id: project.id },
-      data: { syncError: message, lastSyncedAt: new Date() },
+      data: {
+        syncError: message,
+        lastSyncedAt: new Date(),
+        // Zaehler fuers Zurueckhalten beim automatischen Abgleich.
+        syncFailureCount: { increment: 1 },
+      },
     });
     return { ok: false, message };
   }
@@ -127,6 +132,7 @@ async function persistSnapshot(projectId: string, data: RepoSnapshotData) {
       data: {
         lastSyncedAt: new Date(),
         syncError: null,
+        syncFailureCount: 0,
         defaultBranch: data.defaultBranch,
         repoUrl: data.htmlUrl ?? undefined,
       },
