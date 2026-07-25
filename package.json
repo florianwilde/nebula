@@ -30,6 +30,8 @@
   },
   "dependencies": {
     "@prisma/client": "^6.8.2",
+    "@simplewebauthn/browser": "^13.3.0",
+    "@simplewebauthn/server": "^13.3.2",
     "lucide-react": "^0.511.0",
     "next": "^15.3.3",
     "react": "^19.1.0",
