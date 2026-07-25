@@ -43,6 +43,9 @@ yarn-error.log*
 /data
 /postgres-data
 
+# Sicherungen aus scripts/backup.* – enthalten alle Daten der Instanz
+/backups
+
 # editors
 .idea/
 .vscode/*
