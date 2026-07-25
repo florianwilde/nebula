@@ -7,12 +7,7 @@ const nextConfig: NextConfig = {
   output: "standalone",
   reactStrictMode: true,
   poweredByHeader: false,
-  experimental: {
-    // Prisma darf nicht gebundlet werden, sonst findet der Client seine Engine nicht.
-    serverActions: {
-      bodySizeLimit: "2mb",
-    },
-  },
+  // Prisma darf nicht gebundlet werden, sonst findet der Client seine Engine nicht.
   serverExternalPackages: ["@prisma/client", "prisma"],
 };
 
