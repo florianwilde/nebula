@@ -10,6 +10,7 @@ import {
   Loader2,
   Lock,
   Plus,
+  RefreshCw,
   ShieldCheck,
   Trash2,
   User,
@@ -36,6 +37,16 @@ export interface AdminUser {
   _count: { credentials: number; projects: number; sessions: number };
 }
 
+export interface AutoSyncReport {
+  at: string;
+  trigger: "zeitplan" | "manuell";
+  candidates: number;
+  synced: number;
+  failed: number;
+  skipped: number;
+  durationMs: number;
+}
+
 export interface AdminData {
   mode: Mode;
   allowRegistration: boolean;
@@ -43,6 +54,16 @@ export interface AdminData {
   currentUserId: string;
   appUrl: string;
   passkeysAvailable: boolean;
+  autoSync: {
+    enabled: boolean;
+    intervalMinutes: number;
+    activeOnly: boolean;
+    batchSize: number;
+    lastRunAt: string | Date | null;
+    lastReport: AutoSyncReport | null;
+    /** Projekte mit Repository, die grundsaetzlich in Frage kommen. */
+    eligible: number;
+  };
 }
 
 type Notice = { ok: boolean; text: string } | null;
@@ -162,6 +183,8 @@ export function AdminManager({ data }: { data: AdminData }) {
         ) : null}
       </section>
 
+      <AutoSyncSection data={data.autoSync} />
+
       {/* ── Instanz ─────────────────────────────────────── */}
       <section className="glass p-5">
         <div className="mb-4 flex items-start gap-3">
@@ -261,6 +284,256 @@ export function AdminManager({ data }: { data: AdminData }) {
         onClose={() => setEditing(null)}
       />
     </div>
+  );
+}
+
+const INTERVALS = [
+  { value: 15, label: "alle 15 Minuten" },
+  { value: 30, label: "alle 30 Minuten" },
+  { value: 60, label: "stuendlich" },
+  { value: 180, label: "alle 3 Stunden" },
+  { value: 360, label: "alle 6 Stunden" },
+  { value: 720, label: "alle 12 Stunden" },
+  { value: 1440, label: "taeglich" },
+];
+
+function AutoSyncSection({ data }: { data: AdminData["autoSync"] }) {
+  const router = useRouter();
+  const [enabled, setEnabled] = useState(data.enabled);
+  const [interval, setIntervalMinutes] = useState(data.intervalMinutes);
+  const [activeOnly, setActiveOnly] = useState(data.activeOnly);
+  const [batchSize, setBatchSize] = useState(data.batchSize);
+  const [busy, setBusy] = useState(false);
+  const [running, setRunning] = useState(false);
+  const [notice, setNotice] = useState<Notice>(null);
+
+  async function patch(payload: Record<string, unknown>) {
+    setBusy(true);
+    setNotice(null);
+    try {
+      const response = await fetch("/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error ?? "Speichern fehlgeschlagen.");
+      setNotice({ ok: true, text: "Gespeichert." });
+      router.refresh();
+    } catch (caught) {
+      setEnabled(data.enabled);
+      setIntervalMinutes(data.intervalMinutes);
+      setActiveOnly(data.activeOnly);
+      setBatchSize(data.batchSize);
+      setNotice({ ok: false, text: caught instanceof Error ? caught.message : String(caught) });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function runNow() {
+    setRunning(true);
+    setNotice(null);
+    try {
+      const response = await fetch("/api/admin/sync/run", { method: "POST" });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error ?? "Abgleich fehlgeschlagen.");
+      const report = body.report as AutoSyncReport;
+      setNotice({
+        ok: true,
+        text:
+          `${report.synced} aktualisiert, ${report.failed} fehlgeschlagen, ` +
+          `${report.skipped} zurueckgestellt (${Math.round(report.durationMs / 1000)} s).`,
+      });
+      router.refresh();
+    } catch (caught) {
+      setNotice({ ok: false, text: caught instanceof Error ? caught.message : String(caught) });
+    } finally {
+      setRunning(false);
+    }
+  }
+
+  const nextRun =
+    enabled && data.lastRunAt
+      ? new Date(new Date(data.lastRunAt).getTime() + interval * 60_000)
+      : null;
+
+  return (
+    <section className="glass p-5">
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+        <div className="flex items-start gap-3">
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-cyan-500/12 text-cyan-300">
+            <RefreshCw className="h-4 w-4" />
+          </span>
+          <div>
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-200">
+              Automatischer Abgleich
+            </h2>
+            <p className="mt-1 max-w-xl text-sm text-slate-400">
+              Holt Branches, Tags, Commits und Releases im Hintergrund. Gilt fuer alle
+              Konten – die Daten bleiben dabei getrennt, abgeglichen wird nur, was
+              ohnehin verknuepft ist.
+            </p>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          className="btn btn-ghost px-3 py-1.5 text-xs"
+          onClick={runNow}
+          disabled={running || data.eligible === 0}
+          title={data.eligible === 0 ? "Kein Projekt mit Repository verknuepft" : undefined}
+        >
+          {running ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <RefreshCw className="h-3.5 w-3.5" />
+          )}
+          Jetzt abgleichen
+        </button>
+      </div>
+
+      <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-white/8 bg-black/20 px-3 py-3">
+        <input
+          type="checkbox"
+          checked={enabled}
+          disabled={busy}
+          onChange={(event) => {
+            setEnabled(event.target.checked);
+            void patch({ autoSyncEnabled: event.target.checked });
+          }}
+          className="mt-0.5 h-4 w-4 accent-violet-500"
+        />
+        <span>
+          <span className="block text-sm text-slate-200">Regelmaessig abgleichen</span>
+          <span className="mt-0.5 block text-[11px] text-slate-500">
+            Standardmaessig aus. Jeder Durchlauf verbraucht Kontingent bei GitHub,
+            GitLab und Gitea – ohne Token ist das schnell erschoepft.
+          </span>
+        </span>
+      </label>
+
+      {enabled ? (
+        <>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <div>
+              <label className="field-label" htmlFor="autosync-interval">
+                Abstand
+              </label>
+              <select
+                id="autosync-interval"
+                className="field"
+                value={interval}
+                disabled={busy}
+                onChange={(event) => {
+                  const value = Number(event.target.value);
+                  setIntervalMinutes(value);
+                  void patch({ autoSyncIntervalMinutes: value });
+                }}
+              >
+                {INTERVALS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="field-label" htmlFor="autosync-batch">
+                Projekte je Durchlauf: {batchSize}
+              </label>
+              <input
+                id="autosync-batch"
+                type="range"
+                min={1}
+                max={100}
+                step={1}
+                value={batchSize}
+                disabled={busy}
+                onChange={(event) => setBatchSize(Number(event.target.value))}
+                onMouseUp={() => patch({ autoSyncBatchSize: batchSize })}
+                onTouchEnd={() => patch({ autoSyncBatchSize: batchSize })}
+                onKeyUp={() => patch({ autoSyncBatchSize: batchSize })}
+                className="range mt-2"
+                style={{ "--fill": `${batchSize}%` } as React.CSSProperties}
+              />
+              <p className="mt-1.5 text-[11px] text-slate-500">
+                Am laengsten nicht abgeglichene zuerst. Der Rest kommt beim naechsten Mal.
+              </p>
+            </div>
+          </div>
+
+          <label className="mt-3 flex cursor-pointer items-start gap-3 rounded-xl border border-white/8 bg-black/20 px-3 py-3">
+            <input
+              type="checkbox"
+              checked={activeOnly}
+              disabled={busy}
+              onChange={(event) => {
+                setActiveOnly(event.target.checked);
+                void patch({ autoSyncActiveOnly: event.target.checked });
+              }}
+              className="mt-0.5 h-4 w-4 accent-violet-500"
+            />
+            <span>
+              <span className="block text-sm text-slate-200">
+                Fertige und archivierte Projekte auslassen
+              </span>
+              <span className="mt-0.5 block text-[11px] text-slate-500">
+                Dort aendert sich selten noch etwas.
+              </span>
+            </span>
+          </label>
+        </>
+      ) : null}
+
+      {/* Zustand */}
+      <dl className="mt-4 grid gap-3 sm:grid-cols-3">
+        <div className="glass-soft px-3 py-2.5">
+          <dt className="text-[11px] uppercase tracking-wider text-slate-500">
+            Verknuepfte Projekte
+          </dt>
+          <dd className="mt-1 text-sm tabular-nums text-slate-200">{data.eligible}</dd>
+        </div>
+        <div className="glass-soft px-3 py-2.5">
+          <dt className="text-[11px] uppercase tracking-wider text-slate-500">
+            Letzter Durchlauf
+          </dt>
+          <dd className="mt-1 text-sm text-slate-200" suppressHydrationWarning>
+            {data.lastRunAt ? formatRelative(data.lastRunAt) : "noch keiner"}
+          </dd>
+        </div>
+        <div className="glass-soft px-3 py-2.5">
+          <dt className="text-[11px] uppercase tracking-wider text-slate-500">
+            Naechster Durchlauf
+          </dt>
+          <dd className="mt-1 text-sm text-slate-200" suppressHydrationWarning>
+            {enabled ? (nextRun ? formatDateTime(nextRun) : "in Kuerze") : "abgeschaltet"}
+          </dd>
+        </div>
+      </dl>
+
+      {data.lastReport ? (
+        <p className="mt-3 text-[11px] text-slate-500" suppressHydrationWarning>
+          Zuletzt ({data.lastReport.trigger}): {data.lastReport.synced} aktualisiert,{" "}
+          {data.lastReport.failed} fehlgeschlagen, {data.lastReport.skipped} zurueckgestellt
+          in {Math.round(data.lastReport.durationMs / 1000)} s.
+        </p>
+      ) : null}
+
+      {notice ? (
+        <p
+          className={cn(
+            "mt-3 rounded-lg border px-3 py-2 text-sm",
+            notice.ok
+              ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-200"
+              : "border-rose-500/30 bg-rose-500/10 text-rose-200",
+          )}
+        >
+          {notice.text}
+        </p>
+      ) : null}
+    </section>
   );
 }
 

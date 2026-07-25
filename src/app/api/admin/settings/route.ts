@@ -30,7 +30,14 @@ export async function PATCH(request: Request) {
     );
   }
 
-  const { mode, allowRegistration } = parsed.data;
+  const {
+    mode,
+    allowRegistration,
+    autoSyncEnabled,
+    autoSyncIntervalMinutes,
+    autoSyncActiveOnly,
+    autoSyncBatchSize,
+  } = parsed.data;
 
   // Der Wechsel in den Einzelbetrieb wuerde weitere Konten aussperren –
   // deshalb nur erlauben, wenn es wirklich nur ein Konto gibt.
@@ -45,18 +52,27 @@ export async function PATCH(request: Request) {
     }
   }
 
+  const autoSyncFields = {
+    ...(autoSyncEnabled !== undefined ? { autoSyncEnabled } : {}),
+    ...(autoSyncIntervalMinutes !== undefined ? { autoSyncIntervalMinutes } : {}),
+    ...(autoSyncActiveOnly !== undefined ? { autoSyncActiveOnly } : {}),
+    ...(autoSyncBatchSize !== undefined ? { autoSyncBatchSize } : {}),
+  };
+
   const settings = await prisma.appSettings.upsert({
     where: { id: "singleton" },
     create: {
       id: "singleton",
       ...(mode ? { mode } : {}),
       ...(allowRegistration !== undefined ? { allowRegistration } : {}),
+      ...autoSyncFields,
     },
     update: {
       ...(mode ? { mode } : {}),
       ...(allowRegistration !== undefined ? { allowRegistration } : {}),
       // Im Einzelbetrieb ergibt eine offene Registrierung keinen Sinn.
       ...(mode === "SINGLE_USER" ? { allowRegistration: false } : {}),
+      ...autoSyncFields,
     },
   });
 

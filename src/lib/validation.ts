@@ -21,6 +21,8 @@ export const projectCreateSchema = z.object({
   repoOwner: z.preprocess(emptyToNull, z.string().trim().max(200).nullable().optional()),
   repoName: z.preprocess(emptyToNull, z.string().trim().max(200).nullable().optional()),
   connectionId: z.preprocess(emptyToNull, z.string().trim().nullable().optional()),
+  /** Am automatischen Abgleich teilnehmen. */
+  autoSync: z.boolean().default(true),
 });
 
 export const projectUpdateSchema = projectCreateSchema.partial();
@@ -107,6 +109,11 @@ export const profileUpdateSchema = z.object({
 export const adminSettingsSchema = z.object({
   mode: z.enum(["SINGLE_USER", "MULTI_USER"]).optional(),
   allowRegistration: z.boolean().optional(),
+  autoSyncEnabled: z.boolean().optional(),
+  /** Untergrenze 5 Minuten – haeufiger waere den Git-APIs gegenueber unfair. */
+  autoSyncIntervalMinutes: z.coerce.number().int().min(5).max(10080).optional(),
+  autoSyncActiveOnly: z.boolean().optional(),
+  autoSyncBatchSize: z.coerce.number().int().min(1).max(200).optional(),
 });
 
 export const adminUserCreateSchema = z.object({

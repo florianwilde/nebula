@@ -96,6 +96,7 @@ export async function POST(request: Request) {
       accent: data.accent,
       tags: data.tags,
       favorite: data.favorite,
+      autoSync: data.autoSync,
       repoUrl: data.repoUrl ?? null,
       repoOwner,
       repoName,

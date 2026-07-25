@@ -1,5 +1,9 @@
 import type { Metadata } from "next";
-import { AdminManager, type AdminData } from "@/components/admin/AdminManager";
+import {
+  AdminManager,
+  type AdminData,
+  type AutoSyncReport,
+} from "@/components/admin/AdminManager";
 import { requireAdminPage } from "@/lib/auth/guard";
 import { getAppSettings } from "@/lib/auth/settings";
 import { userSafeSelect } from "@/lib/auth/users";
@@ -15,11 +19,22 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function AdminPage() {
   const admin = await requireAdminPage();
 
-  const [settings, users] = await Promise.all([
+  const [settings, users, eligible] = await Promise.all([
     getAppSettings(),
     prisma.user.findMany({
       select: userSafeSelect,
       orderBy: [{ role: "asc" }, { username: "asc" }],
+    }),
+    // Bewusst ueber alle Konten: der Abgleich ist ein Serverauftrag, keine
+    // Dateneinsicht. Gezaehlt wird nur, nicht gelesen.
+    prisma.project.count({
+      where: {
+        autoSync: true,
+        OR: [
+          { AND: [{ repoOwner: { not: null } }, { repoName: { not: null } }] },
+          { repoUrl: { not: null } },
+        ],
+      },
     }),
   ]);
 
@@ -30,6 +45,15 @@ export default async function AdminPage() {
     currentUserId: admin.id,
     appUrl: APP_URL,
     passkeysAvailable: WEBAUTHN_AVAILABLE,
+    autoSync: {
+      enabled: settings.autoSyncEnabled,
+      intervalMinutes: settings.autoSyncIntervalMinutes,
+      activeOnly: settings.autoSyncActiveOnly,
+      batchSize: settings.autoSyncBatchSize,
+      lastRunAt: settings.lastAutoSyncAt,
+      lastReport: (settings.lastAutoSyncReport as AutoSyncReport | null) ?? null,
+      eligible,
+    },
   };
 
   return (
@@ -42,7 +66,7 @@ export default async function AdminPage() {
           Admin-Einstellungen
         </h1>
         <p className="mt-1 text-sm text-slate-400">
-          Betriebsart, Registrierung und Benutzerkonten.
+          Betriebsart, automatischer Abgleich und Benutzerkonten.
         </p>
       </header>
 

@@ -31,6 +31,7 @@ interface FormState {
   repoUrl: string;
   repoOwner: string;
   repoName: string;
+  autoSync: boolean;
 }
 
 const EMPTY: FormState = {
@@ -47,6 +48,7 @@ const EMPTY: FormState = {
   repoUrl: "",
   repoOwner: "",
   repoName: "",
+  autoSync: true,
 };
 
 export function ProjectDialog({ open, onClose, connections, project }: ProjectDialogProps) {
@@ -87,6 +89,7 @@ export function ProjectDialog({ open, onClose, connections, project }: ProjectDi
             repoUrl: project.repoUrl ?? "",
             repoOwner: project.repoOwner ?? "",
             repoName: project.repoName ?? "",
+            autoSync: project.autoSync,
           }
         : EMPTY,
     );
@@ -154,6 +157,7 @@ export function ProjectDialog({ open, onClose, connections, project }: ProjectDi
       repoUrl: form.repoUrl,
       repoOwner: form.repoOwner,
       repoName: form.repoName,
+      autoSync: form.autoSync,
     };
 
     try {
@@ -413,6 +417,22 @@ export function ProjectDialog({ open, onClose, connections, project }: ProjectDi
               />
             </div>
           </div>
+
+          <label className="flex cursor-pointer items-start gap-2.5 text-sm text-slate-400">
+            <input
+              type="checkbox"
+              checked={form.autoSync}
+              onChange={(event) => update("autoSync", event.target.checked)}
+              className="mt-0.5 h-4 w-4 accent-violet-500"
+            />
+            <span>
+              Am automatischen Abgleich teilnehmen
+              <span className="mt-0.5 block text-[11px] text-slate-600">
+                Wirkt nur, wenn der Abgleich im Adminbereich eingeschaltet ist. Manuell
+                synchronisieren geht unabhaengig davon immer.
+              </span>
+            </span>
+          </label>
 
           {repoError ? <p className="text-xs text-rose-300">{repoError}</p> : null}
 

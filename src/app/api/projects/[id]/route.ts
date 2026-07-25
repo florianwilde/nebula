@@ -74,6 +74,7 @@ export async function PATCH(request: Request, { params }: Params) {
     "accent",
     "tags",
     "favorite",
+    "autoSync",
     "connectionId",
   ] as const) {
     if (data[key] !== undefined) update[key] = data[key];
