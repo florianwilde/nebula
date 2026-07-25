@@ -287,7 +287,8 @@ export function ProjectDialog({ open, onClose, connections, project }: ProjectDi
               step={5}
               value={form.progress}
               onChange={(event) => update("progress", Number(event.target.value))}
-              className="w-full accent-violet-500"
+              className="range"
+              style={{ "--fill": `${form.progress}%` } as React.CSSProperties}
             />
           </div>
 

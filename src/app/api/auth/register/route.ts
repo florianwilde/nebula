@@ -69,6 +69,8 @@ export async function POST(request: Request) {
       email: email ?? null,
       passwordHash: await hashPassword(password),
       role: "USER",
+      // Die Registrierung meldet direkt an.
+      lastLoginAt: new Date(),
     },
   });
 

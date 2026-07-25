@@ -193,27 +193,22 @@ export function ProjectHeader({
           <span>Fortschritt</span>
           <span className="tabular-nums text-slate-300">{progress}%</span>
         </div>
-        <div className="relative">
-          <div className="h-2 w-full overflow-hidden rounded-full bg-white/6">
-            <div
-              className="accent-bar h-full rounded-full transition-[width] duration-300"
-              style={{ width: `${Math.max(1, progress)}%` }}
-            />
-          </div>
-          <input
-            type="range"
-            min={0}
-            max={100}
-            step={5}
-            value={progress}
-            onChange={(event) => setProgress(Number(event.target.value))}
-            onMouseUp={() => patch({ progress })}
-            onTouchEnd={() => patch({ progress })}
-            onKeyUp={() => patch({ progress })}
-            aria-label="Fortschritt anpassen"
-            className="absolute inset-0 h-2 w-full cursor-pointer opacity-0"
-          />
-        </div>
+        {/* Eigener Regler statt eines unsichtbaren Eingabefelds ueber einem
+            gezeichneten Balken: so gibt es einen sichtbaren Griff. */}
+        <input
+          type="range"
+          min={0}
+          max={100}
+          step={5}
+          value={progress}
+          onChange={(event) => setProgress(Number(event.target.value))}
+          onMouseUp={() => patch({ progress })}
+          onTouchEnd={() => patch({ progress })}
+          onKeyUp={() => patch({ progress })}
+          aria-label="Fortschritt anpassen"
+          className="range"
+          style={{ "--fill": `${progress}%` } as React.CSSProperties}
+        />
       </div>
 
       <ProjectDialog

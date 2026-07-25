@@ -79,7 +79,9 @@
    * Weichzeichnung wirkungslos.
    */
   .popover {
-    background: rgba(9, 11, 24, 0.97);
+    /* Vollstaendig deckend: bei 97 % schimmerte darunterliegender Text
+       (die Schaltflaechen "Bearbeiten" und "Loeschen") noch durch. */
+    background: #090b18;
     border: 1px solid rgba(255, 255, 255, 0.11);
     border-radius: 0.9rem;
     box-shadow:
@@ -207,5 +209,62 @@
   select.field option {
     background: #0a0c1a;
     color: #e6e8f5;
+  }
+
+  /**
+   * Schieberegler. Der native Regler zeichnet die Spur rechts vom Griff in
+   * einem hellen Standardton - im dunklen Layout ein grelles Band. Deshalb
+   * vollstaendig selbst gezeichnet: der gefuellte Anteil kommt aus der
+   * Variablen --fill, die die Komponente aus dem Wert setzt.
+   */
+  .range {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 6px;
+    border-radius: 9999px;
+    cursor: pointer;
+    background: linear-gradient(
+      90deg,
+      #8b5cf6 0%,
+      #d946ef var(--fill, 0%),
+      rgba(255, 255, 255, 0.1) var(--fill, 0%),
+      rgba(255, 255, 255, 0.1) 100%
+    );
+  }
+
+  .range:focus-visible {
+    outline: 2px solid rgba(167, 139, 250, 0.8);
+    outline-offset: 4px;
+  }
+
+  .range::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 16px;
+    width: 16px;
+    border-radius: 9999px;
+    background: #f5f3ff;
+    border: 2px solid #7c3aed;
+    box-shadow: 0 0 14px -2px rgba(168, 85, 247, 0.9);
+    cursor: grab;
+  }
+
+  .range::-webkit-slider-thumb:active {
+    cursor: grabbing;
+  }
+
+  .range::-moz-range-thumb {
+    height: 14px;
+    width: 14px;
+    border-radius: 9999px;
+    background: #f5f3ff;
+    border: 2px solid #7c3aed;
+    box-shadow: 0 0 14px -2px rgba(168, 85, 247, 0.9);
+    cursor: grab;
+  }
+
+  .range::-moz-range-track {
+    background: transparent;
   }
 }

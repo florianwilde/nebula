@@ -56,7 +56,13 @@ export function Popover({
     const margin = 8;
     const gap = 6;
 
+    // Bevorzugte Ausrichtung, bei Ueberlauf auf die andere Seite wechseln.
+    // Nur Festklemmen am Fensterrand waere schlecht: bei einem Ausloeser weit
+    // links stuende das Menue sonst quer ueber der Seite statt an seinem
+    // Ausloeser.
     let left = align === "end" ? rect.right - width : rect.left;
+    if (left < margin) left = rect.left;
+    if (left + width > window.innerWidth - margin) left = rect.right - width;
     left = Math.min(Math.max(margin, left), window.innerWidth - width - margin);
 
     const panelHeight = panelRef.current?.offsetHeight ?? 0;

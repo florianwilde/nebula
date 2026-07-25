@@ -63,7 +63,9 @@ export default async function DashboardPage() {
         <StatCard
           label="Ideen"
           value={ideas}
-          hint={STATUS_META.IDEA.description}
+          // Kurzer Hinweis statt der langen Statusbeschreibung – die wurde in
+          // der schmalen Kachel mitten im Wort abgeschnitten.
+          hint="Noch nichts gebaut"
           icon={Lightbulb}
           color={STATUS_META.IDEA.color}
         />

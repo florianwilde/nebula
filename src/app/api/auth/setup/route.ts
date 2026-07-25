@@ -49,6 +49,9 @@ export async function POST(request: Request) {
       email: email ?? null,
       passwordHash: await hashPassword(password),
       role: "ADMIN",
+      // Die Einrichtung meldet direkt an – sonst stuende im Adminbereich
+      // "noch nie angemeldet", obwohl gerade eine Sitzung laeuft.
+      lastLoginAt: new Date(),
     },
   });
 
