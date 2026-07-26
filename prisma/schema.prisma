@@ -612,6 +612,16 @@ model RepoSnapshot {
   commitCalendar   Json      @default("{}")
   commitCalendarAt DateTime?
 
+  /// Das README des Repositories, roh als Markdown. Wie der Kalender
+  /// hoechstens einmal am Tag geholt – es aendert sich selten, und der
+  /// Abgleich laeuft im Zweifel stuendlich.
+  readme        String?
+  /// Dateiname, wie er im Repository steht ("README.md", "readme.rst" …).
+  readmePath    String?
+  /// Wogegen relative Links im README aufzuloesen sind.
+  readmeBaseUrl String?
+  readmeAt      DateTime?
+
   // ── Letzter CI-Lauf auf dem Default-Branch ─────────────────
   /// success | failure | running | pending | cancelled
   ciState      String?

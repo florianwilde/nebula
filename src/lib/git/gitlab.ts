@@ -5,6 +5,7 @@ import {
   calendarSince,
   type CommitCalendar,
 } from "./calendar";
+import { capReadme, decodeBase64, pickReadme, type RepoReadme } from "./readme";
 import type {
   BranchInfo,
   CiInfo,
@@ -226,6 +227,44 @@ export class GitLabClient implements GitClient {
       );
       return commits.map((commit) => toIso(commit.committed_date ?? commit.created_at));
     });
+  }
+
+  /**
+   * GitLab kennt keinen README-Endpunkt. Erst das Wurzelverzeichnis
+   * auflisten, dann die gefundene Datei holen – zwei Aufrufe.
+   */
+  async fetchReadme(ref: RepoRef): Promise<RepoReadme | null> {
+    const base = `${this.apiBase}/projects/${this.projectPath(ref)}`;
+    const headers = this.headers();
+
+    const eintraege = await getJsonSafe<Array<{ name: string; type: string }>>(
+      `${base}/repository/tree?per_page=100`,
+      [],
+      { headers },
+    );
+    const name = pickReadme(
+      eintraege.filter((eintrag) => eintrag.type === "blob").map((eintrag) => eintrag.name),
+    );
+    if (!name) return null;
+
+    const datei = await getJson<{ content?: string; encoding?: string; file_path?: string }>(
+      `${base}/repository/files/${encodeURIComponent(name)}?ref=HEAD`,
+      { headers },
+    );
+    if (!datei?.content || datei.encoding !== "base64") return null;
+
+    const { content, truncated } = capReadme(decodeBase64(datei.content));
+    const projekt = await getJsonSafe<GitLabProject>(base, {} as GitLabProject, { headers });
+
+    return {
+      content,
+      path: datei.file_path ?? name,
+      baseUrl:
+        projekt?.web_url && projekt.default_branch
+          ? `${projekt.web_url}/-/blob/${encodeURIComponent(projekt.default_branch)}/`
+          : null,
+      truncated,
+    };
   }
 }
 

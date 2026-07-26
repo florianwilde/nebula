@@ -58,9 +58,10 @@ export async function syncRepository(repositoryId: string): Promise<SyncResult> 
   try {
     const data = await client.fetchRepo(ref);
     await persistSnapshot(repository, data);
-    // Erst nach dem Snapshot: die Zeile muss existieren, bevor der Kalender
-    // hineingeschrieben werden kann.
+    // Erst nach dem Snapshot: die Zeile muss existieren, bevor Kalender und
+    // README hineingeschrieben werden koennen.
     await maybeRefreshCalendar(repository.id, client, ref);
+    await maybeRefreshReadme(repository.id, client, ref);
     // Nach dem Speichern, damit die Meldung den neuen Stand sieht.
     await notifyAfterSync(repository.id);
     return {
@@ -193,6 +194,47 @@ async function maybeRefreshCalendar(
     // soll den Abgleich nicht scheitern lassen. Ohne Zeitstempel versucht es
     // der naechste Durchgang von selbst wieder.
     console.error("[nebula] Commit-Kalender konnte nicht geholt werden:", error);
+  }
+}
+
+/**
+ * Holt das README – wie der Kalender hoechstens einmal am Tag.
+ *
+ * Ein eigener Zeitstempel und nicht der des Kalenders: schlaegt das eine
+ * fehl, soll das andere nicht mit blockiert werden.
+ */
+async function maybeRefreshReadme(
+  repositoryId: string,
+  client: GitClient,
+  ref: { owner: string; name: string },
+): Promise<void> {
+  try {
+    const snapshot = await prisma.repoSnapshot.findUnique({
+      where: { repositoryId },
+      select: { readmeAt: true },
+    });
+
+    const zuletzt = snapshot?.readmeAt?.getTime() ?? 0;
+    if (Date.now() - zuletzt < CALENDAR_TTL_MS) return;
+
+    const readme = await client.fetchReadme(ref);
+
+    // Kein README im Repository: das ist eine Auskunft, kein Fehlschlag.
+    // Der Zeitstempel wird gesetzt, damit nicht jeder Abgleich erneut sucht,
+    // und ein etwaiger alter Stand verschwindet.
+    await prisma.repoSnapshot.update({
+      where: { repositoryId },
+      data: {
+        readme: readme?.content ?? null,
+        readmePath: readme?.path ?? null,
+        readmeBaseUrl: readme?.baseUrl ?? null,
+        readmeAt: new Date(),
+      },
+    });
+  } catch (error) {
+    // Wie beim Kalender: Beiwerk. Ohne Zeitstempel versucht es der naechste
+    // Durchgang von selbst wieder.
+    console.error("[nebula] README konnte nicht geholt werden:", error);
   }
 }
 

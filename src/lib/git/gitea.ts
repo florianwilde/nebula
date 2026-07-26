@@ -5,6 +5,7 @@ import {
   calendarSince,
   type CommitCalendar,
 } from "./calendar";
+import { capReadme, decodeBase64, pickReadme, type RepoReadme } from "./readme";
 import type {
   BranchInfo,
   CiInfo,
@@ -245,6 +246,43 @@ export class GiteaClient implements GitClient {
       );
       return commits.map((commit) => toIso(commit.commit?.author?.date));
     });
+  }
+
+  /**
+   * Gitea kennt keinen README-Endpunkt. Erst das Wurzelverzeichnis
+   * auflisten, dann die gefundene Datei holen – zwei Aufrufe.
+   */
+  async fetchReadme(ref: RepoRef): Promise<RepoReadme | null> {
+    const base = `${this.apiBase}/repos/${encodeURIComponent(ref.owner)}/${encodeURIComponent(ref.name)}`;
+    const headers = this.headers();
+
+    const eintraege = await getJsonSafe<Array<{ name: string; type: string }>>(
+      `${base}/contents`,
+      [],
+      { headers },
+    );
+    const name = pickReadme(
+      eintraege.filter((eintrag) => eintrag.type === "file").map((eintrag) => eintrag.name),
+    );
+    if (!name) return null;
+
+    const datei = await getJson<{
+      content?: string;
+      encoding?: string;
+      path?: string;
+      html_url?: string | null;
+    }>(`${base}/contents/${encodeURIComponent(name)}`, { headers });
+    if (!datei?.content || datei.encoding !== "base64") return null;
+
+    const { content, truncated } = capReadme(decodeBase64(datei.content));
+    return {
+      content,
+      path: datei.path ?? name,
+      // html_url zeigt auf die Datei; fuer relative Links braucht es das
+      // Verzeichnis darum herum.
+      baseUrl: datei.html_url ? datei.html_url.replace(/\/[^/]*$/, "/") : null,
+      truncated,
+    };
   }
 }
 

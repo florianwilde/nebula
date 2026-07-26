@@ -1,7 +1,8 @@
 import type { GitProvider } from "@prisma/client";
 import type { CommitCalendar } from "./calendar";
+import type { RepoReadme } from "./readme";
 
-export type { CommitCalendar };
+export type { CommitCalendar, RepoReadme };
 
 export type ProviderKind = GitProvider;
 
@@ -181,6 +182,12 @@ export interface GitClient {
    * hoechstens einmal am Tag noetig ist. null heisst: nichts zu holen.
    */
   fetchCommitCalendar(ref: RepoRef): Promise<CommitCalendar | null>;
+  /**
+   * Das README des Repositories. Wie der Kalender getrennt, weil es
+   * zusaetzliche Aufrufe kostet und sich selten aendert. null heisst: es
+   * gibt keins.
+   */
+  fetchReadme(ref: RepoRef): Promise<RepoReadme | null>;
 }
 
 /** Fehler mit HTTP-Kontext, damit die UI verstaendliche Meldungen zeigen kann. */

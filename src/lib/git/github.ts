@@ -16,6 +16,7 @@ import type {
   TicketInfo,
 } from "./types";
 import { dayKey } from "./calendar";
+import { capReadme, decodeBase64, type RepoReadme } from "./readme";
 import { GitApiError, bucketCommitActivity } from "./types";
 
 /**
@@ -252,6 +253,43 @@ export class GitHubClient implements GitClient {
 
     return { from: von, to: heute, days, source: "stats", truncated: false };
   }
+
+  /**
+   * GitHub hat einen eigenen Endpunkt, der jede Schreibweise findet – ein
+   * Aufruf genuegt. Ohne README antwortet er mit 404; das ist kein Fehler,
+   * sondern die Auskunft "gibt es nicht".
+   */
+  async fetchReadme(ref: RepoRef): Promise<RepoReadme | null> {
+    const base = `${this.apiBase}/repos/${encodeURIComponent(ref.owner)}/${encodeURIComponent(ref.name)}`;
+
+    let datei: GitHubContent;
+    try {
+      datei = await getJson<GitHubContent>(`${base}/readme`, { headers: this.headers() });
+    } catch (error) {
+      if (error instanceof GitApiError && error.status === 404) return null;
+      throw error;
+    }
+
+    if (!datei?.content || datei.encoding !== "base64") return null;
+
+    const { content, truncated } = capReadme(decodeBase64(datei.content));
+    return {
+      content,
+      path: datei.path ?? datei.name ?? "README",
+      // html_url zeigt auf die Datei; fuer relative Links braucht es das
+      // Verzeichnis darum herum.
+      baseUrl: datei.html_url ? datei.html_url.replace(/\/[^/]*$/, "/") : null,
+      truncated,
+    };
+  }
+}
+
+interface GitHubContent {
+  name?: string;
+  path?: string;
+  content?: string;
+  encoding?: string;
+  html_url?: string | null;
 }
 
 interface GitHubWeek {
