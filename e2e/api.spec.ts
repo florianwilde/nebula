@@ -532,6 +532,19 @@ test("Projektvorlagen: aus Projekt sichern und anwenden", async ({ request, play
   expect((await request.delete(`/api/templates/${vorlage.id}`)).ok()).toBeTruthy();
 });
 
+test("Der Bildoptimierer ist zu", async ({ playwright }) => {
+  // /_next/image reicht jedes Bild durch sharp und damit durch libvips, fuer
+  // das es regelmaessig Schwachstellen gibt. Nebula benutzt next/image
+  // nirgends – der Endpunkt darf ohne Anmeldung nicht antworten.
+  const anonym = await playwright.request.newContext({
+    baseURL: test.info().project.use.baseURL,
+    maxRedirects: 0,
+  });
+  const antwort = await anonym.get("/_next/image?url=%2Ficon-192.png&w=64&q=75");
+  expect(antwort.status(), "kein 200 ohne Anmeldung").not.toBe(200);
+  await anonym.dispose();
+});
+
 test("Export enthaelt keine Geheimnisse, Import beachtet die Strategie", async ({ request }) => {
   await login(request, ADMIN);
 

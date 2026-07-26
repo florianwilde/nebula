@@ -147,7 +147,10 @@ export const config = {
      * weder CSRF-Pruefung noch Nonce und wuerden nur Rechenzeit kosten.
      */
     {
-      source: "/((?!_next/static|_next/image|favicon.ico|icon.svg).*)",
+      // _next/image ist bewusst *nicht* ausgenommen: der Bildoptimierer ist
+      // abgeschaltet (siehe next.config.ts), und was von ihm uebrig bleibt,
+      // soll nicht ohne Sitzung erreichbar sein.
+      source: "/((?!_next/static|favicon.ico|icon.svg).*)",
       missing: [
         { type: "header", key: "next-router-prefetch" },
         { type: "header", key: "purpose", value: "prefetch" },
