@@ -347,9 +347,17 @@ model Task {
   /// Zeitpunkt, zu dem die Aufgabe nach DONE gewandert ist.
   doneAt      DateTime?
 
+  /// Stammt die Aufgabe aus einem Git-Issue? Nummer und Link merken, damit
+  /// dasselbe Issue nicht zweimal uebernommen wird.
+  sourceIssue Int?
+  sourceUrl   String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  /// Verhindert Dubletten beim erneuten Uebernehmen. Mehrere Aufgaben ohne
+  /// Herkunft sind erlaubt: NULL gilt in Postgres als verschieden.
+  @@unique([projectId, sourceIssue])
   @@index([projectId, status, position])
 }
 

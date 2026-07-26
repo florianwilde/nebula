@@ -12,6 +12,7 @@ import {
   GitMerge,
   GitPullRequest,
   HardDrive,
+  ListPlus,
   Loader2,
   Lock,
   Package,
@@ -48,7 +49,35 @@ export function GitPanel({ project }: { project: ProjectDetail }) {
   const router = useRouter();
   const [tab, setTab] = useState<TabKey>("pulls");
   const [syncing, setSyncing] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
+
+  /** Offene Issues als Aufgaben anlegen – ohne erneuten Abruf beim Provider. */
+  async function importIssues() {
+    setImporting(true);
+    setMessage(null);
+    try {
+      const response = await fetch(`/api/projects/${project.id}/tasks/from-issues`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error ?? "Uebernahme fehlgeschlagen.");
+      setMessage({
+        ok: true,
+        text:
+          body.created === 0
+            ? `Nichts Neues – alle ${body.skipped} Issues sind bereits als Aufgabe vorhanden.`
+            : `${body.created} Aufgabe(n) angelegt${body.skipped ? `, ${body.skipped} uebersprungen` : ""}.`,
+      });
+      router.refresh();
+    } catch (caught) {
+      setMessage({ ok: false, text: caught instanceof Error ? caught.message : String(caught) });
+    } finally {
+      setImporting(false);
+    }
+  }
 
   const snapshot = project.snapshot;
   const branches = asArray<BranchInfo>(snapshot?.branches);
@@ -329,7 +358,30 @@ export function GitPanel({ project }: { project: ProjectDetail }) {
                 />
               ) : null}
               {tab === "issues" ? (
-                <TicketList tickets={issues} empty="Keine offenen Issues." icon={CircleDot} />
+                <>
+                  {issues.length > 0 ? (
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/6 bg-white/2 px-4 py-2">
+                      <p className="text-[11px] text-slate-500">
+                        Aus offenen Issues Aufgaben machen. Bereits uebernommene werden
+                        uebersprungen.
+                      </p>
+                      <button
+                        type="button"
+                        className="btn btn-ghost px-2.5 py-1 text-[11px]"
+                        onClick={importIssues}
+                        disabled={importing}
+                      >
+                        {importing ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <ListPlus className="h-3 w-3" />
+                        )}
+                        Als Aufgaben uebernehmen
+                      </button>
+                    </div>
+                  ) : null}
+                  <TicketList tickets={issues} empty="Keine offenen Issues." icon={CircleDot} />
+                </>
               ) : null}
               {tab === "branches" ? <BranchList branches={branches} /> : null}
               {tab === "tags" ? <TagList tags={tags} /> : null}
