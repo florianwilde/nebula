@@ -11,20 +11,7 @@ Was bereits steht, listet [FEATURES.md](FEATURES.md).
 
 ## 1 · Als Nächstes empfohlen
 
-### 1.1 Tests ausbauen: Datenbank und Browser `L`
-
-Das Fundament steht — 51 Unit-Tests der reinen Logik laufen in unter einer
-Sekunde. Was fehlt, ist die Schicht darüber:
-
-- **Integrationstests** gegen eine Wegwerf-Datenbank: Datentrennung zwischen
-  Konten, Import-Strategien, Backoff des Abgleichs
-- **Playwright** für die Wege durch die App: Einrichtung, Anmeldung, Kanban
-- **CI-Pipeline** bei GitHub oder Gitea Actions
-
-Ich prüfe bislang alles von Hand, inklusive Screenshots. Das trägt nicht
-dauerhaft und macht jede weitere Änderung teurer als nötig.
-
-### 1.2 Benachrichtigungen `M`
+### 1.1 Benachrichtigungen `M`
 
 Bei Sync-Fehlern, roter CI, neuen Releases oder Projekten, die lange
 stillstehen. Kanäle: E-Mail (SMTP), ntfy, generischer Webhook. Zusammen mit
@@ -129,6 +116,7 @@ Damit klar ist, was **nicht** kommt und warum:
 | **v0.3.0** Markdown, Volltextsuche über Notizen, PR- und Issue-Listen, Testfundament | ✓ |
 | **v0.4.0** Kanban mit Drag & Drop, CI-Status je Branch, Commit-Aktivität | ✓ |
 | **v0.5.0** Aufgabenbrett je Projekt mit sortierbaren Spalten, Fortschritt aus Aufgaben | ✓ |
+| **v0.6.0** Ende-zu-Ende-Tests mit Playwright, CI-Pipeline für Gitea Actions | ✓ |
 
 Zur Entscheidung beim Export: Git-Tokens gehen **nicht** mit. Die Verbindung wird nur
 beschrieben, das Token ist nach dem Import neu zu hinterlegen. Snapshots bleiben

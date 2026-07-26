@@ -301,6 +301,9 @@ nebula/
 | `npm test` | Unit-Tests (Vitest), unter einer Sekunde |
 | `npm run test:watch` | Tests im Beobachtungsmodus |
 | `npm run typecheck` | TypeScript prüfen |
+| `npm test` | Unit-Tests (Vitest, ohne Datenbank) |
+| `npm run test:e2e` | Ende-zu-Ende-Tests (Playwright, baut vorher) |
+| `npm run test:all` | Beides nacheinander |
 | `npm run docker:db` | Nur die Datenbank starten |
 | `npm run docker:up` / `docker:down` | Kompletten Stack starten / stoppen |
 | `npm run docker:tools` | Adminer auf `http://localhost:8080` |

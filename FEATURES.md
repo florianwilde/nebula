@@ -402,8 +402,10 @@ nicht verloren gehen. Indizes auf Status, Verbindung und Änderungsdatum.
 
 ### 6.4 Tests
 
-`npm test` führt die Unit-Tests aus — reine Logik, kein DOM, keine Datenbank, unter einer
-Sekunde:
+Zwei Ebenen. `npm run test:all` führt beide aus.
+
+**`npm test` — Unit-Tests** (Vitest, 56 Stück, unter einer Sekunde, ohne DOM und ohne
+Datenbank):
 
 | Bereich | Was geprüft wird |
 | --- | --- |
@@ -411,11 +413,42 @@ Sekunde:
 | `git/parse` | URL-Zerlegung für https, SSH, verschachtelte GitLab-Gruppen und Oberflächenpfade; Provider-Erkennung; Bildung der Aktivitätskurve |
 | `security/ssrf` | Sperrlisten für Loopback, Link-Local, Metadaten-Endpunkt, CGNAT und Multicast; Formprüfung; die drei Umgebungsschalter |
 | `auth/password` | scrypt-Rundlauf, unterschiedliches Salz, Ablageformat, Verhalten bei kaputten Hashes, Passwortregeln |
+| `tasks` | Berechnung des abgeleiteten Fortschritts, Spaltenreihenfolge |
 
-Bewusst ohne Datenbank- und Browsertests: die brauchen Infrastruktur und gehören in eine
-CI-Pipeline. Das steht in der [ROADMAP](ROADMAP.md).
+**`npm run test:e2e` — Ende-zu-Ende** (Playwright, 13 Stück, rund 20 Sekunden). Läuft
+gegen die gebaute Anwendung mit eigener Datenbank auf Port 3111 — also durch Middleware,
+Authentifizierung, Validierung und Datenbank hindurch:
 
-### 6.5 API
+| Datei | Was geprüft wird |
+| --- | --- |
+| `e2e/api.spec.ts` | Einrichtung sperrt sich nach dem ersten Konto · kein Zugriff ohne Anmeldung · fremdes Origin und falscher Content-Type abgewiesen · SSRF geblockt · **Datentrennung zwischen zwei Konten** · Aufgaben-Reihenfolge, abgeleiteter Fortschritt und untergeschobene IDs · Export ohne Geheimnisse, Import je Strategie |
+| `e2e/ui.spec.ts` | Anmelden · Projekt anlegen · Aufgaben anlegen und **per Ziehen verschieben** (inklusive Prüfung nach dem Neuladen) · Volltextsuche · Abmelden sperrt geschützte Seiten wieder |
+
+Zwei Dinge sind bewusst so gebaut:
+
+- **Die Testdatenbank kann nicht die echte sein.** `e2e/global-setup.ts` bricht ab, wenn
+  der Datenbankname nicht `test` enthält — vor dem `TRUNCATE`. Der teuerste denkbare
+  Fehler wäre eine Testreihe, die die Produktivdaten leert.
+- **Playwright startet den Server selbst** (`webServer` in `playwright.config.ts`) mit
+  eigener `DATABASE_URL` und eigenem Port. Eine laufende Instanz auf 3000 stört nicht.
+
+Einmalig vorbereiten:
+
+```bash
+docker exec nebula-db psql -U nebula -d postgres -c "CREATE DATABASE nebula_e2e_test"
+```
+
+### 6.5 Fortlaufende Prüfung
+
+`.gitea/workflows/ci.yml` prüft jeden Push und jeden Pull Request: Typen, Unit-Tests,
+Bau und Ende-zu-Ende-Tests gegen einen frischen PostgreSQL-Dienst. Schlägt etwas fehl,
+wird der Playwright-Bericht als Artefakt abgelegt.
+
+Dafür müssen in der Gitea-Instanz Actions aktiviert sein (`app.ini`: `[actions] ENABLED
+= true`) und ein Runner registriert. Die Syntax ist GitHub-kompatibel — für GitHub die
+Datei nach `.github/workflows/` kopieren.
+
+### 6.6 API
 
 Zehn REST-Endpunkte für Projekte, Notizen, Verbindungen, Sync, Repo-Listen und Health.
 Alles, was die Oberfläche kann, ist damit auch scriptbar. Übersicht in der
