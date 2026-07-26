@@ -19,7 +19,7 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function AdminPage() {
   const admin = await requireAdminPage();
 
-  const [settings, users, eligible] = await Promise.all([
+  const [settings, users, eligible, staleListeners] = await Promise.all([
     getAppSettings(),
     prisma.user.findMany({
       select: userSafeSelect,
@@ -35,6 +35,9 @@ export default async function AdminPage() {
           { repoUrl: { not: null } },
         ],
       },
+    }),
+    prisma.notificationTarget.count({
+      where: { isActive: true, events: { has: "PROJECT_STALE" } },
     }),
   ]);
 
@@ -53,6 +56,11 @@ export default async function AdminPage() {
       lastRunAt: settings.lastAutoSyncAt,
       lastReport: (settings.lastAutoSyncReport as AutoSyncReport | null) ?? null,
       eligible,
+    },
+    stale: {
+      afterDays: settings.staleAfterDays,
+      lastCheckAt: settings.lastStaleCheckAt,
+      listeners: staleListeners,
     },
   };
 

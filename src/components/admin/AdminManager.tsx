@@ -9,6 +9,7 @@ import {
   Download,
   Fingerprint,
   FolderGit2,
+  Hourglass,
   Loader2,
   Lock,
   Plus,
@@ -66,6 +67,12 @@ export interface AdminData {
     lastReport: AutoSyncReport | null;
     /** Projekte mit Repository, die grundsaetzlich in Frage kommen. */
     eligible: number;
+  };
+  stale: {
+    afterDays: number;
+    lastCheckAt: string | Date | null;
+    /** Wie viele Konten ueberhaupt auf Stillstand hoeren. */
+    listeners: number;
   };
 }
 
@@ -187,6 +194,7 @@ export function AdminManager({ data }: { data: AdminData }) {
       </section>
 
       <AutoSyncSection data={data.autoSync} />
+      <StaleSection data={data.stale} />
 
       {/* ── Instanz ─────────────────────────────────────── */}
       <section className="glass p-5">
@@ -557,6 +565,124 @@ function AutoSyncSection({ data }: { data: AdminData["autoSync"] }) {
           in {Math.round(data.lastReport.durationMs / 1000)} s.
         </p>
       ) : null}
+
+      {notice ? (
+        <p
+          className={cn(
+            "mt-3 rounded-lg border px-3 py-2 text-sm",
+            notice.ok
+              ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-200"
+              : "border-rose-500/30 bg-rose-500/10 text-rose-200",
+          )}
+        >
+          {notice.text}
+        </p>
+      ) : null}
+    </section>
+  );
+}
+
+const STALE_OPTIONS = [14, 30, 60, 90, 180, 365];
+
+function StaleSection({ data }: { data: AdminData["stale"] }) {
+  const router = useRouter();
+  const [days, setDays] = useState(data.afterDays);
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<Notice>(null);
+
+  async function save(value: number) {
+    setBusy(true);
+    setNotice(null);
+    try {
+      const response = await fetch("/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ staleAfterDays: value }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error ?? "Speichern fehlgeschlagen.");
+      setNotice({ ok: true, text: "Gespeichert." });
+      router.refresh();
+    } catch (caught) {
+      setDays(data.afterDays);
+      setNotice({ ok: false, text: caught instanceof Error ? caught.message : String(caught) });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="glass p-5">
+      <div className="mb-4 flex items-start gap-3">
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-amber-500/12 text-amber-300">
+          <Hourglass className="h-4 w-4" />
+        </span>
+        <div>
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-200">
+            Stillstand
+          </h2>
+          <p className="mt-1 max-w-xl text-sm text-slate-400">
+            Ab wann ein Projekt als eingeschlafen gilt. Massstab ist der letzte Commit im
+            verknuepften Repository – das Aenderungsdatum taugt nicht, weil jeder Abgleich
+            es anfasst. Projekte ohne Repository bleiben aussen vor, ebenso fertige und
+            archivierte.
+          </p>
+        </div>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <label className="field-label" htmlFor="stale-days">
+            Schwelle
+          </label>
+          <select
+            id="stale-days"
+            className="field"
+            value={days}
+            disabled={busy}
+            onChange={(event) => {
+              const value = Number(event.target.value);
+              setDays(value);
+              void save(value);
+            }}
+          >
+            {STALE_OPTIONS.map((value) => (
+              <option key={value} value={value}>
+                nach {value} Tagen ohne Commit
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <dl className="grid grid-cols-2 gap-3">
+          <div className="glass-soft px-3 py-2.5">
+            <dt className="text-[11px] uppercase tracking-wider text-slate-500">
+              Letzte Pruefung
+            </dt>
+            <dd className="mt-1 text-sm text-slate-200" suppressHydrationWarning>
+              {data.lastCheckAt ? formatRelative(data.lastCheckAt) : "noch keine"}
+            </dd>
+          </div>
+          <div className="glass-soft px-3 py-2.5">
+            <dt className="text-[11px] uppercase tracking-wider text-slate-500">
+              Empfaenger
+            </dt>
+            <dd className="mt-1 text-sm tabular-nums text-slate-200">{data.listeners}</dd>
+          </div>
+        </dl>
+      </div>
+
+      {data.listeners === 0 ? (
+        <p className="mt-3 text-[11px] text-slate-600">
+          Niemand hoert derzeit auf diesen Anlass – die Pruefung laeuft dann gar nicht
+          erst. Einzurichten unter „Mein Konto → Benachrichtigungen“.
+        </p>
+      ) : (
+        <p className="mt-3 text-[11px] text-slate-600">
+          Die Pruefung laeuft hoechstens einmal am Tag. Je Projekt wird einmal gemeldet;
+          erneut erst, wenn danach wieder ein Commit kam und es wieder still wurde.
+        </p>
+      )}
 
       {notice ? (
         <p

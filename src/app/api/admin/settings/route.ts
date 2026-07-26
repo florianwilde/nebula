@@ -37,6 +37,7 @@ export async function PATCH(request: Request) {
     autoSyncIntervalMinutes,
     autoSyncActiveOnly,
     autoSyncBatchSize,
+    staleAfterDays,
   } = parsed.data;
 
   // Der Wechsel in den Einzelbetrieb wuerde weitere Konten aussperren –
@@ -57,6 +58,11 @@ export async function PATCH(request: Request) {
     ...(autoSyncIntervalMinutes !== undefined ? { autoSyncIntervalMinutes } : {}),
     ...(autoSyncActiveOnly !== undefined ? { autoSyncActiveOnly } : {}),
     ...(autoSyncBatchSize !== undefined ? { autoSyncBatchSize } : {}),
+    // Neue Schwelle: die Pruefung soll beim naechsten Tick greifen, nicht
+    // erst in 24 Stunden.
+    ...(staleAfterDays !== undefined
+      ? { staleAfterDays, lastStaleCheckAt: null }
+      : {}),
   };
 
   const settings = await prisma.appSettings.upsert({
