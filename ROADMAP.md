@@ -20,20 +20,14 @@ erreichbar ist. Der Zeitplan bleibt als Rückfalllösung.
 
 ---
 
-### 1.2 README-Vorschau `S`
-
-Das README aus dem Repo holen und auf der Projektseite anzeigen. Ein
-zusätzlicher API-Aufruf, Markdown kann Nebula schon. Erspart den Wechsel ins
-Git, nur um zu sehen, worum ein halbvergessenes Projekt eigentlich ging.
-
-### 1.3 Läuft es noch? `M`
+### 1.2 Läuft es noch? `M`
 
 Eine Health-Check-URL je Projekt, die der Zeitgeber regelmäßig anpingt.
 Nebula wüsste dann, ob ein Projekt nicht nur existiert, sondern auch läuft.
 Nutzt Zeitgeber und Benachrichtigungen, die es schon gibt. Der SSRF-Schutz
 greift dabei wie bei den Git-Aufrufen.
 
-### 1.4 Persönliche API-Token `M`
+### 1.3 Persönliche API-Token `M`
 
 Derzeit geht die API nur mit Sitzungscookie. Ein Token je Konto würde
 `curl`-Aufrufe und Handy-Shortcuts erlauben — Idee aus dem Terminal anlegen,
@@ -115,6 +109,7 @@ Damit klar ist, was **nicht** kommt und warum:
 | **v1.1.0** Freie Reihenfolge im Brett, Mehrfachauswahl, installierbar als App, Änderungsverlauf | ✓ |
 | **v1.2.0** Commit-Heatmap über ein Jahr, Projektvorlagen | ✓ |
 | **v1.3.0** Wiederkehrende Aufgaben, Barrierefreiheit nach WCAG 2.1 AA | ✓ |
+| **v1.4.0** README-Vorschau auf der Projektseite | ✓ |
 
 Zur Entscheidung beim Export: Git-Tokens gehen **nicht** mit. Die Verbindung wird nur
 beschrieben, das Token ist nach dem Import neu zu hinterlegen. Snapshots bleiben

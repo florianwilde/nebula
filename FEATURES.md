@@ -299,6 +299,29 @@ App und Infrastruktur. Sie gehören trotzdem in **eine** Karte.
 Der Projektdialog bearbeitet weiterhin nur das führende Repository; weitere verwaltet das
 Git-Panel. Beim Anlegen eines Projekts entsteht aus den Git-Feldern das erste.
 
+### 4.0a README-Vorschau
+
+Das README des führenden Repositories steht auf der Projektseite — man muss nicht ins Git
+wechseln, nur um zu sehen, worum ein halbvergessenes Projekt eigentlich ging. Lange
+READMEs sind eingeklappt, ein Knopf zeigt alles.
+
+- Geholt wird **höchstens einmal am Tag**, wie die Heatmap. GitHub hat einen eigenen
+  Endpunkt, der jede Schreibweise findet; bei GitLab und Gitea braucht es zwei Aufrufe
+  (Wurzelverzeichnis auflisten, dann die Datei holen).
+- Erkannt werden `README.md` und die üblichen Varianten, Groß- und Kleinschreibung egal.
+  Markdown hat Vorrang — nur das lässt sich wirklich darstellen.
+- Bei 60 000 Zeichen wird an einer **Zeilengrenze** abgeschnitten, damit kein halber
+  Codeblock stehen bleibt.
+- **Relative Links** werden gegen das Verzeichnis der Datei im Repository aufgelöst, sonst
+  liefen sie ins Leere.
+- **Bilder werden nicht geladen.** Die Content-Security-Policy erlaubt `img-src` nur von
+  der eigenen Instanz; sie dafür zu öffnen hieße, jedem fremden README das Nachladen
+  beliebiger Bilder zu gestatten — also auch Zählpixeln. Für Abzeichen und
+  Bildschirmfotos, die in einer Vorschau ohnehin Beiwerk sind, ist das kein guter Tausch.
+  Stattdessen steht ein anklickbarer Verweis mit dem Alternativtext.
+- Der Inhalt stammt aus einem fremden Repository und läuft deshalb durch dieselbe
+  Bereinigung wie Notizen (`rehype-sanitize`).
+
 ### 4.1 Unterstützte Systeme
 
 | System | API | Authentifizierung | Besonderheit |

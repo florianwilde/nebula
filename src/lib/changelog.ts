@@ -42,6 +42,32 @@ export const KIND_META: Record<ChangeKind, { label: string; className: string }>
 
 export const CHANGELOG: Release[] = [
   {
+    version: "1.4.0",
+    date: "2026-07-26",
+    headline: "Worum ging es hier nochmal?",
+    changes: [
+      {
+        kind: "neu",
+        text:
+          "README-Vorschau auf der Projektseite. Erspart den Wechsel ins Git, nur um zu " +
+          "sehen, worum ein halbvergessenes Projekt eigentlich ging.",
+      },
+      {
+        kind: "besser",
+        text:
+          "Relative Links im README zeigen dorthin, wo sie hingehören — aufgelöst gegen " +
+          "das Verzeichnis der Datei im Repository.",
+      },
+      {
+        kind: "besser",
+        text:
+          "Bilder im README werden bewusst nicht geladen, sondern als anklickbarer " +
+          "Verweis gezeigt. Die Content-Security-Policy dafür zu öffnen hieße, jedem " +
+          "fremden README das Nachladen beliebiger Bilder zu erlauben — auch Zählpixeln.",
+      },
+    ],
+  },
+  {
     version: "1.3.0",
     date: "2026-07-26",
     headline: "Was sich wiederholt, und was besser lesbar ist.",
