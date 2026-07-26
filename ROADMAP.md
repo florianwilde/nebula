@@ -11,13 +11,7 @@ Was bereits steht, listet [FEATURES.md](FEATURES.md).
 
 ## 1 · Als Nächstes empfohlen
 
-### 1.1 Stillstehende Projekte melden `S`
-
-Die Benachrichtigungen decken Fehler und Releases ab. Was fehlt, ist der
-sanfte Stups: „Seit 60 Tagen kein Commit". Braucht einen eigenen Durchlauf,
-weil es kein Ereignis gibt, an dem es hängt — der Zeitgeber ist da.
-
-### 1.2 Webhooks statt Polling `M`
+### 1.1 Webhooks statt Polling `M`
 
 Ein Push aktualisiert den Snapshot sofort, statt bis zum nächsten Durchlauf
 zu warten. Braucht einen öffentlich erreichbaren Endpunkt mit
@@ -117,6 +111,7 @@ Damit klar ist, was **nicht** kommt und warum:
 | **v0.5.0** Aufgabenbrett je Projekt mit sortierbaren Spalten, Fortschritt aus Aufgaben | ✓ |
 | **v0.6.0** Ende-zu-Ende-Tests mit Playwright, CI-Pipeline für Gitea Actions | ✓ |
 | **v0.7.0** Benachrichtigungen über ntfy, Webhook und E-Mail | ✓ |
+| **v0.8.0** Stillstehende Projekte melden, Schwelle im Adminbereich | ✓ |
 
 Zur Entscheidung beim Export: Git-Tokens gehen **nicht** mit. Die Verbindung wird nur
 beschrieben, das Token ist nach dem Import neu zu hinterlegen. Snapshots bleiben

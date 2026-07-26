@@ -333,6 +333,7 @@ Einzurichten unter *Mein Konto → Benachrichtigungen*, pro Konto und beliebig v
 | ⚠️ **Abgleich fehlgeschlagen** | Das Git-System war nicht erreichbar oder hat abgelehnt |
 | 🔴 **CI rot** | Der letzte Lauf auf dem Default-Branch ist fehlgeschlagen |
 | 🏷️ **Neues Release** | Ein neuer Tag oder ein neues Release ist aufgetaucht |
+| 🕸️ **Projekt steht still** | Seit längerem kein Commit — Schwelle einstellbar, Vorgabe 60 Tage |
 
 ### Nur bei Änderung
 
@@ -347,6 +348,24 @@ Zwei Feinheiten:
   wäre jede bereits vorhandene Version eine „Neuigkeit".
 - Der Merkstand wird auch dann fortgeschrieben, wenn **kein** Ziel eingerichtet ist. Sonst
   käme beim ersten eingerichteten Ziel die ganze Vergangenheit hinterher.
+
+### Stillstand
+
+Der einzige Anlass, der an keinem Ereignis hängt — es passiert ja gerade nichts. Deshalb
+ein eigener Durchlauf, **höchstens einmal am Tag**, unabhängig vom automatischen Abgleich.
+Hört niemand auf diesen Anlass, läuft die Prüfung gar nicht erst.
+
+Maßstab ist ausschließlich der **letzte Commit** im verknüpften Repository. Das
+Änderungsdatum des Projekts taugt nicht: jeder Abgleich fasst es an und würde den
+Stillstand immer wieder zurücksetzen. Projekte **ohne Repository** bleiben deshalb außen
+vor, ebenso fertige und archivierte.
+
+Gemeldet wird je Projekt einmal. Erneut erst, wenn danach wieder ein Commit kam und es
+seitdem wieder still geworden ist — ein Projekt, das aufwacht und wieder einschläft, meldet
+sich also ein zweites Mal.
+
+Die Schwelle setzt ein Administrator unter *Admin-Einstellungen → Stillstand* (14 Tage bis
+ein Jahr). Eine Änderung wirkt sofort, nicht erst nach 24 Stunden.
 
 ### Zustellwege
 
@@ -466,6 +485,8 @@ Datenbank):
 | `auth/password` | scrypt-Rundlauf, unterschiedliches Salz, Ablageformat, Verhalten bei kaputten Hashes, Passwortregeln |
 | `tasks` | Berechnung des abgeleiteten Fortschritts, Spaltenreihenfolge |
 | `notify/pending` | Wann eine Benachrichtigung fällig ist: neuer Fehler ja, gleicher Fehler nein; CI-Wechsel nach rot; Release erst ab dem zweiten Abgleich |
+| `notify/stale` | Stillstandsschwelle, keine Zweitmeldung, aber erneute Meldung nach zwischenzeitlicher Aktivität |
+| `validation` | Dass jeder Anlass, den die Oberfläche anbietet, auch vom Schema akzeptiert wird — entstanden aus genau diesem Fehler |
 
 **`npm run test:e2e` — Ende-zu-Ende** (Playwright, 13 Stück, rund 20 Sekunden). Läuft
 gegen die gebaute Anwendung mit eigener Datenbank auf Port 3111 — also durch Middleware,
