@@ -13,6 +13,7 @@ Für Installation zum Ausprobieren und die Entwicklungsvarianten siehe
 | | |
 | --- | --- |
 | Server | Linux mit Docker Engine ≥ 24 und Compose v2 |
+| Sonst | `git`, `curl`, eine POSIX-Shell — **kein Node, kein npm** |
 | Arbeitsspeicher | 1 GB reichen; beim Bauen kurzzeitig ~2 GB |
 | Plattenplatz | ~2 GB für Abbilder, dazu die Datenbank |
 | Domain | Eine (Unter-)Domain, die auf den Server zeigt |
@@ -46,14 +47,19 @@ cd /opt/nebula
 ## 3 · Konfigurieren
 
 ```bash
-node scripts/setup.mjs        # legt .env an und würfelt ein APP_SECRET
+./scripts/setup.sh        # legt .env an, würfelt ein APP_SECRET, setzt Rechte 600
 ```
 
-Ohne Node auf dem Server: `cp .env.example .env` und das Geheimnis von Hand
-setzen —
+Das Skript ist reines POSIX-Shell und braucht **kein Node** — auf einem
+reinen Docker-Host ist keins installiert. Es nimmt `openssl`, falls
+vorhanden, sonst `/dev/urandom`.
+
+Ganz von Hand geht auch:
 
 ```bash
-openssl rand -base64 48
+cp .env.example .env
+chmod 600 .env
+openssl rand -base64 32        # den Wert als APP_SECRET eintragen
 ```
 
 Dann die `.env` öffnen und mindestens diese vier Werte anpassen:
@@ -227,11 +233,12 @@ Was es tut:
 | Schritt | |
 | --- | --- |
 | **1 Prüfen** | docker, compose, `.env` da? Ist `APP_SECRET` gesetzt und nicht mehr der Entwicklungswert? |
+| | *(alles ohne Node — das Skript liest die Version selbst aus der `package.json`)* |
 | **2 Holen** | `git pull --ff-only`; zeigt die neuen Commits und fragt nach |
 | **3 Sichern** | `pg_dump` **vor** jeder Schemaänderung |
 | **4 Bauen** | Erst bauen, dann umschalten — ein gescheiterter Bau lässt die alte Fassung laufen |
 | **5 Starten** | Container neu; die Migrationen laufen im Entrypoint |
-| **6 Prüfen** | Bis zu 60 Sekunden auf `/api/health` warten |
+| **6 Prüfen** | Bis zu zwei Minuten warten, bis der Container sich gesund meldet |
 
 Scheitert die Gesundheitsprüfung, zeigt das Skript die letzten Logzeilen und
 nennt den Weg zurück.

@@ -40,6 +40,13 @@ else
   rot=""; gruen=""; gelb=""; fett=""; aus=""
 fi
 
+# Die Version aus der package.json lesen – ohne Node. Auf einem reinen
+# Docker-Host ist keins installiert, und dieses Skript soll dort laufen.
+paket_version() {
+  sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$root/package.json" \
+    | head -n 1
+}
+
 schritt() { printf '\n%s▸ %s%s\n' "$fett" "$1" "$aus"; }
 ok()      { printf '  %s✓%s %s\n' "$gruen" "$aus" "$1"; }
 warnung() { printf '  %s!%s %s\n' "$gelb" "$aus" "$1"; }
@@ -50,7 +57,7 @@ schritt "Voraussetzungen"
 
 command -v docker >/dev/null || abbruch "docker nicht gefunden."
 docker compose version >/dev/null 2>&1 || abbruch "docker compose (v2) nicht gefunden."
-[ -f "$root/.env" ] || abbruch "Keine .env in $root. Zuerst 'node scripts/setup.mjs' ausfuehren."
+[ -f "$root/.env" ] || abbruch "Keine .env in $root. Zuerst './scripts/setup.sh' ausfuehren."
 [ -f "$root/docker-compose.yml" ] || abbruch "Kein docker-compose.yml in $root."
 ok "docker, compose und .env vorhanden"
 
@@ -61,7 +68,7 @@ fi
 ok "APP_SECRET gesetzt"
 
 vorher="$(git rev-parse --short HEAD 2>/dev/null || echo "unbekannt")"
-version_vorher="$(node -p "require('./package.json').version" 2>/dev/null || echo "?")"
+version_vorher="$(paket_version)"
 printf '  Aktuell: v%s (%s)\n' "$version_vorher" "$vorher"
 
 # ── Neuen Stand holen ────────────────────────────────────────
@@ -83,7 +90,7 @@ if [ "$pull" -eq 1 ]; then
   fi
 
   nachher="$(git rev-parse --short HEAD)"
-  version_nachher="$(node -p "require('./package.json').version" 2>/dev/null || echo "?")"
+  version_nachher="$(paket_version)"
 
   if [ "$vorher" = "$nachher" ]; then
     warnung "Kein neuer Stand – es wird trotzdem neu gebaut."
@@ -111,7 +118,9 @@ docker compose up -d db >/dev/null
 sicherung=""
 if [ -x "$root/scripts/backup.sh" ]; then
   ausgabe="$("$root/scripts/backup.sh" 2>&1)" || abbruch "Sicherung fehlgeschlagen:\n$ausgabe"
-  sicherung="$(printf '%s' "$ausgabe" | grep -oE '[^ ]*backups/[^ ]*\.sql[^ ]*' | tail -n 1 || true)"
+  # backup.sh setzt den Pfad in Anfuehrungszeichen – die gehoeren nicht in
+  # den Namen, sonst laesst sich der Vorschlag am Ende nicht kopieren.
+  sicherung="$(printf '%s' "$ausgabe" | grep -oE '[^ "]*backups/[^ "]*\.sql[^ "]*' | tail -n 1 || true)"
   ok "Gesichert${sicherung:+: $sicherung}"
 else
   warnung "scripts/backup.sh fehlt – es wird ohne Sicherung fortgefahren."
@@ -132,16 +141,17 @@ ok "Container gestartet"
 # ── Gesundheitspruefung ──────────────────────────────────────
 schritt "Gesundheitspruefung"
 
-port="$(sed -n 's/^[[:space:]]*APP_PORT[[:space:]]*=[[:space:]]*"\{0,1\}\([^"#]*\)"\{0,1\}[[:space:]]*$/\1/p' "$root/.env" | tail -n 1)"
-port="${port:-3000}"
-
+# Gefragt wird der Container selbst, nicht der Host. Das Abbild bringt einen
+# HEALTHCHECK mit, und so ist es einerlei, ob APP_PORT nur eine Nummer ist
+# oder wie auf einem Server "127.0.0.1:3000" – und curl braucht es auch nicht.
 gesund=0
-for versuch in $(seq 1 30); do
-  if curl -fsS "http://127.0.0.1:${port}/api/health" >/dev/null 2>&1; then
-    gesund=1
-    break
-  fi
-  sleep 2
+for _ in $(seq 1 40); do
+  zustand="$(docker inspect --format '{{.State.Health.Status}}' nebula-app 2>/dev/null || echo "weg")"
+  case "$zustand" in
+    healthy) gesund=1; break ;;
+    unhealthy) break ;;
+  esac
+  sleep 3
 done
 
 if [ "$gesund" -ne 1 ]; then
@@ -150,14 +160,23 @@ if [ "$gesund" -ne 1 ]; then
   printf '\n%sZurueck zur vorigen Fassung:%s\n' "$fett" "$aus"
   printf '  git checkout %s && ./scripts/update.sh --no-pull --yes\n' "$vorher"
   [ -n "$sicherung" ] && printf '  Datenbank notfalls: ./scripts/restore.sh %s\n' "$sicherung"
-  abbruch "Die Anwendung antwortet nach 60 Sekunden nicht gesund."
+  abbruch "Der Container meldet sich nach zwei Minuten nicht gesund (Zustand: ${zustand})."
+fi
+ok "Container meldet sich gesund"
+
+# Die Anzeige der Adresse: aus APP_PORT kann "3000" oder "127.0.0.1:3000"
+# kommen – fuer die Ausgabe zaehlt nur, was hinter dem letzten Doppelpunkt steht.
+port_roh="$(sed -n 's/^[[:space:]]*APP_PORT[[:space:]]*=[[:space:]]*"\{0,1\}\([^"#]*\)"\{0,1\}[[:space:]]*$/\1/p' "$root/.env" | tail -n 1)"
+port_roh="${port_roh:-3000}"
+port="${port_roh##*:}"
+
+if command -v curl >/dev/null 2>&1; then
+  antwort_json="$(curl -fsS "http://127.0.0.1:${port}/api/health" 2>/dev/null || true)"
+  [ -n "$antwort_json" ] && ok "Antwort: $antwort_json"
 fi
 
-antwort_json="$(curl -fsS "http://127.0.0.1:${port}/api/health")"
-ok "Gesund: $antwort_json"
-
 # ── Fertig ───────────────────────────────────────────────────
-version_jetzt="$(node -p "require('./package.json').version" 2>/dev/null || echo "?")"
-printf '\n%s%s✓ Nebula v%s laeuft auf Port %s%s\n' "$gruen" "$fett" "$version_jetzt" "$port" "$aus"
+version_jetzt="$(paket_version)"
+printf '\n%s%s✓ Nebula v%s laeuft auf %s%s\n' "$gruen" "$fett" "$version_jetzt" "$port_roh" "$aus"
 [ -n "$sicherung" ] && printf '  Sicherung vor dem Update: %s\n' "$sicherung"
 printf '  Log mitlesen: docker compose --profile full logs -f app\n\n'
