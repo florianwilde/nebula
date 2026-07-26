@@ -3,7 +3,11 @@ import { z } from "zod";
 import { recordActivity } from "@/lib/activity";
 import { requireUserApi } from "@/lib/auth/guard";
 import { prisma } from "@/lib/db";
-import { exportFileSchema, type ExportedProject } from "@/lib/export/format";
+import {
+  exportFileSchema,
+  repositoriesOf,
+  type ExportedRepository,
+} from "@/lib/export/format";
 import { uniqueSlug } from "@/lib/projects";
 import { LIMITS, rateLimit } from "@/lib/security/rateLimit";
 import {
@@ -85,7 +89,7 @@ export async function POST(request: Request) {
     select: { id: true, name: true, provider: true, baseUrl: true },
   });
 
-  function matchConnection(described: ExportedProject["connection"]) {
+  function matchConnection(described: ExportedRepository["connection"]) {
     if (!described) return null;
     const byName = connections.find(
       (candidate) => candidate.name.toLowerCase() === described.name.toLowerCase(),
@@ -105,12 +109,26 @@ export async function POST(request: Request) {
 
   for (const incoming of file.projects) {
     const slug = incoming.slug || slugify(incoming.name) || "projekt";
-    const connection = matchConnection(incoming.connection);
-    const connectionState: ItemResult["connection"] = incoming.connection
-      ? connection
-        ? "matched"
-        : "missing"
-      : "none";
+
+    // Version 1 kannte ein Repository je Projekt und schrieb es flach; seit
+    // Version 2 steht eine Liste da. repositoriesOf glaettet den Unterschied.
+    const eingehendeRepos = repositoriesOf(incoming);
+    const repos = eingehendeRepos.map((repo, index) => ({
+      label: repo.label ?? null,
+      repoUrl: repo.repoUrl ?? null,
+      repoOwner: repo.repoOwner ?? null,
+      repoName: repo.repoName ?? null,
+      autoSync: repo.autoSync ?? true,
+      connectionId: matchConnection(repo.connection ?? null)?.id ?? null,
+      position: index,
+    }));
+
+    // Fuer die Rueckmeldung genuegt, ob ueberhaupt eine beschriebene
+    // Verbindung fehlt – welche, steht in der Datei.
+    const beschrieben = eingehendeRepos.filter((repo) => repo.connection);
+    const fehlend = beschrieben.filter((repo) => !matchConnection(repo.connection ?? null));
+    const connectionState: ItemResult["connection"] =
+      beschrieben.length === 0 ? "none" : fehlend.length > 0 ? "missing" : "matched";
 
     const existing = await prisma.project.findFirst({
       where: { slug, ownerId: auth.user.id },
@@ -123,7 +141,7 @@ export async function POST(request: Request) {
       action: "create",
       notes: incoming.notes.length,
       connection: connectionState,
-      connectionName: incoming.connection?.name,
+      connectionName: (fehlend[0] ?? beschrieben[0])?.connection?.name,
     };
 
     if (existing && strategy === "skip") {
@@ -155,11 +173,6 @@ export async function POST(request: Request) {
       accent: incoming.accent,
       tags: incoming.tags,
       favorite: incoming.favorite,
-      autoSync: incoming.autoSync,
-      repoUrl: incoming.repoUrl ?? null,
-      repoOwner: incoming.repoOwner ?? null,
-      repoName: incoming.repoName ?? null,
-      connectionId: connection?.id ?? null,
       progressFromTasks: incoming.progressFromTasks,
     };
 
@@ -195,9 +208,19 @@ export async function POST(request: Request) {
         await prisma.$transaction([
           prisma.note.deleteMany({ where: { projectId: existing.id } }),
           prisma.task.deleteMany({ where: { projectId: existing.id } }),
+          // Wie Notizen und Aufgaben: austauschen statt zusammenfuehren. Der
+          // gesammelte Repo-Stand geht dabei mit, ist aber beim naechsten
+          // Abgleich zurueck.
+          prisma.repository.deleteMany({ where: { projectId: existing.id } }),
           prisma.project.update({
             where: { id: existing.id },
-            data: { ...data, slug, notes: { create: notes }, tasks: { create: tasks } },
+            data: {
+              ...data,
+              slug,
+              notes: { create: notes },
+              tasks: { create: tasks },
+              repositories: { create: repos },
+            },
           }),
         ]);
         results.push({ ...base, action: "overwrite" });
@@ -210,6 +233,7 @@ export async function POST(request: Request) {
             slug: finalSlug,
             notes: { create: notes },
             tasks: { create: tasks },
+            repositories: { create: repos },
           },
         });
         // Der Verlauf wird nicht mitexportiert – der erste Eintrag hier haelt

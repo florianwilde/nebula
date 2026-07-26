@@ -17,6 +17,12 @@ export const projectCreateSchema = z.object({
   accent: z.enum(ACCENTS).default("violet"),
   tags: z.array(z.string().trim().min(1).max(30)).max(12).default([]),
   favorite: z.boolean().default(false),
+  /**
+   * Die Git-Felder liegen seit dem Umbau am Repository, bleiben hier aber
+   * stehen: sie setzen das fuehrende Repository und legen es notfalls an.
+   * So kommt man mit einem Aufruf zu Projekt und Repo, und bestehende
+   * Aufrufer – auch der Import – muessen nichts wissen.
+   */
   repoUrl: z.preprocess(emptyToNull, z.string().trim().max(500).nullable().optional()),
   repoOwner: z.preprocess(emptyToNull, z.string().trim().max(200).nullable().optional()),
   repoName: z.preprocess(emptyToNull, z.string().trim().max(200).nullable().optional()),
@@ -28,6 +34,22 @@ export const projectCreateSchema = z.object({
 });
 
 export const projectUpdateSchema = projectCreateSchema.partial();
+
+// ── Repositories ─────────────────────────────────────────────
+
+export const repositoryCreateSchema = z.object({
+  label: z.preprocess(emptyToNull, z.string().trim().max(80).nullable().optional()),
+  repoUrl: z.preprocess(emptyToNull, z.string().trim().max(500).nullable().optional()),
+  repoOwner: z.preprocess(emptyToNull, z.string().trim().max(200).nullable().optional()),
+  repoName: z.preprocess(emptyToNull, z.string().trim().max(200).nullable().optional()),
+  connectionId: z.preprocess(emptyToNull, z.string().trim().nullable().optional()),
+  autoSync: z.boolean().default(true),
+});
+
+export const repositoryUpdateSchema = repositoryCreateSchema.partial().extend({
+  /** Zum Umsortieren; 0 ist das fuehrende. */
+  position: z.coerce.number().int().min(0).max(50).optional(),
+});
 
 // ── Aufgaben ─────────────────────────────────────────────────
 

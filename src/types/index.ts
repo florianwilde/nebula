@@ -5,6 +5,7 @@ import type {
   Project,
   ProjectStatus,
   RepoSnapshot,
+  Repository,
   Task,
   TaskStatus,
 } from "@prisma/client";
@@ -33,12 +34,18 @@ export interface ConnectionSafe {
 }
 
 export interface ConnectionWithCount extends ConnectionSafe {
-  _count?: { projects: number };
+  _count?: { repositories: number };
+}
+
+/** Ein Repository samt Verbindung und zuletzt geholtem Stand. */
+export interface RepositoryWithSnapshot extends Repository {
+  connection: ConnectionSafe | null;
+  snapshot: RepoSnapshot | null;
 }
 
 export interface ProjectListItem extends Project {
-  connection: ConnectionSafe | null;
-  snapshot: RepoSnapshot | null;
+  /** Das fuehrende zuerst – siehe repositoryInclude. */
+  repositories: RepositoryWithSnapshot[];
   _count: { notes: number; tasks: number };
   /** Nur die erledigten – siehe projectListInclude. */
   tasks: { id: string }[];
@@ -55,8 +62,7 @@ export interface ActivityEntry {
 }
 
 export interface ProjectDetail extends Project {
-  connection: ConnectionSafe | null;
-  snapshot: RepoSnapshot | null;
+  repositories: RepositoryWithSnapshot[];
   notes: Note[];
   tasks: Task[];
   activities: ActivityEntry[];
@@ -83,6 +89,7 @@ export type {
   ProjectStatus,
   ReleaseInfo,
   RepoSnapshot,
+  Repository,
   TagInfo,
   Task,
   TaskStatus,

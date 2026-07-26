@@ -46,9 +46,19 @@ export const connectionSafeSelect = Prisma.validator<Prisma.GitConnectionSelect>
   updatedAt: true,
 });
 
+/**
+ * Ein Repository mitsamt Verbindung und Stand. Die Reihenfolge ist ueberall
+ * dieselbe: das fuehrende zuerst, denn auf der Karte ist nur fuer eines Platz.
+ */
+export const repositoryInclude = Prisma.validator<Prisma.ProjectInclude>()({
+  repositories: {
+    include: { connection: { select: connectionSafeSelect }, snapshot: true },
+    orderBy: [{ position: "asc" }, { createdAt: "asc" }],
+  },
+});
+
 export const projectListInclude = Prisma.validator<Prisma.ProjectInclude>()({
-  connection: { select: connectionSafeSelect },
-  snapshot: true,
+  ...repositoryInclude,
   _count: { select: { notes: true, tasks: true } },
   // Nur die offenen Aufgaben zaehlen – fuer die Anzeige "3 von 8" auf der
   // Karte, ohne die Aufgaben selbst mitzuladen.
@@ -56,8 +66,7 @@ export const projectListInclude = Prisma.validator<Prisma.ProjectInclude>()({
 });
 
 export const projectDetailInclude = Prisma.validator<Prisma.ProjectInclude>()({
-  connection: { select: connectionSafeSelect },
-  snapshot: true,
+  ...repositoryInclude,
   notes: {
     orderBy: [{ pinned: "desc" }, { updatedAt: "desc" }],
   },

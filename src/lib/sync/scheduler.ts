@@ -3,7 +3,7 @@ import { pruneActivities } from "@/lib/activity";
 import { getAppSettings } from "@/lib/auth/settings";
 import { prisma } from "@/lib/db";
 import { runStaleCheck } from "@/lib/notify/stale";
-import { syncProject } from "@/lib/sync";
+import { syncRepository } from "@/lib/sync";
 
 /**
  * Automatischer Abgleich mit den Git-Systemen.
@@ -147,42 +147,45 @@ export async function runAutoSyncPass(
     const batchSize = Math.max(1, Math.min(200, settings.autoSyncBatchSize));
     const intervalMs = Math.max(5, settings.autoSyncIntervalMinutes) * 60_000;
 
-    const where: Prisma.ProjectWhereInput = {
+    // Gezaehlt und begrenzt wird seit dem Umbau je Repository, nicht je
+    // Projekt: sonst zoege ein Projekt mit fuenf Repos fuenfmal so viele
+    // Anfragen nach sich wie sein Platz im Kontingent hergibt.
+    const where: Prisma.RepositoryWhereInput = {
       autoSync: true,
-      // Ohne Repository gibt es nichts abzugleichen.
+      // Ohne Angaben gibt es nichts abzugleichen.
       OR: [
         { AND: [{ repoOwner: { not: null } }, { repoName: { not: null } }] },
         { repoUrl: { not: null } },
       ],
       ...(settings.autoSyncActiveOnly
-        ? { status: { notIn: ["DONE", "ARCHIVED"] } }
+        ? { project: { status: { notIn: ["DONE", "ARCHIVED"] } } }
         : {}),
     };
 
     // Grosszuegig holen: ein Teil faellt gleich der Zurueckhaltung zum Opfer.
-    const candidates = await prisma.project.findMany({
+    const candidates = await prisma.repository.findMany({
       where,
       orderBy: [{ lastSyncedAt: { sort: "asc", nulls: "first" } }],
       take: batchSize * 4,
-      select: { id: true, name: true, lastSyncedAt: true, syncFailureCount: true },
+      select: { id: true, lastSyncedAt: true, syncFailureCount: true },
     });
 
-    const due = candidates.filter((project) => {
-      if (project.syncFailureCount === 0) return true;
-      if (!project.lastSyncedAt) return true;
+    const due = candidates.filter((repository) => {
+      if (repository.syncFailureCount === 0) return true;
+      if (!repository.lastSyncedAt) return true;
 
       // Nach jedem Fehlschlag doppelt so lange warten, gedeckelt.
-      const steps = Math.min(project.syncFailureCount, MAX_BACKOFF_STEPS);
+      const steps = Math.min(repository.syncFailureCount, MAX_BACKOFF_STEPS);
       const wait = intervalMs * 2 ** steps;
-      const ready = Date.now() - project.lastSyncedAt.getTime() >= wait;
+      const ready = Date.now() - repository.lastSyncedAt.getTime() >= wait;
       if (!ready) skipped += 1;
       return ready;
     });
 
     const batch = due.slice(0, batchSize);
 
-    for (const project of batch) {
-      const result = await syncProject(project.id);
+    for (const repository of batch) {
+      const result = await syncRepository(repository.id);
       if (result.ok) synced += 1;
       else failed += 1;
       if (PAUSE_MS > 0) await new Promise((resolve) => setTimeout(resolve, PAUSE_MS));

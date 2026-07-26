@@ -14,7 +14,7 @@ type Params = { params: Promise<{ id: string }> };
 
 const safeSelect = {
   ...connectionSafeSelect,
-  _count: { select: { projects: true } },
+  _count: { select: { repositories: true } },
 };
 
 export async function PATCH(request: Request, { params }: Params) {

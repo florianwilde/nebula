@@ -3,8 +3,8 @@ import { NextResponse } from "next/server";
 import { describeFields, describeStatus, recordActivities, shorten } from "@/lib/activity";
 import { requireUserApi } from "@/lib/auth/guard";
 import { prisma } from "@/lib/db";
-import { parseRepoUrl } from "@/lib/git";
 import { projectDetailInclude, projectListInclude, uniqueSlug } from "@/lib/projects";
+import { applyLeadingRepo, type RepoInput } from "@/lib/repositories";
 import { jsonError, readJsonBody } from "@/lib/security/request";
 import { refreshDerivedProgress } from "@/lib/tasks";
 import { formatZodError, projectUpdateSchema } from "@/lib/validation";
@@ -77,30 +77,26 @@ export async function PATCH(request: Request, { params }: Params) {
     "accent",
     "tags",
     "favorite",
-    "autoSync",
     "progressFromTasks",
-    "connectionId",
   ] as const) {
     if (data[key] !== undefined) update[key] = data[key];
   }
 
-  if (data.repoUrl !== undefined) {
-    update.repoUrl = data.repoUrl;
-    const parsedUrl = data.repoUrl ? parseRepoUrl(data.repoUrl) : null;
-    if (parsedUrl) {
-      update.repoOwner = data.repoOwner ?? parsedUrl.owner;
-      update.repoName = data.repoName ?? parsedUrl.name;
-    } else if (!data.repoUrl) {
-      update.repoOwner = null;
-      update.repoName = null;
-    }
-  }
-  if (data.repoOwner !== undefined) update.repoOwner = data.repoOwner;
-  if (data.repoName !== undefined) update.repoName = data.repoName;
-
   await prisma.project.update({ where: { id }, data: update });
 
-  await noteChanges(id, auth.user.id, existing, update);
+  // Die Git-Felder gehen an das fuehrende Repository. Sie hier weiterhin
+  // anzunehmen erspart der Oberflaeche zwei Aufrufe fuer einen Speichervorgang.
+  const repoFelder = {
+    repoUrl: data.repoUrl,
+    repoOwner: data.repoOwner,
+    repoName: data.repoName,
+    connectionId: data.connectionId,
+    autoSync: data.autoSync,
+  };
+  const repoBeruehrt = Object.values(repoFelder).some((value) => value !== undefined);
+  if (repoBeruehrt) await applyLeadingRepo(id, repoFelder);
+
+  await noteChanges(id, auth.user.id, existing, update, repoBeruehrt ? repoFelder : null);
 
   // Wird die Ableitung eingeschaltet, soll der Wert sofort stimmen und nicht
   // erst beim naechsten Aufgabenwechsel.
@@ -125,12 +121,11 @@ export async function PATCH(request: Request, { params }: Params) {
 async function noteChanges(
   projectId: string,
   userId: string,
-  before: { status: ProjectStatus; repoUrl: string | null },
+  before: { status: ProjectStatus },
   update: Record<string, unknown>,
+  repo: RepoInput | null,
 ) {
-  const rest = Object.keys(update).filter(
-    (key) => key !== "status" && key !== "slug" && !key.startsWith("repo"),
-  );
+  const rest = Object.keys(update).filter((key) => key !== "status" && key !== "slug");
   const entries: Parameters<typeof recordActivities>[0] = [];
 
   if (update.status !== undefined && update.status !== before.status) {
@@ -144,16 +139,20 @@ async function noteChanges(
     });
   }
 
-  if (update.repoUrl !== undefined && update.repoUrl !== before.repoUrl) {
-    const url = update.repoUrl as string | null;
+  // Nur die Verknuepfung selbst ist eine Nachricht wert. Ob der automatische
+  // Abgleich an oder aus ist, gehoert zu den uebrigen Feldern.
+  if (repo && (repo.repoUrl !== undefined || repo.repoName !== undefined)) {
+    const ziel = repo.repoUrl ?? (repo.repoOwner ? `${repo.repoOwner}/${repo.repoName}` : null);
     entries.push({
       projectId,
       userId,
       kind: "REPO_LINKED",
-      summary: url ? `Repository verknüpft: ${shorten(url)}` : "Repository-Verknüpfung entfernt",
-      meta: { repoUrl: url },
+      summary: ziel ? `Repository verknüpft: ${shorten(ziel)}` : "Repository-Angaben geleert",
+      meta: { repoUrl: repo.repoUrl ?? null },
     });
   }
+  if (repo?.autoSync !== undefined) rest.push("autoSync");
+  if (repo?.connectionId !== undefined) rest.push("connectionId");
 
   const felder = describeFields(rest);
   if (felder) {

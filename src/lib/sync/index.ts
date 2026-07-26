@@ -1,8 +1,9 @@
-import type { Project } from "@prisma/client";
+import type { Repository } from "@prisma/client";
 import { recordActivity, shorten } from "@/lib/activity";
 import { prisma } from "@/lib/db";
 import { clientForConnection, createClient, parseRepoUrl } from "@/lib/git";
 import { notifyAfterSync } from "@/lib/notify";
+import { repoTitle } from "@/lib/repositories";
 import type { RepoSnapshotData } from "@/lib/git/types";
 
 export interface SyncResult {
@@ -12,21 +13,21 @@ export interface SyncResult {
 }
 
 /**
- * Holt den aktuellen Stand des verknuepften Repositories und schreibt ihn
- * als Snapshot in die Datenbank. Fehler werden am Projekt vermerkt statt
- * geworfen, damit ein kaputtes Repo nicht das ganze Dashboard blockiert.
+ * Holt den aktuellen Stand eines Repositories und schreibt ihn als Snapshot
+ * in die Datenbank. Fehler werden am Repository vermerkt statt geworfen,
+ * damit ein kaputtes Repo nicht das ganze Dashboard blockiert.
  */
-export async function syncProject(projectId: string): Promise<SyncResult> {
-  const project = await prisma.project.findUnique({
-    where: { id: projectId },
+export async function syncRepository(repositoryId: string): Promise<SyncResult> {
+  const repository = await prisma.repository.findUnique({
+    where: { id: repositoryId },
     include: { connection: true },
   });
 
-  if (!project) {
-    return { ok: false, message: "Projekt nicht gefunden." };
+  if (!repository) {
+    return { ok: false, message: "Repository nicht gefunden." };
   }
 
-  const ref = resolveRepoRef(project);
+  const ref = resolveRepoRef(repository);
   if (!ref) {
     return {
       ok: false,
@@ -35,11 +36,11 @@ export async function syncProject(projectId: string): Promise<SyncResult> {
   }
 
   let client;
-  if (project.connection) {
-    client = clientForConnection(project.connection);
+  if (repository.connection) {
+    client = clientForConnection(repository.connection);
   } else {
     // Ohne gespeicherte Verbindung: anonymer Zugriff anhand der URL.
-    const parsed = project.repoUrl ? parseRepoUrl(project.repoUrl) : null;
+    const parsed = repository.repoUrl ? parseRepoUrl(repository.repoUrl) : null;
     if (!parsed) {
       return {
         ok: false,
@@ -55,9 +56,9 @@ export async function syncProject(projectId: string): Promise<SyncResult> {
 
   try {
     const data = await client.fetchRepo(ref);
-    await persistSnapshot(project.id, data);
+    await persistSnapshot(repository, data);
     // Nach dem Speichern, damit die Meldung den neuen Stand sieht.
-    await notifyAfterSync(project.id);
+    await notifyAfterSync(repository.id);
     return {
       ok: true,
       message: `Snapshot aktualisiert: ${data.branches.length} Branches, ${data.tags.length} Tags.`,
@@ -65,8 +66,8 @@ export async function syncProject(projectId: string): Promise<SyncResult> {
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    await prisma.project.update({
-      where: { id: project.id },
+    await prisma.repository.update({
+      where: { id: repository.id },
       data: {
         syncError: message,
         lastSyncedAt: new Date(),
@@ -76,25 +77,79 @@ export async function syncProject(projectId: string): Promise<SyncResult> {
     });
     // Nur der Uebergang in den Fehlerzustand kommt in den Verlauf. Ein Repo
     // mit abgelaufenem Token schlaegt sonst stuendlich neu auf.
-    if (!project.syncError) {
+    if (!repository.syncError) {
       await recordActivity({
-        projectId: project.id,
+        projectId: repository.projectId,
         kind: "SYNC_FAILED",
-        summary: `Abgleich fehlgeschlagen: ${shorten(message, 120)}`,
+        summary: `Abgleich von ${repoTitle(repository)} fehlgeschlagen: ${shorten(message, 100)}`,
       });
     }
-    await notifyAfterSync(project.id);
+    await notifyAfterSync(repository.id);
     return { ok: false, message };
   }
 }
 
-/** Owner/Name aus den Feldern oder ersatzweise aus der URL bestimmen. */
-export function resolveRepoRef(project: Project) {
-  if (project.repoOwner && project.repoName) {
-    return { owner: project.repoOwner, name: project.repoName };
+export interface ProjectSyncResult extends SyncResult {
+  /** Ergebnis je Repository – auch dann, wenn nur eines dranhaengt. */
+  repositories: Array<{ id: string; title: string } & SyncResult>;
+}
+
+/**
+ * Gleicht alle Repositories eines Projekts ab, nacheinander.
+ *
+ * Nacheinander und nicht parallel: die Repos eines Projekts liegen meist
+ * beim selben Anbieter, und ein Schwung gleichzeitiger Anfragen ist genau
+ * das, worauf Rate-Limits reagieren.
+ */
+export async function syncProject(projectId: string): Promise<ProjectSyncResult> {
+  const repositories = await prisma.repository.findMany({
+    where: { projectId },
+    orderBy: [{ position: "asc" }, { createdAt: "asc" }],
+  });
+
+  if (repositories.length === 0) {
+    return {
+      ok: false,
+      message: "Kein Repository hinterlegt – bitte eines verknuepfen.",
+      repositories: [],
+    };
   }
-  if (project.repoUrl) {
-    const parsed = parseRepoUrl(project.repoUrl);
+
+  const ergebnisse = [];
+  for (const repository of repositories) {
+    ergebnisse.push({
+      id: repository.id,
+      title: repoTitle(repository),
+      ...(await syncRepository(repository.id)),
+    });
+  }
+
+  const fehler = ergebnisse.filter((entry) => !entry.ok);
+
+  return {
+    // Erfolgreich nur, wenn kein einziges Repo gescheitert ist. Ein "teilweise
+    // ok" waere eine Meldung, die man wegklickt, ohne hinzusehen.
+    ok: fehler.length === 0,
+    message:
+      fehler.length === 0
+        ? ergebnisse.length === 1
+          ? ergebnisse[0].message
+          : `${ergebnisse.length} Repositories abgeglichen.`
+        : fehler.map((entry) => `${entry.title}: ${entry.message}`).join(" · "),
+    fetchedAt: new Date().toISOString(),
+    repositories: ergebnisse,
+  };
+}
+
+/** Owner/Name aus den Feldern oder ersatzweise aus der URL bestimmen. */
+export function resolveRepoRef(
+  repository: Pick<Repository, "repoOwner" | "repoName" | "repoUrl">,
+) {
+  if (repository.repoOwner && repository.repoName) {
+    return { owner: repository.repoOwner, name: repository.repoName };
+  }
+  if (repository.repoUrl) {
+    const parsed = parseRepoUrl(repository.repoUrl);
     if (parsed) return { owner: parsed.owner, name: parsed.name };
   }
   return null;
@@ -109,7 +164,7 @@ export function resolveRepoRef(project: Project) {
  * Commits hat, ist keine Neuigkeit.
  */
 async function noteNewCommits(
-  projectId: string,
+  repository: Repository,
   vorher: string | null,
   data: RepoSnapshotData,
 ) {
@@ -121,20 +176,21 @@ async function noteNewCommits(
   // Zahl als mit einer falschen.
   const index = data.commits.findIndex((commit) => commit.sha === vorher);
   const anzahl = index > 0 ? index : null;
-  const wo = data.defaultBranch ? ` auf ${data.defaultBranch}` : "";
+  const wo = data.defaultBranch ? `${repoTitle(repository)} · ${data.defaultBranch}` : repoTitle(repository);
+  const betreff = shorten(data.commits[0]?.message ?? "", 60);
 
   await recordActivity({
-    projectId,
+    projectId: repository.projectId,
     kind: "REPO_COMMITS",
     summary:
       anzahl === null
-        ? `Neue Commits${wo}: ${shorten(data.commits[0]?.message ?? "", 60)}`
-        : `${anzahl} neue${anzahl === 1 ? "r" : ""} Commit${anzahl === 1 ? "" : "s"}${wo}: ${shorten(data.commits[0]?.message ?? "", 60)}`,
-    meta: { from: vorher, to: neuester, count: anzahl },
+        ? `Neue Commits in ${wo}: ${betreff}`
+        : `${anzahl} neue${anzahl === 1 ? "r" : ""} Commit${anzahl === 1 ? "" : "s"} in ${wo}: ${betreff}`,
+    meta: { repositoryId: repository.id, from: vorher, to: neuester, count: anzahl },
   });
 }
 
-async function persistSnapshot(projectId: string, data: RepoSnapshotData) {
+async function persistSnapshot(repository: Repository, data: RepoSnapshotData) {
   const latestCommit = data.commits[0] ?? null;
   const latestRelease =
     data.releases.find((release) => !release.draft && !release.prerelease) ?? data.releases[0] ?? null;
@@ -179,18 +235,18 @@ async function persistSnapshot(projectId: string, data: RepoSnapshotData) {
 
   // Vor dem Ueberschreiben lesen – danach ist der alte Stand weg.
   const vorher = await prisma.repoSnapshot.findUnique({
-    where: { projectId },
+    where: { repositoryId: repository.id },
     select: { lastCommitSha: true },
   });
 
   await prisma.$transaction([
     prisma.repoSnapshot.upsert({
-      where: { projectId },
-      create: { projectId, ...payload },
+      where: { repositoryId: repository.id },
+      create: { repositoryId: repository.id, ...payload },
       update: payload,
     }),
-    prisma.project.update({
-      where: { id: projectId },
+    prisma.repository.update({
+      where: { id: repository.id },
       data: {
         lastSyncedAt: new Date(),
         syncError: null,
@@ -199,7 +255,14 @@ async function persistSnapshot(projectId: string, data: RepoSnapshotData) {
         repoUrl: data.htmlUrl ?? undefined,
       },
     }),
+    // Das Projekt mit anfassen. Solange die Git-Felder daran hingen, geschah
+    // das nebenbei; jetzt muss es ausdruecklich passieren, sonst faellt ein
+    // regelmaessig abgeglichenes Projekt in der Sortierung nach hinten.
+    prisma.project.update({
+      where: { id: repository.projectId },
+      data: { updatedAt: new Date() },
+    }),
   ]);
 
-  await noteNewCommits(projectId, vorher?.lastCommitSha ?? null, data);
+  await noteNewCommits(repository, vorher?.lastCommitSha ?? null, data);
 }

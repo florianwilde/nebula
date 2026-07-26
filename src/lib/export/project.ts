@@ -1,14 +1,27 @@
-import type { GitConnection, Note, Project, RepoSnapshot, Task } from "@prisma/client";
+import type {
+  GitConnection,
+  Note,
+  Prisma,
+  Project,
+  RepoSnapshot,
+  Repository,
+  Task,
+} from "@prisma/client";
 import { APP_NAME } from "@/lib/config";
 import { prisma } from "@/lib/db";
+import { repoTitle } from "@/lib/repositories";
 import { PRIORITY_META, statusOf } from "@/lib/status";
 import { formatDate, formatDateTime } from "@/lib/utils";
 import { EXPORT_KIND, EXPORT_VERSION, type ExportFile, type ExportedProject } from "./format";
 
-type ProjectForExport = Project & {
+export type RepositoryForExport = Repository & {
+  connection: Pick<GitConnection, "name" | "provider" | "baseUrl"> | null;
+};
+
+export type ProjectForExport = Project & {
   notes: Note[];
   tasks: Task[];
-  connection: Pick<GitConnection, "name" | "provider" | "baseUrl"> | null;
+  repositories: RepositoryForExport[];
 };
 
 /** Formt einen Datensatz in das Austauschformat um – ohne Geheimnisse. */
@@ -24,17 +37,25 @@ export function toExportedProject(project: ProjectForExport): ExportedProject {
     accent: project.accent,
     tags: project.tags,
     favorite: project.favorite,
-    autoSync: project.autoSync,
-    repoUrl: project.repoUrl,
-    repoOwner: project.repoOwner,
-    repoName: project.repoName,
-    connection: project.connection
-      ? {
-          name: project.connection.name,
-          provider: project.connection.provider,
-          baseUrl: project.connection.baseUrl,
-        }
-      : null,
+    // Version 1 hatte ein autoSync am Projekt. Das Feld ist im Schema noch
+    // vorhanden, damit alte Dateien lesbar bleiben; geschrieben wird der
+    // Wert des fuehrenden Repositories, damit eine Version-2-Datei auch von
+    // einer aelteren Instanz noch sinnvoll gelesen werden koennte.
+    autoSync: project.repositories[0]?.autoSync ?? true,
+    repositories: project.repositories.map((repository) => ({
+      label: repository.label,
+      repoUrl: repository.repoUrl,
+      repoOwner: repository.repoOwner,
+      repoName: repository.repoName,
+      autoSync: repository.autoSync,
+      connection: repository.connection
+        ? {
+            name: repository.connection.name,
+            provider: repository.connection.provider,
+            baseUrl: repository.connection.baseUrl,
+          }
+        : null,
+    })),
     notes: project.notes.map((note) => ({
       title: note.title,
       content: note.content,
@@ -72,14 +93,20 @@ export async function loadProjectsForExport(
 ): Promise<ProjectForExport[]> {
   return prisma.project.findMany({
     where: { ownerId, ...(projectId ? { id: projectId } : {}) },
-    include: {
-      notes: { orderBy: [{ pinned: "desc" }, { createdAt: "asc" }] },
-      tasks: { orderBy: [{ status: "asc" }, { position: "asc" }] },
-      connection: { select: { name: true, provider: true, baseUrl: true } },
-    },
+    include: exportInclude,
     orderBy: { name: "asc" },
   });
 }
+
+/** Der Umfang, den der Export braucht – an beiden Aufrufstellen derselbe. */
+export const exportInclude = {
+  notes: { orderBy: [{ pinned: "desc" }, { createdAt: "asc" }] },
+  tasks: { orderBy: [{ status: "asc" }, { position: "asc" }] },
+  repositories: {
+    include: { connection: { select: { name: true, provider: true, baseUrl: true } } },
+    orderBy: [{ position: "asc" }, { createdAt: "asc" }],
+  },
+} satisfies Prisma.ProjectInclude;
 
 // ── Markdown ─────────────────────────────────────────────────
 
@@ -102,7 +129,9 @@ const TASK_LABEL: Record<string, string> = {
  * Datei auch ohne Netz vollstaendig ist.
  */
 export function toMarkdown(
-  project: ProjectForExport & { snapshot: RepoSnapshot | null },
+  project: ProjectForExport & {
+    repositories: Array<RepositoryForExport & { snapshot: RepoSnapshot | null }>;
+  },
 ): string {
   const status = statusOf(project.status);
   const priority = PRIORITY_META[project.priority] ?? PRIORITY_META[2];
@@ -119,33 +148,46 @@ export function toMarkdown(
     lines.push(`| Tags | ${project.tags.map((tag) => `\`${tag}\``).join(", ")} |`);
   }
   lines.push(`| Angelegt | ${formatDateTime(project.createdAt)} |`);
-  if (project.repoUrl) lines.push(`| Repository | ${project.repoUrl} |`);
-  if (project.connection) {
-    const label = PROVIDER_LABEL[project.connection.provider] ?? project.connection.provider;
-    lines.push(`| Git-System | ${label} (${project.connection.baseUrl}) |`);
-  }
   lines.push("");
 
   if (project.description) {
     lines.push("## Beschreibung", "", project.description, "");
   }
 
-  const snapshot = project.snapshot;
-  if (snapshot) {
-    lines.push("## Stand des Repositories", "");
-    lines.push(`Abgerufen am ${formatDateTime(snapshot.fetchedAt)}.`, "");
+  for (const repository of project.repositories) {
+    const titel = repoTitle(repository);
+    lines.push(
+      project.repositories.length === 1
+        ? "## Repository"
+        : `## Repository: ${titel}`,
+      "",
+    );
+
     lines.push("| | |", "| --- | --- |");
-    if (snapshot.defaultBranch) lines.push(`| Default-Branch | \`${snapshot.defaultBranch}\` |`);
-    if (snapshot.latestTag) lines.push(`| Neuester Tag | \`${snapshot.latestTag}\` |`);
-    lines.push(`| Branches | ${snapshot.branchCount} |`);
-    lines.push(`| Tags | ${snapshot.tagCount} |`);
-    lines.push(`| Offene PRs/MRs | ${snapshot.openPullRequests} |`);
-    lines.push(`| Offene Issues | ${snapshot.openIssues} |`);
-    if (snapshot.lastCommitSha) {
-      lines.push(
-        `| Letzter Commit | \`${snapshot.lastCommitSha.slice(0, 7)}\` – ` +
-          `${snapshot.lastCommitMessage ?? ""} |`,
-      );
+    if (repository.repoUrl) lines.push(`| Adresse | ${repository.repoUrl} |`);
+    if (repository.connection) {
+      const label =
+        PROVIDER_LABEL[repository.connection.provider] ?? repository.connection.provider;
+      lines.push(`| Git-System | ${label} (${repository.connection.baseUrl}) |`);
+    }
+
+    const snapshot = repository.snapshot;
+    if (snapshot) {
+      if (snapshot.defaultBranch) lines.push(`| Default-Branch | \`${snapshot.defaultBranch}\` |`);
+      if (snapshot.latestTag) lines.push(`| Neuester Tag | \`${snapshot.latestTag}\` |`);
+      lines.push(`| Branches | ${snapshot.branchCount} |`);
+      lines.push(`| Tags | ${snapshot.tagCount} |`);
+      lines.push(`| Offene PRs/MRs | ${snapshot.openPullRequests} |`);
+      lines.push(`| Offene Issues | ${snapshot.openIssues} |`);
+      if (snapshot.lastCommitSha) {
+        lines.push(
+          `| Letzter Commit | \`${snapshot.lastCommitSha.slice(0, 7)}\` – ` +
+            `${snapshot.lastCommitMessage ?? ""} |`,
+        );
+      }
+      lines.push(`| Abgerufen | ${formatDateTime(snapshot.fetchedAt)} |`);
+    } else {
+      lines.push("| Stand | noch nie abgeglichen |");
     }
     lines.push("");
   }

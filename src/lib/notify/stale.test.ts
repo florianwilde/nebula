@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { newestCommit } from "./stale";
 import { daysSince, isStaleDue } from "./stale";
 
 /**
@@ -57,5 +58,28 @@ describe("daysSince", () => {
 
   it("liefert null fuer soeben", () => {
     expect(daysSince(jetzt, jetzt)).toBe(0);
+  });
+});
+
+describe("newestCommit", () => {
+  it("nimmt den juengsten Commit ueber alle Repositories", () => {
+    // An einem Vorhaben wird gearbeitet, sobald an einem seiner Teile
+    // gearbeitet wird – ein ruhendes Backend macht es nicht stillstehend.
+    const juengster = newestCommit([
+      { lastCommitAt: vorTagen(90) },
+      { lastCommitAt: vorTagen(3) },
+      { lastCommitAt: vorTagen(40) },
+    ]);
+    expect(daysSince(juengster!, jetzt)).toBe(3);
+  });
+
+  it("uebergeht Repositories ohne Commit-Datum", () => {
+    const juengster = newestCommit([{ lastCommitAt: null }, { lastCommitAt: vorTagen(5) }]);
+    expect(daysSince(juengster!, jetzt)).toBe(5);
+  });
+
+  it("liefert null, wenn nirgends ein Commit bekannt ist", () => {
+    expect(newestCommit([])).toBeNull();
+    expect(newestCommit([{ lastCommitAt: null }])).toBeNull();
   });
 });

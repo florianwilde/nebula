@@ -286,7 +286,7 @@ model GitConnection {
   ownerId String?
   owner   User?   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
 
-  projects  Project[]
+  repositories Repository[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -316,24 +316,6 @@ model Project {
   tags        String[]      @default([])
   favorite    Boolean       @default(false)
 
-  // ── Git-Anbindung ──────────────────────────────────────────
-  repoUrl       String?
-  /// Owner bzw. Namespace/Gruppe (bei GitLab auch verschachtelt: "gruppe/subgruppe")
-  repoOwner     String?
-  repoName      String?
-  defaultBranch String?
-  connectionId  String?
-  connection    GitConnection? @relation(fields: [connectionId], references: [id], onDelete: SetNull)
-
-  lastSyncedAt DateTime?
-  syncError    String?
-  /// Am automatischen Abgleich teilnehmen. Einzeln abschaltbar, etwa bei
-  /// einem Repo, dessen Token staendig Fehler wirft.
-  autoSync     Boolean   @default(true)
-  /// Aufeinanderfolgende Fehlversuche. Steuert das Zurueckhalten: nach
-  /// jedem Fehlschlag wird der naechste Versuch weiter hinausgezoegert.
-  syncFailureCount Int   @default(0)
-
   /// Besitzer. Nullable wie bei GitConnection, damit Bestandsdaten beim
   /// Einrichten des ersten Kontos uebernommen werden koennen.
   ownerId String?
@@ -343,29 +325,76 @@ model Project {
   /// von Hand zu schieben. Nur sinnvoll, wenn es ueberhaupt Aufgaben gibt.
   progressFromTasks Boolean @default(false)
 
-  /// Woruber zuletzt benachrichtigt wurde. Gemeldet wird nur bei einer
-  /// Aenderung – sonst kaeme bei einem dauerhaft kaputten Repo mit jedem
-  /// Abgleich dieselbe Nachricht.
-  notifiedSyncError String?
-  notifiedCiState   String?
-  notifiedRelease   String?
   /// Wann zuletzt wegen Stillstands gemeldet wurde. Erneut gemeldet wird
   /// erst, wenn danach wieder ein Commit kam und es dann wieder still wurde.
-  notifiedStaleAt   DateTime?
+  /// Bleibt am Projekt: Stillstand ist eine Aussage ueber das Vorhaben, nicht
+  /// ueber ein einzelnes Repository.
+  notifiedStaleAt DateTime?
 
-  notes      Note[]
-  tasks      Task[]
-  snapshot   RepoSnapshot?
-  activities Activity[]
+  notes        Note[]
+  tasks        Task[]
+  activities   Activity[]
+  repositories Repository[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@unique([ownerId, slug])
   @@index([status])
-  @@index([connectionId])
   @@index([updatedAt])
   @@index([ownerId])
+}
+
+/// Ein Repository eines Projekts. Ein Vorhaben besteht oft aus mehreren –
+/// Frontend und Backend etwa –, gehoert aber in eine Karte.
+///
+/// Das erste Repository (position 0) ist das fuehrende: seine Kennzahlen
+/// stehen auf der Projektkarte, wo fuer mehrere kein Platz ist.
+model Repository {
+  id        String  @id @default(cuid())
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  /// Frei waehlbare Bezeichnung wie "Frontend". Leer heisst: der Repo-Name
+  /// steht fuer sich.
+  label String?
+
+  repoUrl String?
+  /// Owner bzw. Namespace/Gruppe (bei GitLab auch verschachtelt: "gruppe/subgruppe")
+  repoOwner     String?
+  repoName      String?
+  defaultBranch String?
+
+  connectionId String?
+  connection   GitConnection? @relation(fields: [connectionId], references: [id], onDelete: SetNull)
+
+  /// Reihenfolge in der Anzeige.
+  position Int @default(0)
+
+  lastSyncedAt DateTime?
+  syncError    String?
+  /// Am automatischen Abgleich teilnehmen. Einzeln abschaltbar, etwa bei
+  /// einem Repo, dessen Token staendig Fehler wirft.
+  autoSync Boolean @default(true)
+  /// Aufeinanderfolgende Fehlversuche. Steuert das Zurueckhalten: nach
+  /// jedem Fehlschlag wird der naechste Versuch weiter hinausgezoegert.
+  syncFailureCount Int @default(0)
+
+  /// Woruber zuletzt benachrichtigt wurde. Gemeldet wird nur bei einer
+  /// Aenderung – sonst kaeme bei einem dauerhaft kaputten Repo mit jedem
+  /// Abgleich dieselbe Nachricht. Je Repository, nicht je Projekt: sonst
+  /// verdeckt ein rotes Frontend die rote Pipeline des Backends.
+  notifiedSyncError String?
+  notifiedCiState   String?
+  notifiedRelease   String?
+
+  snapshot RepoSnapshot?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([projectId, position])
+  @@index([connectionId])
 }
 
 /// Ein Zustellweg fuer Benachrichtigungen, gehoert genau einem Konto.
@@ -416,17 +445,20 @@ model Task {
   /// Zeitpunkt, zu dem die Aufgabe nach DONE gewandert ist.
   doneAt      DateTime?
 
-  /// Stammt die Aufgabe aus einem Git-Issue? Nummer und Link merken, damit
-  /// dasselbe Issue nicht zweimal uebernommen wird.
+  /// Stammt die Aufgabe aus einem Git-Issue? Nummer, Repository und Link
+  /// merken, damit dasselbe Issue nicht zweimal uebernommen wird.
   sourceIssue Int?
   sourceUrl   String?
+  /// Aus welchem Repository. Muss mit in die Eindeutigkeit: Frontend und
+  /// Backend haben beide ein Issue Nummer 5, und das sind zwei Aufgaben.
+  sourceRepositoryId String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   /// Verhindert Dubletten beim erneuten Uebernehmen. Mehrere Aufgaben ohne
   /// Herkunft sind erlaubt: NULL gilt in Postgres als verschieden.
-  @@unique([projectId, sourceIssue])
+  @@unique([projectId, sourceRepositoryId, sourceIssue])
   @@index([projectId, status, position])
 }
 
@@ -471,12 +503,12 @@ model Note {
   @@index([pinned])
 }
 
-/// Zwischengespeicherter Stand des verknuepften Repositories. Wird beim
-/// Sync ueberschrieben, damit das Dashboard auch ohne Netz Daten zeigt.
+/// Zwischengespeicherter Stand eines Repositories. Wird beim Sync
+/// ueberschrieben, damit das Dashboard auch ohne Netz Daten zeigt.
 model RepoSnapshot {
-  id        String  @id @default(cuid())
-  projectId String  @unique
-  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  id           String     @id @default(cuid())
+  repositoryId String     @unique
+  repository   Repository @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
 
   fullName      String?
   description   String?

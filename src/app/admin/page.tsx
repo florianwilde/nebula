@@ -27,7 +27,9 @@ export default async function AdminPage() {
     }),
     // Bewusst ueber alle Konten: der Abgleich ist ein Serverauftrag, keine
     // Dateneinsicht. Gezaehlt wird nur, nicht gelesen.
-    prisma.project.count({
+    // Gezaehlt werden Repositories, nicht Projekte: sie sind die Einheit, in
+    // der abgeglichen und begrenzt wird.
+    prisma.repository.count({
       where: {
         autoSync: true,
         OR: [

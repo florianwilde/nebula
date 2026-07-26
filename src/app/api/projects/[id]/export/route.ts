@@ -1,7 +1,7 @@
 import { requireUserApi } from "@/lib/auth/guard";
 import { prisma } from "@/lib/db";
 import { exportFileName } from "@/lib/export/format";
-import { buildExportFile, toMarkdown } from "@/lib/export/project";
+import { buildExportFile, exportInclude, toMarkdown } from "@/lib/export/project";
 import { jsonError } from "@/lib/security/request";
 
 export const dynamic = "force-dynamic";
@@ -24,10 +24,16 @@ export async function GET(request: Request, { params }: Params) {
   const project = await prisma.project.findFirst({
     where: { id, ownerId: auth.user.id },
     include: {
-      notes: { orderBy: [{ pinned: "desc" }, { createdAt: "asc" }] },
-      tasks: { orderBy: [{ status: "asc" }, { position: "asc" }] },
-      connection: { select: { name: true, provider: true, baseUrl: true } },
-      snapshot: true,
+      ...exportInclude,
+      // Fuer die Markdown-Fassung zusaetzlich der gespeicherte Stand, damit
+      // die Datei auch ohne Netz vollstaendig ist.
+      repositories: {
+        include: {
+          connection: { select: { name: true, provider: true, baseUrl: true } },
+          snapshot: true,
+        },
+        orderBy: [{ position: "asc" }, { createdAt: "asc" }],
+      },
     },
   });
 

@@ -18,7 +18,11 @@ import { z } from "zod";
  */
 
 export const EXPORT_KIND = "nebula.projects";
-export const EXPORT_VERSION = 1;
+/**
+ * 2 seit den mehreren Repositories je Projekt. Dateien der Version 1 werden
+ * weiter gelesen: ihre einzelnen Repo-Felder werden zum ersten Repository.
+ */
+export const EXPORT_VERSION = 2;
 
 const STATUS = ["IDEA", "OPEN", "PLANNING", "IN_DEVELOPMENT", "DONE", "ARCHIVED"] as const;
 const PROVIDERS = ["GITHUB", "GITLAB", "GITEA"] as const;
@@ -46,6 +50,16 @@ export const exportedConnectionSchema = z.object({
   baseUrl: z.string().max(300),
 });
 
+export const exportedRepositorySchema = z.object({
+  label: z.string().max(80).nullable().optional(),
+  repoUrl: z.string().max(500).nullable().optional(),
+  repoOwner: z.string().max(200).nullable().optional(),
+  repoName: z.string().max(200).nullable().optional(),
+  autoSync: z.boolean().optional().default(true),
+  /** Nur zur Wiedererkennung – ohne Token. */
+  connection: exportedConnectionSchema.nullable().optional(),
+});
+
 export const exportedProjectSchema = z.object({
   name: z.string().min(1).max(120),
   slug: z.string().max(60).optional(),
@@ -57,11 +71,17 @@ export const exportedProjectSchema = z.object({
   accent: z.string().max(20).optional().default("violet"),
   tags: z.array(z.string().max(30)).max(12).optional().default([]),
   favorite: z.boolean().optional().default(false),
+  /** Seit Version 2. */
+  repositories: z.array(exportedRepositorySchema).max(20).optional(),
+  /**
+   * Version 1 kannte genau ein Repository und schrieb es flach ans Projekt.
+   * Die Felder bleiben lesbar, damit aeltere Dateien weiter importierbar
+   * sind; geschrieben werden sie nicht mehr.
+   */
   autoSync: z.boolean().optional().default(true),
   repoUrl: z.string().max(500).nullable().optional(),
   repoOwner: z.string().max(200).nullable().optional(),
   repoName: z.string().max(200).nullable().optional(),
-  /** Nur zur Wiedererkennung – ohne Token. */
   connection: exportedConnectionSchema.nullable().optional(),
   notes: z.array(exportedNoteSchema).max(500).optional().default([]),
   tasks: z.array(exportedTaskSchema).max(1000).optional().default([]),
@@ -78,6 +98,26 @@ export const exportFileSchema = z.object({
 });
 
 export type ExportedProject = z.infer<typeof exportedProjectSchema>;
+export type ExportedRepository = z.infer<typeof exportedRepositorySchema>;
+
+/**
+ * Die Repositories einer Exportdatei – gleich, ob sie aus Version 2 stammt
+ * oder aus der Zeit mit genau einem Repo je Projekt.
+ */
+export function repositoriesOf(project: ExportedProject): ExportedRepository[] {
+  if (project.repositories?.length) return project.repositories;
+  if (!project.repoUrl && !(project.repoOwner && project.repoName)) return [];
+  return [
+    {
+      label: null,
+      repoUrl: project.repoUrl ?? null,
+      repoOwner: project.repoOwner ?? null,
+      repoName: project.repoName ?? null,
+      autoSync: project.autoSync,
+      connection: project.connection ?? null,
+    },
+  ];
+}
 export type ExportFile = z.infer<typeof exportFileSchema>;
 
 /** Dateiname ohne Sonderzeichen, mit Datumsstempel. */

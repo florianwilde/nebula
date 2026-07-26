@@ -29,6 +29,25 @@ export const PROVIDER_META: Record<
   },
 };
 
+/**
+ * Wie ein Repository in Ueberschriften und Meldungen heisst.
+ *
+ * Steht hier und nicht bei den uebrigen Repository-Helfern, weil die
+ * Oberflaeche sie braucht: lib/repositories zieht Prisma und damit
+ * node:-Module nach, die in einer Client-Komponente nicht landen duerfen.
+ */
+export function repoTitle(repo: {
+  label?: string | null;
+  repoOwner?: string | null;
+  repoName?: string | null;
+  repoUrl?: string | null;
+}): string {
+  if (repo.label) return repo.label;
+  if (repo.repoOwner && repo.repoName) return `${repo.repoOwner}/${repo.repoName}`;
+  if (repo.repoName) return repo.repoName;
+  return repo.repoUrl ?? "Repository";
+}
+
 export function guessProvider(host: string): ProviderKind {
   const lower = host.toLowerCase();
   if (lower.includes("github")) return "GITHUB";

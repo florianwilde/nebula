@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import { recordActivity } from "@/lib/activity";
 import { requireUserApi } from "@/lib/auth/guard";
 import { prisma } from "@/lib/db";
-import { parseRepoUrl } from "@/lib/git";
 import { projectListInclude, uniqueSlug } from "@/lib/projects";
+import { applyLeadingRepo } from "@/lib/repositories";
 import { LIMITS, rateLimit } from "@/lib/security/rateLimit";
 import { clientIp, jsonError, readJsonBody, tooManyRequests } from "@/lib/security/request";
 import { statusOf } from "@/lib/status";
@@ -74,18 +74,7 @@ export async function POST(request: Request) {
     if (!connection) return jsonError("Git-Verbindung nicht gefunden.", 404);
   }
 
-  // Owner/Name aus der URL ableiten, falls nicht explizit angegeben.
-  let repoOwner = data.repoOwner ?? null;
-  let repoName = data.repoName ?? null;
-  if (data.repoUrl && (!repoOwner || !repoName)) {
-    const parsedUrl = parseRepoUrl(data.repoUrl);
-    if (parsedUrl) {
-      repoOwner = repoOwner ?? parsedUrl.owner;
-      repoName = repoName ?? parsedUrl.name;
-    }
-  }
-
-  const project = await prisma.project.create({
+  const angelegt = await prisma.project.create({
     data: {
       ownerId: auth.user.id,
       name: data.name,
@@ -98,12 +87,21 @@ export async function POST(request: Request) {
       accent: data.accent,
       tags: data.tags,
       favorite: data.favorite,
-      autoSync: data.autoSync,
-      repoUrl: data.repoUrl ?? null,
-      repoOwner,
-      repoName,
-      connectionId: data.connectionId ?? null,
     },
+    select: { id: true },
+  });
+
+  // Die Git-Angaben werden zum fuehrenden Repository – falls welche kamen.
+  await applyLeadingRepo(angelegt.id, {
+    repoUrl: data.repoUrl,
+    repoOwner: data.repoOwner,
+    repoName: data.repoName,
+    connectionId: data.connectionId,
+    autoSync: data.autoSync,
+  });
+
+  const project = await prisma.project.findUniqueOrThrow({
+    where: { id: angelegt.id },
     include: projectListInclude,
   });
 

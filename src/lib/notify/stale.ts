@@ -12,10 +12,13 @@ import { EVENT_META, type NotificationMessage } from "./types";
  * passiert ja gerade nichts. Deshalb ein eigener Durchlauf, hoechstens
  * einmal am Tag.
  *
- * Massstab ist ausschliesslich der letzte Commit im verknuepften
- * Repository. Das Aenderungsdatum des Projekts taugt nicht: jeder Abgleich
+ * Massstab ist ausschliesslich der letzte Commit in den verknuepften
+ * Repositories. Das Aenderungsdatum des Projekts taugt nicht: jeder Abgleich
  * fasst es an und wuerde den Stillstand immer wieder zuruecksetzen.
  * Projekte ohne Repository bleiben folglich aussen vor.
+ *
+ * Bei mehreren Repositories zaehlt der juengste Commit. Ein Vorhaben steht
+ * nicht still, solange an einem seiner Teile gearbeitet wird.
  */
 
 export interface StaleReport {
@@ -46,6 +49,22 @@ export function isStaleDue(
 /** Wie viele volle Tage seit dem letzten Commit vergangen sind. */
 export function daysSince(date: Date, now: Date = new Date()): number {
   return Math.floor((now.getTime() - date.getTime()) / 86_400_000);
+}
+
+/**
+ * Der juengste Commit ueber alle Repositories hinweg. Massgeblich ist das
+ * regste Repo: an einem Vorhaben wird gearbeitet, sobald an irgendeinem
+ * seiner Teile gearbeitet wird.
+ */
+export function newestCommit(
+  snapshots: Array<{ lastCommitAt: Date | null }>,
+): Date | null {
+  let juengster: Date | null = null;
+  for (const snapshot of snapshots) {
+    if (!snapshot.lastCommitAt) continue;
+    if (!juengster || snapshot.lastCommitAt > juengster) juengster = snapshot.lastCommitAt;
+  }
+  return juengster;
 }
 
 function message(
@@ -79,20 +98,34 @@ export async function runStaleCheck(thresholdDays: number): Promise<StaleReport>
       // Fertige und archivierte Projekte duerfen ruhen.
       status: { notIn: ["DONE", "ARCHIVED"] },
       ownerId: { not: null },
-      snapshot: { isNot: null },
+      repositories: { some: { snapshot: { isNot: null } } },
     },
-    include: { snapshot: true },
+    include: {
+      repositories: {
+        include: { snapshot: true },
+        orderBy: [{ position: "asc" }, { createdAt: "asc" }],
+      },
+    },
   });
 
+  const letzterCommit = new Map(
+    kandidaten.map((project) => [
+      project.id,
+      newestCommit(project.repositories.map((repo) => repo.snapshot).filter((s) => s !== null)),
+    ]),
+  );
+
   const faellig = kandidaten.filter((project) =>
-    isStaleDue(project, project.snapshot?.lastCommitAt ?? null, cutoff),
+    isStaleDue(project, letzterCommit.get(project.id) ?? null, cutoff),
   );
 
   let zugestellt = 0;
 
   for (const project of faellig) {
-    const lastCommitAt = project.snapshot?.lastCommitAt;
+    const lastCommitAt = letzterCommit.get(project.id);
     if (!lastCommitAt || !project.ownerId) continue;
+    // Fuer den Link in der Meldung reicht das fuehrende Repository.
+    const snapshot = project.repositories[0]?.snapshot ?? null;
 
     const ziele = await prisma.notificationTarget.findMany({
       where: { userId: project.ownerId, isActive: true, events: { has: "PROJECT_STALE" } },
@@ -101,7 +134,7 @@ export async function runStaleCheck(thresholdDays: number): Promise<StaleReport>
     for (const ziel of ziele) {
       const ergebnis = await deliver(
         ziel,
-        message(project, project.snapshot, daysSince(lastCommitAt, now)),
+        message(project, snapshot, daysSince(lastCommitAt, now)),
       );
       zugestellt += 1;
       await prisma.notificationTarget.update({

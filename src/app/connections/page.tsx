@@ -17,7 +17,7 @@ export default async function ConnectionsPage() {
 
   const connections = await prisma.gitConnection.findMany({
     where: { ownerId: user.id },
-    select: { ...connectionSafeSelect, _count: { select: { projects: true } } },
+    select: { ...connectionSafeSelect, _count: { select: { repositories: true } } },
     orderBy: { name: "asc" },
   });
 

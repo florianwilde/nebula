@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
 /** Verbindungen ohne Token-Chiffrat – das verlaesst den Server nie. */
 const safeSelect = {
   ...connectionSafeSelect,
-  _count: { select: { projects: true } },
+  _count: { select: { repositories: true } },
 };
 
 export async function GET() {

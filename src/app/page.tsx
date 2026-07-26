@@ -29,7 +29,7 @@ export default async function DashboardPage() {
   const ideas = active.filter((project) => project.status === "IDEA").length;
   const inDev = active.filter((project) => project.status === "IN_DEVELOPMENT").length;
   const done = active.filter((project) => project.status === "DONE").length;
-  const linked = active.filter((project) => Boolean(project.repoOwner && project.repoName)).length;
+  const linked = active.filter((project) => project.repositories.length > 0).length;
 
   const averageProgress =
     active.length > 0

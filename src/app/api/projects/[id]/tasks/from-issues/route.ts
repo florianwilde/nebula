@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { recordActivity } from "@/lib/activity";
+import { repoTitle } from "@/lib/repositories";
 import { requireUserApi } from "@/lib/auth/guard";
 import { prisma } from "@/lib/db";
 import { jsonError, readJsonBody } from "@/lib/security/request";
@@ -15,6 +16,8 @@ type Params = { params: Promise<{ id: string }> };
 const schema = z.object({
   /** Leer heisst: alle offenen Issues aus dem Snapshot. */
   numbers: z.array(z.number().int()).max(200).optional(),
+  /** Aus welchem Repository. Leer heisst: dem fuehrenden. */
+  repositoryId: z.string().optional(),
 });
 
 /**
@@ -49,7 +52,23 @@ export async function POST(request: Request, { params }: Params) {
     );
   }
 
-  const snapshot = await prisma.repoSnapshot.findUnique({ where: { projectId: id } });
+  // Die Besitzerbedingung laeuft ueber das Projekt, dessen Besitz eben
+  // geprueft wurde – eine fremde Repository-ID trifft hier also nichts.
+  const repository = await prisma.repository.findFirst({
+    where: { projectId: id, ...(parsed.data.repositoryId ? { id: parsed.data.repositoryId } : {}) },
+    orderBy: [{ position: "asc" }, { createdAt: "asc" }],
+    include: { snapshot: true },
+  });
+
+  if (!repository) {
+    // 404 nur, wenn nach einem bestimmten gefragt wurde. Wer nichts angibt,
+    // hat schlicht noch keines verknuepft – und das ist kein "nicht gefunden".
+    return parsed.data.repositoryId
+      ? jsonError("Repository nicht gefunden", 404)
+      : jsonError("Kein Repository verknuepft. Bitte zuerst eines hinterlegen.", 409);
+  }
+
+  const snapshot = repository.snapshot;
   if (!snapshot) {
     return jsonError(
       "Noch kein Repo-Stand vorhanden. Bitte zuerst synchronisieren.",
@@ -68,7 +87,11 @@ export async function POST(request: Request, { params }: Params) {
   }
 
   const vorhanden = await prisma.task.findMany({
-    where: { projectId: id, sourceIssue: { in: auswahl.map((issue) => issue.number) } },
+    where: {
+      projectId: id,
+      sourceRepositoryId: repository.id,
+      sourceIssue: { in: auswahl.map((issue) => issue.number) },
+    },
     select: { sourceIssue: true },
   });
   const bekannt = new Set(vorhanden.map((task) => task.sourceIssue));
@@ -90,6 +113,7 @@ export async function POST(request: Request, { params }: Params) {
           labels: issue.labels.slice(0, 8),
           sourceIssue: issue.number,
           sourceUrl: issue.url,
+          sourceRepositoryId: repository.id,
         },
       }),
     );
@@ -106,9 +130,12 @@ export async function POST(request: Request, { params }: Params) {
       kind: "TASKS_IMPORTED",
       summary:
         angelegt.length === 1
-          ? "1 Issue als Aufgabe übernommen"
-          : `${angelegt.length} Issues als Aufgaben übernommen`,
-      meta: { numbers: angelegt.map((task) => task.sourceIssue) },
+          ? `1 Issue aus ${repoTitle(repository)} als Aufgabe übernommen`
+          : `${angelegt.length} Issues aus ${repoTitle(repository)} als Aufgaben übernommen`,
+      meta: {
+        repositoryId: repository.id,
+        numbers: angelegt.map((task) => task.sourceIssue),
+      },
     });
   }
 
