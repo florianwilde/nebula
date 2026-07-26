@@ -33,6 +33,23 @@ enum GitProvider {
   GITEA
 }
 
+/// Zustellwege fuer Benachrichtigungen.
+enum NotificationChannel {
+  WEBHOOK
+  NTFY
+  EMAIL
+}
+
+/// Anlaesse, ueber die benachrichtigt werden kann.
+enum NotificationEvent {
+  /// Ein Abgleich mit dem Git-System ist fehlgeschlagen.
+  SYNC_FAILED
+  /// Der letzte CI-Lauf auf dem Default-Branch ist rot.
+  CI_FAILED
+  /// Im Repository ist ein neuer Tag oder ein neues Release aufgetaucht.
+  NEW_RELEASE
+}
+
 /// Spalten des Aufgabenbretts innerhalb eines Projekts.
 enum TaskStatus {
   TODO
@@ -78,6 +95,7 @@ model User {
   credentials Credential[]
   projects    Project[]
   connections GitConnection[]
+  notificationTargets NotificationTarget[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -249,6 +267,13 @@ model Project {
   /// von Hand zu schieben. Nur sinnvoll, wenn es ueberhaupt Aufgaben gibt.
   progressFromTasks Boolean @default(false)
 
+  /// Woruber zuletzt benachrichtigt wurde. Gemeldet wird nur bei einer
+  /// Aenderung – sonst kaeme bei einem dauerhaft kaputten Repo mit jedem
+  /// Abgleich dieselbe Nachricht.
+  notifiedSyncError String?
+  notifiedCiState   String?
+  notifiedRelease   String?
+
   notes    Note[]
   tasks    Task[]
   snapshot RepoSnapshot?
@@ -261,6 +286,36 @@ model Project {
   @@index([connectionId])
   @@index([updatedAt])
   @@index([ownerId])
+}
+
+/// Ein Zustellweg fuer Benachrichtigungen, gehoert genau einem Konto.
+model NotificationTarget {
+  id      String              @id @default(cuid())
+  userId  String
+  user    User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name    String
+  channel NotificationChannel
+
+  /// Webhook-URL, ntfy-Themen-URL oder E-Mail-Adresse.
+  target  String
+  /// Optionales Geheimnis, AES-256-GCM verschluesselt: Bearer-Token fuer
+  /// ntfy oder ein Signaturschluessel fuer den Webhook.
+  secretCipher String?
+  secretHint   String?
+
+  /// Worueber dieses Ziel benachrichtigt werden will.
+  events   NotificationEvent[] @default([])
+  isActive Boolean             @default(true)
+
+  lastSentAt  DateTime?
+  lastOk      Boolean?
+  lastMessage String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, name])
+  @@index([userId])
 }
 
 /// Eine Aufgabe innerhalb eines Projekts – die Karten des Aufgabenbretts.

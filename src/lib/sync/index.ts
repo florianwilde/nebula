@@ -1,6 +1,7 @@
 import type { Project } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { clientForConnection, createClient, parseRepoUrl } from "@/lib/git";
+import { notifyAfterSync } from "@/lib/notify";
 import type { RepoSnapshotData } from "@/lib/git/types";
 
 export interface SyncResult {
@@ -54,6 +55,8 @@ export async function syncProject(projectId: string): Promise<SyncResult> {
   try {
     const data = await client.fetchRepo(ref);
     await persistSnapshot(project.id, data);
+    // Nach dem Speichern, damit die Meldung den neuen Stand sieht.
+    await notifyAfterSync(project.id);
     return {
       ok: true,
       message: `Snapshot aktualisiert: ${data.branches.length} Branches, ${data.tags.length} Tags.`,
@@ -70,6 +73,7 @@ export async function syncProject(projectId: string): Promise<SyncResult> {
         syncFailureCount: { increment: 1 },
       },
     });
+    await notifyAfterSync(project.id);
     return { ok: false, message };
   }
 }

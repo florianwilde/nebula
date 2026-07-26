@@ -1,6 +1,6 @@
 {
   "name": "nebula",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "private": true,
   "description": "Nebula – Dashboard fuer Vibe-Coding Projekte mit Git-Anbindung (GitHub, GitLab, Gitea)",
   "scripts": {
@@ -42,6 +42,7 @@
     "@simplewebauthn/server": "^13.3.2",
     "lucide-react": "^0.511.0",
     "next": "^15.3.3",
+    "nodemailer": "^9.0.3",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-markdown": "^10.1.0",
@@ -53,6 +54,7 @@
     "@playwright/test": "^1.62.0",
     "@tailwindcss/postcss": "^4.1.7",
     "@types/node": "^22.15.21",
+    "@types/nodemailer": "^8.0.1",
     "@types/react": "^19.1.5",
     "@types/react-dom": "^19.1.5",
     "prisma": "^6.8.2",

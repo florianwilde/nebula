@@ -170,6 +170,40 @@ export const adminUserUpdateSchema = z.object({
   password: z.preprocess(emptyToNull, z.string().max(200).nullable().optional()),
 });
 
+// ── Benachrichtigungen ───────────────────────────────────────
+
+const CHANNELS = ["WEBHOOK", "NTFY", "EMAIL"] as const;
+const EVENTS = ["SYNC_FAILED", "CI_FAILED", "NEW_RELEASE"] as const;
+
+export const notificationTargetCreateSchema = z
+  .object({
+    name: z.string().trim().min(1, "Name darf nicht leer sein").max(60),
+    channel: z.enum(CHANNELS),
+    target: z.string().trim().min(1, "Ziel fehlt").max(500),
+    /** Bearer-Token fuer ntfy oder Signaturschluessel fuer den Webhook. */
+    secret: z.preprocess(emptyToNull, z.string().trim().max(300).nullable().optional()),
+    events: z.array(z.enum(EVENTS)).min(1, "Mindestens ein Anlass"),
+    isActive: z.boolean().default(true),
+  })
+  .refine(
+    (value) =>
+      value.channel === "EMAIL"
+        ? /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(value.target)
+        : /^https?:\/\//i.test(value.target),
+    {
+      message: "E-Mail-Adresse bzw. URL mit http:// oder https:// erwartet",
+      path: ["target"],
+    },
+  );
+
+export const notificationTargetUpdateSchema = z.object({
+  name: z.string().trim().min(1).max(60).optional(),
+  target: z.string().trim().min(1).max(500).optional(),
+  secret: z.preprocess(emptyToNull, z.string().trim().max(300).nullable().optional()),
+  events: z.array(z.enum(EVENTS)).min(1).optional(),
+  isActive: z.boolean().optional(),
+});
+
 export const passkeyNameSchema = z.object({
   name: z.preprocess(emptyToNull, z.string().trim().max(60).nullable().optional()),
 });
