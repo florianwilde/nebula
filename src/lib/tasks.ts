@@ -1,4 +1,4 @@
-import type { TaskStatus } from "@prisma/client";
+import type { Recurrence, TaskStatus } from "@prisma/client";
 import { prisma } from "@/lib/db";
 
 /** Spaltenreihenfolge des Aufgabenbretts. */
@@ -61,6 +61,103 @@ export async function refreshDerivedProgress(projectId: string): Promise<void> {
   await prisma.project.update({
     where: { id: projectId },
     data: { progress: value },
+  });
+}
+
+// ── Wiederkehrende Aufgaben ──────────────────────────────────
+
+export const RECURRENCE_META: Record<Recurrence, { label: string; short: string }> = {
+  DAILY: { label: "Täglich", short: "1 T" },
+  WEEKLY: { label: "Wöchentlich", short: "1 W" },
+  BIWEEKLY: { label: "Alle zwei Wochen", short: "2 W" },
+  MONTHLY: { label: "Monatlich", short: "1 M" },
+};
+
+/** Einen Termin um ein Intervall weiterschieben. */
+function addInterval(from: Date, recurrence: Recurrence): Date {
+  const next = new Date(from);
+  switch (recurrence) {
+    case "DAILY":
+      next.setDate(next.getDate() + 1);
+      break;
+    case "WEEKLY":
+      next.setDate(next.getDate() + 7);
+      break;
+    case "BIWEEKLY":
+      next.setDate(next.getDate() + 14);
+      break;
+    case "MONTHLY": {
+      // setMonth rollt ueber: der 31. Januar wuerde zum 3. Maerz. Bei einem
+      // kuerzeren Folgemonat gehoert der Termin auf dessen letzten Tag.
+      const tag = next.getDate();
+      next.setDate(1);
+      next.setMonth(next.getMonth() + 1);
+      const letzterTag = new Date(next.getFullYear(), next.getMonth() + 1, 0).getDate();
+      next.setDate(Math.min(tag, letzterTag));
+      break;
+    }
+  }
+  return next;
+}
+
+/**
+ * Wann die naechste Fassung faellig ist.
+ *
+ * Gerechnet wird vom bisherigen Termin, nicht vom Zeitpunkt des Abhakens:
+ * eine woechentliche Aufgabe soll auf ihrem Montag bleiben, auch wenn sie
+ * einmal erst am Mittwoch erledigt wurde.
+ *
+ * Wurde sie lange liegengelassen, laege der naechste Termin allerdings
+ * immer noch in der Vergangenheit – dann wird so lange weitergeschoben, bis
+ * er in der Zukunft liegt. Sonst entstuende eine Aufgabe, die schon bei
+ * ihrer Entstehung ueberfaellig ist.
+ *
+ * Ohne bisherigen Termin zaehlt der Zeitpunkt des Abhakens.
+ */
+export function nextDueDate(
+  recurrence: Recurrence,
+  previousDue: Date | null,
+  completedAt: Date = new Date(),
+): Date {
+  if (!previousDue) return addInterval(completedAt, recurrence);
+
+  let next = addInterval(previousDue, recurrence);
+  // Deckel gegen eine Endlosschleife bei absurden Datumsangaben.
+  for (let schritt = 0; schritt < 500 && next <= completedAt; schritt += 1) {
+    next = addInterval(next, recurrence);
+  }
+  return next;
+}
+
+/**
+ * Legt die naechste Fassung einer wiederkehrenden Aufgabe an.
+ *
+ * Wird genau beim Uebergang nach ERLEDIGT aufgerufen – aus dem Dialog wie
+ * aus dem Ziehen im Brett. Ein erneutes Speichern einer bereits erledigten
+ * Aufgabe darf keine zweite Fassung erzeugen.
+ *
+ * Gibt die neue Aufgabe zurueck oder null, wenn nichts zu tun war.
+ */
+export async function spawnRecurrence(taskId: string) {
+  const erledigt = await prisma.task.findUnique({ where: { id: taskId } });
+  if (!erledigt?.recurrence) return null;
+
+  const faellig = nextDueDate(erledigt.recurrence, erledigt.dueDate, erledigt.doneAt ?? new Date());
+
+  return prisma.task.create({
+    data: {
+      projectId: erledigt.projectId,
+      title: erledigt.title,
+      description: erledigt.description,
+      status: "TODO",
+      position: await nextPosition(erledigt.projectId, "TODO"),
+      dueDate: faellig,
+      labels: erledigt.labels,
+      recurrence: erledigt.recurrence,
+      recurredFrom: erledigt.id,
+      // Die Herkunft aus einem Issue wandert nicht mit: das Issue ist
+      // abgearbeitet, und die Eindeutigkeit je Repository verboete es ohnehin.
+    },
   });
 }
 

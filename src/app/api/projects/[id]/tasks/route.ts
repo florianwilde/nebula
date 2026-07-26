@@ -46,7 +46,7 @@ export async function POST(request: Request, { params }: Params) {
     );
   }
 
-  const { title, description, status, dueDate, labels } = parsed.data;
+  const { title, description, status, dueDate, labels, recurrence } = parsed.data;
 
   const task = await prisma.task.create({
     data: {
@@ -58,6 +58,7 @@ export async function POST(request: Request, { params }: Params) {
       position: await nextPosition(id, status),
       dueDate: dueDate ? new Date(dueDate) : null,
       labels,
+      recurrence: recurrence ?? null,
       doneAt: status === "DONE" ? new Date() : null,
     },
   });

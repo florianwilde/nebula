@@ -4,7 +4,12 @@ import { recordActivity, shorten } from "@/lib/activity";
 import { requireUserApi } from "@/lib/auth/guard";
 import { prisma } from "@/lib/db";
 import { jsonError, readJsonBody } from "@/lib/security/request";
-import { TASK_STATUS_META, nextPosition, refreshDerivedProgress } from "@/lib/tasks";
+import {
+  TASK_STATUS_META,
+  nextPosition,
+  refreshDerivedProgress,
+  spawnRecurrence,
+} from "@/lib/tasks";
 import { formatZodError, taskUpdateSchema } from "@/lib/validation";
 
 export const dynamic = "force-dynamic";
@@ -44,6 +49,7 @@ export async function PATCH(request: Request, { params }: Params) {
   if (data.title !== undefined) update.title = data.title;
   if (data.description !== undefined) update.description = data.description;
   if (data.labels !== undefined) update.labels = data.labels;
+  if (data.recurrence !== undefined) update.recurrence = data.recurrence;
   if (data.dueDate !== undefined) {
     update.dueDate = data.dueDate ? new Date(data.dueDate) : null;
   }
@@ -57,6 +63,15 @@ export async function PATCH(request: Request, { params }: Params) {
   }
 
   const task = await prisma.task.update({ where: { id }, data: update });
+
+  // Genau beim Uebergang nach ERLEDIGT entsteht die naechste Fassung. Ein
+  // erneutes Speichern einer schon erledigten Aufgabe darf keine zweite
+  // erzeugen – deshalb haengt es an update.status und nicht an data.status.
+  const folge =
+    update.status === "DONE" && existing.status !== "DONE"
+      ? await spawnRecurrence(id)
+      : null;
+
   await refreshDerivedProgress(existing.projectId);
 
   // Nur der Spaltenwechsel kommt in den Verlauf. Ein umbenannter Titel oder
@@ -68,12 +83,14 @@ export async function PATCH(request: Request, { params }: Params) {
       projectId: existing.projectId,
       userId: auth.user.id,
       kind: "TASK_MOVED",
-      summary: `Aufgabe „${shorten(task.title, 50)}“ → ${TASK_STATUS_META[nach].label}`,
-      meta: { taskId: id, from: existing.status, to: nach },
+      summary: folge
+        ? `Aufgabe „${shorten(task.title, 40)}“ erledigt, nächste angelegt`
+        : `Aufgabe „${shorten(task.title, 50)}“ → ${TASK_STATUS_META[nach].label}`,
+      meta: { taskId: id, from: existing.status, to: nach, ...(folge ? { next: folge.id } : {}) },
     });
   }
 
-  return NextResponse.json({ task });
+  return NextResponse.json({ task, next: folge });
 }
 
 export async function DELETE(_request: Request, { params }: Params) {

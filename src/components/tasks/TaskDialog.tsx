@@ -3,9 +3,9 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Trash2 } from "lucide-react";
-import type { Task, TaskStatus } from "@prisma/client";
+import type { Recurrence, Task, TaskStatus } from "@prisma/client";
 import { Modal } from "@/components/ui/Modal";
-import { TASK_STATUS_META, TASK_STATUS_ORDER } from "@/lib/tasks";
+import { RECURRENCE_META, TASK_STATUS_META, TASK_STATUS_ORDER } from "@/lib/tasks";
 import { cn, parseTags } from "@/lib/utils";
 
 /** Datum fuer <input type="date"> – ortszeitbezogen, nicht UTC. */
@@ -36,6 +36,7 @@ export function TaskDialog({
   const [status, setStatus] = useState<TaskStatus>(initialStatus);
   const [dueDate, setDueDate] = useState("");
   const [labels, setLabels] = useState("");
+  const [recurrence, setRecurrence] = useState<string>("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -48,6 +49,7 @@ export function TaskDialog({
     setStatus(task?.status ?? initialStatus);
     setDueDate(toDateInput(task?.dueDate ?? null));
     setLabels(task?.labels.join(", ") ?? "");
+    setRecurrence(task?.recurrence ?? "");
     setError(null);
   }, [open, task, initialStatus]);
 
@@ -64,6 +66,7 @@ export function TaskDialog({
       // Datum nicht auf den Vortag ziehen.
       dueDate: dueDate ? `${dueDate}T12:00:00` : null,
       labels: parseTags(labels),
+      recurrence: recurrence || null,
     };
 
     try {
@@ -193,6 +196,32 @@ export function TaskDialog({
               onChange={(event) => setLabels(event.target.value)}
               placeholder="bug, ui"
             />
+          </div>
+
+          <div className="sm:col-span-2">
+            <label className="field-label" htmlFor="task-recurrence">
+              Wiederholung
+            </label>
+            <select
+              id="task-recurrence"
+              className="field"
+              value={recurrence}
+              onChange={(event) => setRecurrence(event.target.value)}
+            >
+              <option value="">– einmalig –</option>
+              {(Object.keys(RECURRENCE_META) as Recurrence[]).map((key) => (
+                <option key={key} value={key}>
+                  {RECURRENCE_META[key].label}
+                </option>
+              ))}
+            </select>
+            {recurrence ? (
+              <p className="mt-1 text-xs text-slate-500">
+                Sobald die Aufgabe nach „Erledigt“ wandert, entsteht die nächste. Gerechnet
+                wird vom Fälligkeitsdatum, nicht vom Abhaken — eine wöchentliche Aufgabe
+                bleibt also auf ihrem Wochentag.
+              </p>
+            ) : null}
           </div>
         </div>
 

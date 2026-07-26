@@ -3,7 +3,7 @@ import type { Prisma, TaskStatus } from "@prisma/client";
 import { requireUserApi } from "@/lib/auth/guard";
 import { prisma } from "@/lib/db";
 import { jsonError, readJsonBody } from "@/lib/security/request";
-import { ownedProject, refreshDerivedProgress } from "@/lib/tasks";
+import { ownedProject, refreshDerivedProgress, spawnRecurrence } from "@/lib/tasks";
 import { formatZodError, taskReorderSchema } from "@/lib/validation";
 
 export const dynamic = "force-dynamic";
@@ -52,11 +52,14 @@ export async function PATCH(request: Request, { params }: Params) {
 
   const now = new Date();
   const updates: Prisma.PrismaPromise<unknown>[] = [];
+  /** Wer eben erst nach ERLEDIGT gewandert ist – nicht, wer dort schon lag. */
+  const frischErledigt: string[] = [];
 
   for (const [status, ids] of Object.entries(columns) as Array<[TaskStatus, string[]]>) {
     ids.forEach((taskId, index) => {
       if (!ownedIds.has(taskId)) return;
       const before = previousStatus.get(taskId);
+      if (status === "DONE" && before !== "DONE") frischErledigt.push(taskId);
       updates.push(
         prisma.task.update({
           where: { id: taskId },
@@ -77,6 +80,14 @@ export async function PATCH(request: Request, { params }: Params) {
 
   if (updates.length > 0) {
     await prisma.$transaction(updates);
+
+    // Wiederkehrende Aufgaben, die eben nach ERLEDIGT gezogen wurden,
+    // bekommen ihre naechste Fassung. Erst nach der Transaktion: vorher
+    // stuende doneAt noch nicht, aus dem der Folgetermin gerechnet wird.
+    for (const taskId of frischErledigt) {
+      await spawnRecurrence(taskId);
+    }
+
     await refreshDerivedProgress(id);
   }
 

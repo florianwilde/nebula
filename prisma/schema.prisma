@@ -71,6 +71,16 @@ enum ActivityKind {
   SYNC_FAILED
 }
 
+/// Wie oft sich eine Aufgabe wiederholt. Bewusst grob: feinere Regeln
+/// (jeden zweiten Dienstag im Monat) braucht ein Projektdashboard nicht,
+/// und sie waeren ohne Kalenderansicht kaum nachvollziehbar.
+enum Recurrence {
+  DAILY
+  WEEKLY
+  BIWEEKLY
+  MONTHLY
+}
+
 /// Spalten des Aufgabenbretts innerhalb eines Projekts.
 enum TaskStatus {
   TODO
@@ -449,6 +459,15 @@ model Task {
   labels      String[]   @default([])
   /// Zeitpunkt, zu dem die Aufgabe nach DONE gewandert ist.
   doneAt      DateTime?
+
+  /// Wiederholt sich die Aufgabe? Wandert sie nach ERLEDIGT, entsteht die
+  /// naechste Fassung mit fortgeschriebenem Faelligkeitsdatum. Die erledigte
+  /// bleibt stehen – sonst ginge die Historie verloren.
+  recurrence  Recurrence?
+  /// Aus welcher Aufgabe diese hervorgegangen ist. Nur zur Nachvollziehbarkeit;
+  /// bewusst ohne Fremdschluessel, damit das Loeschen der Vorgaengerin die
+  /// Nachfolgerin nicht mitnimmt.
+  recurredFrom String?
 
   /// Stammt die Aufgabe aus einem Git-Issue? Nummer, Repository und Link
   /// merken, damit dasselbe Issue nicht zweimal uebernommen wird.

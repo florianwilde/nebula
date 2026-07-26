@@ -4,6 +4,7 @@ const STATUS = ["IDEA", "OPEN", "PLANNING", "IN_DEVELOPMENT", "DONE", "ARCHIVED"
 const PROVIDERS = ["GITHUB", "GITLAB", "GITEA"] as const;
 const ACCENTS = ["violet", "cyan", "emerald", "amber", "rose", "blue"] as const;
 const TASK_STATUS = ["TODO", "DOING", "BLOCKED", "DONE"] as const;
+const RECURRENCE = ["DAILY", "WEEKLY", "BIWEEKLY", "MONTHLY"] as const;
 
 const emptyToNull = (value: unknown) =>
   typeof value === "string" && value.trim() === "" ? null : value;
@@ -157,6 +158,8 @@ export const taskCreateSchema = z.object({
   status: z.enum(TASK_STATUS).default("TODO"),
   dueDate: dueDateField,
   labels: z.array(z.string().trim().min(1).max(30)).max(8).default([]),
+  /** Wiederholt sich die Aufgabe? null = einmalig. */
+  recurrence: z.preprocess(emptyToNull, z.enum(RECURRENCE).nullable().optional()),
 });
 
 export const taskUpdateSchema = taskCreateSchema.partial();
