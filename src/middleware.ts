@@ -20,12 +20,21 @@ const SESSION_COOKIE = "nebula_session";
 /** Ohne Anmeldung erreichbar. */
 const PUBLIC_PATHS = ["/login", "/setup", "/register"];
 const PUBLIC_API_PREFIXES = ["/api/auth/"];
-/** Der Docker-Healthcheck hat kein Cookie. */
-const PUBLIC_API_EXACT = ["/api/health"];
+/**
+ * Der Docker-Healthcheck hat kein Cookie. Manifest und Symbole braucht der
+ * Browser, bevor sich jemand angemeldet hat – wuerden sie zur Anmeldeseite
+ * umgeleitet, liesse sich die Anwendung nicht installieren und die
+ * Anmeldeseite haette kein Symbol.
+ */
+const PUBLIC_API_EXACT = ["/api/health", "/manifest.webmanifest"];
+
+/** Bilder und aehnliches im Wurzelverzeichnis verraten nichts. */
+const PUBLIC_FILE = /\.(png|svg|ico|webmanifest|txt|webp)$/;
 
 function isPublicPath(pathname: string): boolean {
   if (PUBLIC_PATHS.includes(pathname)) return true;
   if (PUBLIC_API_EXACT.includes(pathname)) return true;
+  if (PUBLIC_FILE.test(pathname)) return true;
   return PUBLIC_API_PREFIXES.some((prefix) => pathname.startsWith(prefix));
 }
 

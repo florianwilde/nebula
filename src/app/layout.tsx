@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { ChangelogButton } from "@/components/ChangelogButton";
 import { CommandPalette } from "@/components/CommandPalette";
 import { TopNav } from "@/components/TopNav";
 import { getSessionUser } from "@/lib/auth/session";
@@ -20,6 +21,20 @@ export async function generateMetadata(): Promise<Metadata> {
       "Uebersicht ueber alle Vibe-Coding Projekte: Status, Notizen und Live-Daten aus GitHub, GitLab und Gitea.",
     applicationName: APP_NAME,
     robots: { index: false, follow: false },
+    manifest: "/manifest.webmanifest",
+    // iOS liest das Manifest nicht; dort braucht es diese Angaben einzeln.
+    appleWebApp: { capable: true, title: APP_NAME, statusBarStyle: "black-translucent" },
+    // Beide Eintraege ausdruecklich: sobald hier etwas steht, ersetzt es den
+    // Verweis, den Next aus app/icon.svg von selbst erzeugt. Ohne die erste
+    // Zeile haette die Seite gar kein Symbol mehr und der Browser fiele auf
+    // /favicon.ico zurueck – das es hier nicht gibt.
+    icons: {
+      icon: [
+        { url: "/icon.svg", type: "image/svg+xml" },
+        { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      ],
+      apple: "/apple-touch-icon.png",
+    },
   };
 }
 
@@ -56,7 +71,7 @@ export default async function RootLayout({
         <footer className="mx-auto w-full max-w-[1400px] px-4 pb-10 text-xs text-slate-500 sm:px-6 lg:px-8">
           <div className="flex flex-wrap items-center justify-between gap-2 border-t border-white/5 pt-6">
             <span>{APP_NAME} · lokal betrieben, Daten bleiben in deiner PostgreSQL.</span>
-            <span className="font-mono text-slate-600">v{APP_VERSION}</span>
+            <ChangelogButton version={APP_VERSION} />
           </div>
         </footer>
       </body>
