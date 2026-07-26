@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { startAuthentication } from "@simplewebauthn/browser";
-import { Fingerprint, KeyRound, Loader2, LogIn } from "lucide-react";
+import { Fingerprint, KeyRound, Loader2, LogIn, ShieldCheck } from "lucide-react";
 
 export function LoginForm({
   passkeysAvailable,
@@ -18,8 +18,11 @@ export function LoginForm({
   const router = useRouter();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [busy, setBusy] = useState<"password" | "passkey" | null>(null);
+  const [busy, setBusy] = useState<"password" | "passkey" | "code" | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** Passwort stimmt, jetzt fehlt der zweite Faktor. */
+  const [mfa, setMfa] = useState(false);
+  const [code, setCode] = useState("");
 
   function done() {
     // replace statt push: die Anmeldeseite soll nicht im Verlauf landen.
@@ -39,9 +42,37 @@ export function LoginForm({
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.error ?? "Anmeldung fehlgeschlagen.");
+
+      // Zweiter Faktor eingerichtet: das Passwort allein reicht nicht.
+      if (payload.mfaRequired) {
+        setMfa(true);
+        setPassword("");
+        setBusy(null);
+        return;
+      }
       done();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : String(caught));
+      setBusy(null);
+    }
+  }
+
+  async function submitCode(event: React.FormEvent) {
+    event.preventDefault();
+    setBusy("code");
+    setError(null);
+    try {
+      const response = await fetch("/api/auth/mfa", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error ?? "Der Code stimmt nicht.");
+      done();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : String(caught));
+      setCode("");
       setBusy(null);
     }
   }
@@ -80,6 +111,70 @@ export function LoginForm({
       setError(/abort|NotAllowed/i.test(message) ? null : message);
       setBusy(null);
     }
+  }
+
+  // Beim zweiten Schritt bleibt nur noch der Code stehen. Benutzername und
+  // Passwort daneben einzublenden wuerde nur zum erneuten Absenden verleiten.
+  if (mfa) {
+    return (
+      <form onSubmit={submitCode} className="space-y-4">
+        <div className="flex items-start gap-2 rounded-lg border border-white/8 bg-black/25 px-3 py-2 text-sm text-slate-400">
+          <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-violet-300" />
+          <span>
+            Bitte den sechsstelligen Code aus deiner Authenticator-App eingeben. Kein
+            Zugriff darauf? Ein Wiederherstellungscode geht auch.
+          </span>
+        </div>
+
+        <div>
+          <label className="field-label" htmlFor="login-code">
+            Code
+          </label>
+          <input
+            id="login-code"
+            className="field text-center text-lg tracking-[0.35em]"
+            value={code}
+            onChange={(event) => setCode(event.target.value)}
+            // Nicht type="number": das schluckt fuehrende Nullen und die
+            // Bindestriche der Wiederherstellungscodes.
+            inputMode="text"
+            autoComplete="one-time-code"
+            autoCapitalize="none"
+            spellCheck={false}
+            maxLength={40}
+            required
+            autoFocus
+          />
+        </div>
+
+        {error ? (
+          <p className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">
+            {error}
+          </p>
+        ) : null}
+
+        <button type="submit" className="btn btn-primary w-full py-2.5" disabled={busy !== null}>
+          {busy === "code" ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <LogIn className="h-4 w-4" />
+          )}
+          Bestätigen
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setMfa(false);
+            setCode("");
+            setError(null);
+          }}
+          className="w-full text-center text-sm text-slate-500 hover:text-slate-300"
+        >
+          Abbrechen
+        </button>
+      </form>
+    );
   }
 
   return (

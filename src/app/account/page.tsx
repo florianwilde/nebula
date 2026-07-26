@@ -18,7 +18,7 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function AccountPage() {
   const user = await requireUserPage();
 
-  const [passkeys, sessions, targets] = await Promise.all([
+  const [passkeys, sessions, targets, konto, offeneCodes] = await Promise.all([
     prisma.credential.findMany({
       where: { userId: user.id },
       select: {
@@ -58,6 +58,11 @@ export default async function AccountPage() {
       },
       orderBy: { name: "asc" },
     }),
+    prisma.user.findUniqueOrThrow({
+      where: { id: user.id },
+      select: { totpEnabledAt: true },
+    }),
+    prisma.recoveryCode.count({ where: { userId: user.id, usedAt: null } }),
   ]);
 
   const data: AccountData = {
@@ -69,6 +74,11 @@ export default async function AccountPage() {
     passkeys,
     sessions,
     passkeysAvailable: WEBAUTHN_AVAILABLE,
+    totp: {
+      enabled: Boolean(konto.totpEnabledAt),
+      enabledAt: konto.totpEnabledAt,
+      recoveryCodesLeft: offeneCodes,
+    },
   };
 
   return (

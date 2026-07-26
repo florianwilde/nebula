@@ -14,6 +14,7 @@ import {
   ShieldCheck,
   Trash2,
 } from "lucide-react";
+import { TotpSection, type TotpState } from "@/components/account/TotpSection";
 import { PASSWORD_MIN_LENGTH } from "@/lib/auth/constants";
 import { cn, formatDateTime, formatRelative } from "@/lib/utils";
 
@@ -43,6 +44,7 @@ export interface AccountData {
   passkeys: PasskeyEntry[];
   sessions: SessionEntry[];
   passkeysAvailable: boolean;
+  totp: TotpState;
 }
 
 type Notice = { ok: boolean; text: string } | null;
@@ -52,6 +54,7 @@ export function AccountManager({ data }: { data: AccountData }) {
     <div className="space-y-6">
       <ProfileSection data={data} />
       <PasswordSection hasPassword={data.hasPassword} />
+      <TotpSection state={data.totp} hasPassword={data.hasPassword} />
       <PasskeySection passkeys={data.passkeys} available={data.passkeysAvailable} />
       <SessionSection sessions={data.sessions} />
     </div>

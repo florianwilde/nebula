@@ -79,6 +79,14 @@ export const SESSION_TTL_MS = SESSION_TTL_DAYS * 24 * 60 * 60 * 1000;
 
 export const SESSION_COOKIE = "nebula_session";
 
+/**
+ * Cookie fuer die halbfertige Anmeldung zwischen Passwort und zweitem Faktor.
+ * Kurzlebig – wer den Code nicht binnen fuenf Minuten eingibt, faengt von
+ * vorne an.
+ */
+export const MFA_COOKIE = "nebula_mfa";
+export const MFA_TTL_MS = 5 * 60 * 1000;
+
 /** Wird beim Start einmal geloggt, damit Fehlkonfiguration frueh auffaellt. */
 export function describeConfig(): string {
   return [

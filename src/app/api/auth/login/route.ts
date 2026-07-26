@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { createPendingLogin, setMfaCookie } from "@/lib/auth/mfa";
 import { fakeVerifyDelay, verifyPassword } from "@/lib/auth/password";
 import { createSession, setSessionCookie } from "@/lib/auth/session";
 import { lockRemainingSeconds, noteFailedLogin, noteSuccessfulLogin } from "@/lib/auth/users";
@@ -66,6 +67,18 @@ export async function POST(request: Request) {
   if (!valid) {
     await noteFailedLogin(user.id);
     return jsonError(GENERIC, 401);
+  }
+
+  // Das Passwort stimmt. Ist ein zweiter Faktor eingerichtet, entsteht hier
+  // noch keine Sitzung, sondern nur ein Vorgang mit kurzer Frist.
+  if (user.totpEnabledAt) {
+    // Die Zaehler bleiben stehen, bis die Anmeldung wirklich durch ist:
+    // sonst liesse sich ueber wiederholte Passworteingaben die Sperre
+    // umgehen, die falsche Passwoerter aufbaut.
+    const token = await createPendingLogin(user.id);
+    const response = NextResponse.json({ ok: false, mfaRequired: true });
+    setMfaCookie(response, token);
+    return response;
   }
 
   await noteSuccessfulLogin(user.id);
