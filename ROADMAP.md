@@ -31,12 +31,6 @@ stillstehen. Kanäle: E-Mail (SMTP), ntfy, generischer Webhook. Zusammen mit
 dem automatischen Abgleich und dem CI-Status ergibt das ein brauchbares
 Frühwarnsystem — die Daten liegen bereits vor.
 
-### 1.3 Aufgaben und Checklisten `M`
-
-Eigene Entität statt Freitext, mit Häkchen und automatisch berechnetem
-Fortschritt. Ersetzt das manuelle Schieben des Reglers. Die Markdown-
-Checklisten in Notizen sind ein Vorgeschmack, aber nicht auswertbar.
-
 ---
 
 ## 2 · Danach
@@ -93,6 +87,8 @@ Voraussetzung, falls du das Projekt veröffentlichen willst.
 | Suchtreffer in Notizen hervorheben | `S` | In der Notiz selbst, nicht nur in der Trefferliste |
 | Mehrfachauswahl im Board | `S` | Status oder Tags für mehrere auf einmal |
 | Aktivitätsverlauf je Projekt | `S` | Wer hat wann was geändert |
+| Wiederkehrende Aufgaben | `M` | Etwa „jeden Montag Abhängigkeiten prüfen" |
+| Aufgaben aus Git-Issues übernehmen | `M` | Offene Issues als Aufgaben einhängen |
 | Projektvorlagen | `S` | Neues Projekt mit vorgefüllten Tags und Notizen |
 | Hell/Dunkel umschaltbar | `M` | Aktuell nur dunkel |
 | Eigenes Logo und Farbe | `S` | Ergänzt `APP_NAME` |
@@ -132,6 +128,7 @@ Damit klar ist, was **nicht** kommt und warum:
 | Export, Import und Sicherung | ✓ |
 | **v0.3.0** Markdown, Volltextsuche über Notizen, PR- und Issue-Listen, Testfundament | ✓ |
 | **v0.4.0** Kanban mit Drag & Drop, CI-Status je Branch, Commit-Aktivität | ✓ |
+| **v0.5.0** Aufgabenbrett je Projekt mit sortierbaren Spalten, Fortschritt aus Aufgaben | ✓ |
 
 Zur Entscheidung beim Export: Git-Tokens gehen **nicht** mit. Die Verbindung wird nur
 beschrieben, das Token ist nach dem Import neu zu hinterlegen. Snapshots bleiben

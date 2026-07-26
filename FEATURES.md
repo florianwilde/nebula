@@ -137,6 +137,39 @@ Anzahl Notizen · Warnung bei Sync-Fehler · Tags · Statusauswahl · Priorität
 
 ---
 
+## 2a. Aufgaben je Projekt
+
+Jedes Projekt hat ein eigenes Aufgabenbrett mit vier Spalten: **Offen · In Arbeit ·
+Blockiert · Erledigt**.
+
+- **Ziehen und Ablegen** zwischen den Spalten **und innerhalb** einer Spalte. Anders als
+  beim Projektbrett ist die Reihenfolge hier bedeutsam, deshalb wird sie gespeichert.
+- Gezogen wird am Griff links, damit ein Klick auf die Karte weiter den Dialog öffnet.
+- Eine Aufgabe braucht nur einen Titel. Optional: Beschreibung (Markdown),
+  Fälligkeitsdatum und Labels.
+- **Fälligkeiten** färben sich mit: überfällig rot, heute gelb, in den nächsten Tagen
+  gedämpft.
+- Erledigtes wird durchgestrichen; der Zeitpunkt wird festgehalten und beim Zurückziehen
+  wieder gelöscht.
+
+### Fortschritt aus Aufgaben
+
+Pro Projekt umschaltbar. Ist es an, ergibt sich der Fortschritt aus dem Anteil erledigter
+Aufgaben und wird bei jeder Änderung neu berechnet — der Regler ist dann gesperrt, statt
+einen Wert anzubieten, der gleich wieder überschrieben würde.
+
+Auf der Projektkarte im Dashboard steht das Verhältnis als `3/8`.
+
+### Wie die Reihenfolge gespeichert wird
+
+Beim Ablegen schickt die Oberfläche je Spalte die **vollständige Liste** der Aufgaben in
+ihrer neuen Reihenfolge; der Server vergibt daraus Position und Status. Das ist
+wiederholbar, kommt ohne Positionsrechnerei im Browser aus, und ein verlorener Aufruf
+lässt sich einfach erneut senden. IDs, die nicht zum Projekt gehören, werden ignoriert
+statt verschoben.
+
+---
+
 ## 3. Notizen
 
 - **Beliebig viele Notizen pro Projekt**, mit optionalem Titel und mehrzeiligem Text.
@@ -315,6 +348,7 @@ Dateneinsicht. Ein Administrator sieht dadurch weiterhin keine fremden Projekte.
 | `WebAuthnChallenge` | Kurzlebige, einmalig verwendbare Challenges |
 | `AppSettings` | Betriebsart und Registrierung (eine Zeile) |
 | `Project` | Projektstammdaten, Status, Fortschritt, Repo-Verknüpfung, Besitzer |
+| `Task` | Aufgaben mit Spalte, Position, Fälligkeit und Labels |
 | `Note` | Notizen (n:1 zu Projekt, Cascade-Delete) |
 | `GitConnection` | Git-Systeme inkl. verschlüsseltem Token, Besitzer |
 | `RepoSnapshot` | Zwischengespeicherter Repo-Stand (1:1 zu Projekt) |

@@ -337,6 +337,9 @@ ausschließlich Daten des angemeldeten Kontos.
 | `GET` | `/api/search?q=` | Volltextsuche über die eigenen Notizen |
 | `GET` `PATCH` `DELETE` | `/api/projects/:id` | Projekt lesen / ändern / löschen |
 | `POST` | `/api/projects/:id/sync` | Repo-Daten vom Git-System holen |
+| `GET` `POST` | `/api/projects/:id/tasks` | Aufgaben des Projekts |
+| `PATCH` | `/api/projects/:id/tasks/reorder` | Neue Reihenfolge nach dem Ziehen |
+| `PATCH` `DELETE` | `/api/tasks/:id` | Aufgabe ändern / löschen |
 | `GET` `POST` | `/api/projects/:id/notes` | Notizen des Projekts |
 | `PATCH` `DELETE` | `/api/notes/:id` | Notiz ändern / löschen |
 | `GET` `POST` | `/api/connections` | Git-Verbindungen |
