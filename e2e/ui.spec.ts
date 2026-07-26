@@ -72,9 +72,17 @@ test("Aufgaben anlegen und per Ziehen verschieben", async ({ page }) => {
   // dnd-kit wertet die Bewegung in einem eigenen Frame aus. Ohne diese
   // Pause faende das Loslassen noch kein Ziel und die Karte spraenge zurueck.
   await page.waitForTimeout(250);
+
+  // Auf die Antwort warten, bevor neu geladen wird. Sonst bricht das Neuladen
+  // den noch laufenden Aufruf ab, und der Test schlaegt gelegentlich fehl,
+  // obwohl die Anwendung in Ordnung ist – genau so ist es passiert.
+  const gespeichert = page.waitForResponse(
+    (response) => response.url().includes("/tasks/reorder") && response.request().method() === "PATCH",
+  );
   await page.mouse.up();
 
   await expect(inArbeit.getByText("Erste Aufgabe")).toBeVisible();
+  expect((await gespeichert).ok()).toBeTruthy();
 
   // Und der Server hat es auch so gespeichert.
   await page.reload();
@@ -117,6 +125,73 @@ test("Schnellsuche findet Projekt und Notiz", async ({ page }) => {
   await expect(page.getByRole("dialog", { name: "Schnellsuche" })).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog", { name: "Schnellsuche" })).toBeHidden();
+});
+
+test("Mehrfachauswahl aendert mehrere Projekte auf einmal", async ({ page }) => {
+  const kaestchen = page.locator('input[aria-label$="auswaehlen"]');
+  const anzahl = await kaestchen.count();
+  expect(anzahl).toBeGreaterThan(0);
+
+  // Ohne Auswahl gibt es keine Leiste – sie soll nicht dauerhaft im Weg sein.
+  await expect(page.getByText(/ausgewählt/)).toBeHidden();
+
+  await kaestchen.first().check();
+  await expect(page.getByText("1 ausgewählt")).toBeVisible();
+
+  await page.getByRole("button", { name: "Tags", exact: true }).click();
+  await page.fill("#bulk-tags", "sammeltest");
+  await page.getByRole("button", { name: "Hinzufügen" }).click();
+
+  await expect(page.getByText("#sammeltest").first()).toBeVisible();
+  // Nach getaner Arbeit ist die Auswahl aufgehoben.
+  await expect(page.getByText(/ausgewählt/)).toBeHidden();
+});
+
+test("Die Versionsnummer oeffnet den Aenderungsverlauf", async ({ page }) => {
+  await page.getByRole("button", { name: /^v\d+\.\d+\.\d+$/ }).click();
+
+  // Ueber die Rolle, nicht ueber den Text: das Wort steht auch in einem der
+  // Eintraege, und ein blosser Textvergleich waere mehrdeutig.
+  const dialog = page.getByRole("dialog", { name: "Änderungsverlauf" });
+  await expect(dialog).toBeVisible();
+  // Die laufende Fassung ist als solche gekennzeichnet.
+  await expect(dialog.getByText("installiert")).toBeVisible();
+  // Und es steht wirklich etwas drin.
+  await expect(dialog.getByRole("heading", { level: 3 }).first()).toBeVisible();
+  await expect(dialog.getByText("Neu").first()).toBeVisible();
+
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+});
+
+test("Das Manifest liegt bereit, auch ohne Anmeldung", async ({ page, playwright }) => {
+  const anonym = await playwright.request.newContext({
+    baseURL: test.info().project.use.baseURL,
+  });
+
+  // Ohne diesen Weg an der Zugangsschranke vorbei liesse sich die Anwendung
+  // nicht installieren: der Browser holt das Manifest, bevor jemand angemeldet ist.
+  const antwort = await anonym.get("/manifest.webmanifest");
+  expect(antwort.ok()).toBeTruthy();
+
+  const manifest = await antwort.json();
+  expect(manifest.name).toContain("Nebula");
+  expect(manifest.display).toBe("standalone");
+  expect(manifest.icons.some((icon: { purpose: string }) => icon.purpose === "maskable")).toBe(true);
+
+  for (const icon of manifest.icons) {
+    const bild = await anonym.get(icon.src);
+    expect(bild.ok(), icon.src).toBeTruthy();
+    expect(bild.headers()["content-type"]).toContain("image/png");
+  }
+
+  await anonym.dispose();
+
+  // Die Seite muss ein Symbol verweisen. Fehlt es, sucht der Browser
+  // /favicon.ico – das es hier nicht gibt, und die Konsole fuellt sich mit
+  // 404ern. Genau das ist beim Ergaenzen des Apple-Symbols passiert.
+  await page.goto("/");
+  await expect(page.locator('link[rel="icon"]').first()).toHaveAttribute("href", /icon/);
 });
 
 test("Abmelden fuehrt zurueck zur Anmeldung", async ({ page }) => {

@@ -28,11 +28,6 @@ Die Sparkline gibt es auf Karte und Projektseite. Eine Heatmap über ein Jahr
 wäre die nächste Ausbaustufe — dafür braucht es allerdings mehr als eine
 Seite Commits, also Paginierung oder die Statistik-Endpunkte.
 
-### 2.2 Kanban mit freier Reihenfolge `M`
-
-Heute folgt die Reihenfolge innerhalb einer Spalte der gewählten Sortierung.
-Frei sortieren hieße, eine Position je Projekt zu speichern.
-
 ---
 
 ## 3 · Größere Brocken
@@ -42,7 +37,7 @@ Frei sortieren hieße, eine Position je Projekt zu speichern.
 Heute setzt ein Administrator das Passwort neu. Selbstbedienung braucht SMTP
 und damit eine weitere Konfiguration — lohnt erst im Mehrbenutzerbetrieb.
 
-### 3.4 Mehrsprachigkeit `L`
+### 3.2 Mehrsprachigkeit `L`
 
 Die Oberfläche ist durchgängig deutsch verdrahtet. Englisch dazu wäre eine
 Voraussetzung, falls du das Projekt veröffentlichen willst.
@@ -54,14 +49,11 @@ Voraussetzung, falls du das Projekt veröffentlichen willst.
 | Idee | Aufwand | Nutzen |
 | --- | --- | --- |
 | Suchtreffer in Notizen hervorheben | `S` | In der Notiz selbst, nicht nur in der Trefferliste |
-| Mehrfachauswahl im Board | `S` | Status oder Tags für mehrere auf einmal |
 | Wiederkehrende Aufgaben | `M` | Etwa „jeden Montag Abhängigkeiten prüfen" |
 | Projektvorlagen | `S` | Neues Projekt mit vorgefüllten Tags und Notizen |
 | Hell/Dunkel umschaltbar | `M` | Aktuell nur dunkel |
 | Eigenes Logo und Farbe | `S` | Ergänzt `APP_NAME` |
-| PWA-Manifest | `S` | Auf dem Handy als App installierbar |
 | Barrierefreiheits-Durchsicht | `M` | Fokusreihenfolge, Screenreader, Kontraste |
-| `prisma.config.ts` | `S` | Beseitigt die Deprecation-Warnung vor Prisma 7. Achtung: danach lädt Prisma die `.env` nicht mehr von selbst |
 | Audit-Log für Adminaktionen | `M` | Nachvollziehbar, wer Konten geändert hat |
 
 ---
@@ -101,6 +93,7 @@ Damit klar ist, was **nicht** kommt und warum:
 | **v0.8.0** Stillstehende Projekte melden, Schwelle im Adminbereich | ✓ |
 | **v0.9.0** Schnellsuche per `Strg+K`, Aufgaben aus Git-Issues | ✓ |
 | **v1.0.0** Aktivitätsverlauf je Projekt, Zwei-Faktor per TOTP, mehrere Repositories je Projekt | ✓ |
+| **v1.1.0** Freie Reihenfolge im Brett, Mehrfachauswahl, installierbar als App, Änderungsverlauf | ✓ |
 
 Zur Entscheidung beim Export: Git-Tokens gehen **nicht** mit. Die Verbindung wird nur
 beschrieben, das Token ist nach dem Import neu zu hinterlegen. Snapshots bleiben

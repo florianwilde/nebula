@@ -279,6 +279,101 @@ test("Mehrere Repositories je Projekt", async ({ request, playwright }) => {
   expect(zumSchluss.repositories[0].repoName).toBe("swr");
 });
 
+test("Brett: Reihenfolge und Mehrfachauswahl", async ({ request, playwright }) => {
+  await login(request, ADMIN);
+
+  const angelegt = [];
+  for (const name of ["Brett A", "Brett B", "Brett C"]) {
+    const response = await request.post("/api/projects", { data: { name, status: "IDEA" } });
+    angelegt.push((await response.json()).project);
+  }
+  // Neue Projekte haengen sich hinten an ihre Spalte an – fortlaufend, nicht
+  // alle auf denselben Platz. Absolut zaehlen laesst sich nicht: in der
+  // Spalte stehen schon Projekte aus frueheren Tests.
+  const [a, b, c] = angelegt.map((p) => p.position);
+  expect([b, c]).toEqual([a + 1, a + 2]);
+
+  const ids = angelegt.map((p) => p.id);
+  const vorher = angelegt[0].updatedAt;
+
+  // Umdrehen und dabei eines in eine andere Spalte schieben.
+  const gedreht = [ids[2], ids[1]];
+  const reorder = await request.patch("/api/projects/reorder", {
+    data: { columns: { IDEA: gedreht, IN_DEVELOPMENT: [ids[0]] } },
+  });
+  expect(reorder.ok()).toBeTruthy();
+
+  const alle = (await (await request.get("/api/projects")).json()).projects;
+  const finde = (id: string) => alle.find((p: { id: string }) => p.id === id);
+  expect(finde(ids[2]).position).toBe(0);
+  expect(finde(ids[1]).position).toBe(1);
+  expect(finde(ids[0]).status).toBe("IN_DEVELOPMENT");
+
+  // Reines Umsortieren darf das Aenderungsdatum nicht anfassen – sonst
+  // schoebe ein Aufraeumen im Brett alles in "Zuletzt geaendert" nach oben.
+  expect(new Date(finde(ids[1]).updatedAt).getTime()).toBe(
+    new Date(angelegt[1].updatedAt).getTime(),
+  );
+  // Das verschobene dagegen hat sich wirklich geaendert.
+  expect(new Date(finde(ids[0]).updatedAt).getTime()).toBeGreaterThan(
+    new Date(vorher).getTime(),
+  );
+
+  // Mehrfachauswahl: Tags ergaenzen und wieder entfernen.
+  const ergaenzt = await request.post("/api/projects/bulk", {
+    data: { ids, action: "tags", tags: ["Sammel", "test"], tagMode: "add" },
+  });
+  expect((await ergaenzt.json()).changed).toBe(3);
+  const mitTags = (await (await request.get("/api/projects")).json()).projects;
+  // Kleingeschrieben abgelegt, wie ueberall.
+  expect(mitTags.find((p: { id: string }) => p.id === ids[0]).tags).toContain("sammel");
+
+  const entfernt = await request.post("/api/projects/bulk", {
+    data: { ids, action: "tags", tags: ["sammel"], tagMode: "remove" },
+  });
+  expect((await entfernt.json()).changed).toBe(3);
+
+  // Status fuer mehrere: die Verschobenen landen hintereinander, nicht
+  // uebereinander auf derselben Position.
+  const verschoben = await request.post("/api/projects/bulk", {
+    data: { ids, action: "status", status: "PLANNING" },
+  });
+  expect((await verschoben.json()).changed).toBe(3);
+  const geplant = (await (await request.get("/api/projects?status=PLANNING")).json()).projects;
+  const positionen = geplant.map((p: { position: number }) => p.position).sort();
+  expect(new Set(positionen).size).toBe(positionen.length);
+
+  // Wer schon so steht, wird nicht noch einmal angefasst.
+  const nochmal = await request.post("/api/projects/bulk", {
+    data: { ids, action: "status", status: "PLANNING" },
+  });
+  expect((await nochmal.json()).changed).toBe(0);
+
+  // Fremde IDs fallen still unter den Tisch, statt etwas anzurichten.
+  const fremd = await playwright.request.newContext({
+    baseURL: test.info().project.use.baseURL,
+  });
+  await login(fremd, ZWEITER);
+  const untergeschoben = await fremd.post("/api/projects/bulk", {
+    data: { ids, action: "delete" },
+  });
+  expect((await untergeschoben.json()).changed).toBe(0);
+  const uebrig = (await (await request.get("/api/projects")).json()).projects;
+  expect(uebrig.filter((p: { id: string }) => ids.includes(p.id))).toHaveLength(3);
+
+  const fremdSortieren = await fremd.patch("/api/projects/reorder", {
+    data: { columns: { DONE: ids } },
+  });
+  expect((await fremdSortieren.json()).updated).toBe(0);
+  await fremd.dispose();
+
+  // Und zum Schluss die eigenen wirklich loeschen.
+  const geloescht = await request.post("/api/projects/bulk", {
+    data: { ids, action: "delete" },
+  });
+  expect((await geloescht.json()).changed).toBe(3);
+});
+
 test("Export enthaelt keine Geheimnisse, Import beachtet die Strategie", async ({ request }) => {
   await login(request, ADMIN);
 

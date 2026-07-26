@@ -138,6 +138,15 @@ Bedienung über Tastatur: Pfeile wählen, `Enter` öffnet, `Esc` schließt. Die 
 wird beim ersten Öffnen geholt und dann behalten — sie bei jedem Tastendruck neu zu laden
 wäre Verschwendung.
 
+### Mehrfachauswahl
+
+Ein Kästchen auf jeder Karte — es erscheint erst beim Überfahren, damit nicht auf jeder
+Karte dauerhaft eines steht. Sobald etwas ausgewählt ist, fährt unten eine Leiste ein:
+**Status setzen**, **Tags ergänzen oder entfernen**, **als Favorit markieren**, **löschen**.
+
+Was der Filter ausblendet, fällt aus der Auswahl. Sonst träfe eine Massenänderung Projekte,
+die man gar nicht mehr vor Augen hat. Fremde IDs fallen serverseitig still unter den Tisch.
+
 ### Kanban
 
 Spalten je Status, Karten per Ziehen verschiebbar. Der Wechsel wird sofort angezeigt und
@@ -147,8 +156,15 @@ erst danach gespeichert; scheitert das Speichern, springt die Karte zurück.
   normaler Link.
 - Das Ziehen startet erst nach ein paar Pixeln Bewegung, damit Klicks weiter funktionieren.
   Auf Touchgeräten nach kurzem Halten.
-- Die Reihenfolge innerhalb einer Spalte folgt der gewählten Sortierung. Frei sortieren
-  ginge nur mit einer gespeicherten Position — bewusst nicht gebaut.
+- **Freie Reihenfolge innerhalb einer Spalte.** Die Position wird am Projekt gespeichert,
+  wie beim Aufgabenbrett. Deshalb ist die Sortierung im Kopf in dieser Ansicht abgeschaltet
+  — sie stehen zu lassen, ohne dass sie wirkt, wäre irreführend.
+- Reines Umsortieren fasst das Änderungsdatum **nicht** an. Sonst schöbe ein Aufräumen im
+  Brett sämtliche Projekte in der Sortierung „Zuletzt geändert“ nach oben.
+- Neue, importierte und per Status verschobene Projekte landen am Ende ihrer Spalte.
+- **Ansicht, Sortierung und Archivschalter überdauern das Neuladen** (im Browser
+  gespeichert, nicht am Konto). Der Suchbegriff bleibt bewusst außen vor — eine Suche von
+  gestern beim Öffnen wiederherzustellen wäre eher verwirrend als hilfreich.
 
 ### Projektkarte auf einen Blick
 
@@ -461,6 +477,14 @@ letzten Zustellung stehen an der Karte.
   Fokusring, `prefers-reduced-motion` schaltet Animationen ab.
 - **Deutschsprachig**, Datums- und Zahlenformate in `de-DE` mit fester Zeitzone
   Europe/Berlin, damit Server- und Browser-Darstellung übereinstimmen.
+- **Als App installierbar.** Ein Web-Manifest mit eigenen Symbolen — auf dem Handy
+  „Zum Startbildschirm hinzufügen“, danach läuft Nebula ohne Adressleiste. Die
+  maskierbare Fassung hat mehr Rand, weil Android Symbole je nach Gerät rund, eckig
+  oder als Tropfen zuschneidet.
+- **Änderungsverlauf** hinter der Versionsnummer in der Fußzeile: was neu ist, was besser
+  wurde und welche Fehler behoben sind. Die Liste steht in `src/lib/changelog.ts` und ist
+  die einzige Quelle — ein Test hält sie und `package.json` zusammen, weil genau diese
+  beiden Angaben hier schon einmal auseinandergelaufen sind.
 
 ---
 
