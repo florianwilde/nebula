@@ -146,6 +146,8 @@ export const profileUpdateSchema = z.object({
 export const adminSettingsSchema = z.object({
   mode: z.enum(["SINGLE_USER", "MULTI_USER"]).optional(),
   allowRegistration: z.boolean().optional(),
+  /** Ab wie vielen Tagen ohne Commit ein Projekt als stillstehend gilt. */
+  staleAfterDays: z.coerce.number().int().min(7).max(365).optional(),
   autoSyncEnabled: z.boolean().optional(),
   /** Untergrenze 5 Minuten – haeufiger waere den Git-APIs gegenueber unfair. */
   autoSyncIntervalMinutes: z.coerce.number().int().min(5).max(10080).optional(),
@@ -173,7 +175,7 @@ export const adminUserUpdateSchema = z.object({
 // ── Benachrichtigungen ───────────────────────────────────────
 
 const CHANNELS = ["WEBHOOK", "NTFY", "EMAIL"] as const;
-const EVENTS = ["SYNC_FAILED", "CI_FAILED", "NEW_RELEASE"] as const;
+const EVENTS = ["SYNC_FAILED", "CI_FAILED", "NEW_RELEASE", "PROJECT_STALE"] as const;
 
 export const notificationTargetCreateSchema = z
   .object({

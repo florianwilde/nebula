@@ -5,6 +5,7 @@ export const NOTIFICATION_EVENTS: NotificationEvent[] = [
   "SYNC_FAILED",
   "CI_FAILED",
   "NEW_RELEASE",
+  "PROJECT_STALE",
 ];
 
 export const EVENT_META: Record<
@@ -25,6 +26,11 @@ export const EVENT_META: Record<
     label: "Neues Release",
     description: "Im Repository ist ein neuer Tag oder ein Release aufgetaucht.",
     emoji: "🏷️",
+  },
+  PROJECT_STALE: {
+    label: "Projekt steht still",
+    description: "Seit laengerem kein Commit mehr. Die Schwelle setzt ein Administrator.",
+    emoji: "🕸️",
   },
 };
 

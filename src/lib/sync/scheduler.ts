@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { getAppSettings } from "@/lib/auth/settings";
 import { prisma } from "@/lib/db";
+import { runStaleCheck } from "@/lib/notify/stale";
 import { syncProject } from "@/lib/sync";
 
 /**
@@ -20,6 +21,8 @@ import { syncProject } from "@/lib/sync";
  */
 
 const TICK_MS = 60_000;
+/** Stillstand aendert sich langsam – einmal am Tag genuegt. */
+const STALE_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000;
 /** Kleine Verschnaufpause zwischen zwei Projekten. */
 const PAUSE_MS = 400;
 /** Hoechstens so lange wird nach Fehlschlaegen zurueckgehalten. */
@@ -64,15 +67,51 @@ export function startAutoSyncScheduler() {
 async function tick() {
   try {
     const settings = await getAppSettings();
-    if (!settings.autoSyncEnabled) return;
 
-    const intervalMs = Math.max(5, settings.autoSyncIntervalMinutes) * 60_000;
-    const last = settings.lastAutoSyncAt?.getTime() ?? 0;
-    if (Date.now() - last < intervalMs) return;
+    if (settings.autoSyncEnabled) {
+      const intervalMs = Math.max(5, settings.autoSyncIntervalMinutes) * 60_000;
+      const last = settings.lastAutoSyncAt?.getTime() ?? 0;
+      if (Date.now() - last >= intervalMs) {
+        await runAutoSyncPass("zeitplan");
+      }
+    }
 
-    await runAutoSyncPass("zeitplan");
+    // Unabhaengig vom Abgleich: der Stillstand ergibt sich aus dem
+    // gespeicherten Stand, dafuer muss nichts geholt werden.
+    await maybeCheckStale();
   } catch (error) {
     console.error("[nebula] Automatischer Abgleich fehlgeschlagen:", error);
+  }
+}
+
+/**
+ * Stillstandspruefung, hoechstens einmal am Tag. Laeuft nur, wenn ueberhaupt
+ * jemand darauf hoert – sonst waere es reine Datenbanklast.
+ */
+async function maybeCheckStale() {
+  const settings = await getAppSettings();
+  const last = settings.lastStaleCheckAt?.getTime() ?? 0;
+  if (Date.now() - last < STALE_CHECK_INTERVAL_MS) return;
+
+  const zuhoerer = await prisma.notificationTarget.count({
+    where: { isActive: true, events: { has: "PROJECT_STALE" } },
+  });
+
+  // Zeitstempel auch ohne Zuhoerer setzen, damit nicht jede Minute gezaehlt
+  // wird.
+  await prisma.appSettings.update({
+    where: { id: "singleton" },
+    data: { lastStaleCheckAt: new Date() },
+  });
+
+  if (zuhoerer === 0) return;
+
+  const report = await runStaleCheck(Math.max(1, settings.staleAfterDays));
+  if (report.stale > 0) {
+    console.log(
+      `[nebula] Stillstand: ${report.stale} von ${report.checked} Projekten ` +
+        `ueber ${report.thresholdDays} Tage ohne Commit, ${report.notified} Meldungen.`,
+    );
   }
 }
 

@@ -48,6 +48,8 @@ enum NotificationEvent {
   CI_FAILED
   /// Im Repository ist ein neuer Tag oder ein neues Release aufgetaucht.
   NEW_RELEASE
+  /// Seit laengerem kein Commit mehr – der sanfte Stups.
+  PROJECT_STALE
 }
 
 /// Spalten des Aufgabenbretts innerhalb eines Projekts.
@@ -181,6 +183,12 @@ model AppSettings {
   /// Kurzbericht des letzten Durchlaufs: { synced, failed, skipped, ms }
   lastAutoSyncReport Json?
 
+  // ── Stillstand ─────────────────────────────────────────────
+  /// Ab wie vielen Tagen ohne Commit ein Projekt als stillstehend gilt.
+  staleAfterDays   Int       @default(60)
+  /// Die Pruefung laeuft hoechstens einmal am Tag.
+  lastStaleCheckAt DateTime?
+
   updatedAt DateTime @updatedAt
 }
 
@@ -273,6 +281,9 @@ model Project {
   notifiedSyncError String?
   notifiedCiState   String?
   notifiedRelease   String?
+  /// Wann zuletzt wegen Stillstands gemeldet wurde. Erneut gemeldet wird
+  /// erst, wenn danach wieder ein Commit kam und es dann wieder still wurde.
+  notifiedStaleAt   DateTime?
 
   notes    Note[]
   tasks    Task[]
