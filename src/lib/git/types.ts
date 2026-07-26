@@ -1,4 +1,7 @@
 import type { GitProvider } from "@prisma/client";
+import type { CommitCalendar } from "./calendar";
+
+export type { CommitCalendar };
 
 export type ProviderKind = GitProvider;
 
@@ -171,6 +174,13 @@ export interface GitClient {
   listRepos(query?: string): Promise<RepoListItem[]>;
   /** Vollstaendiger Stand eines Repositories. */
   fetchRepo(ref: RepoRef): Promise<RepoSnapshotData>;
+  /**
+   * Commits je Tag ueber ein Jahr – fuer die Heatmap.
+   *
+   * Getrennt von fetchRepo, weil es zusaetzliche Aufrufe kostet und nur
+   * hoechstens einmal am Tag noetig ist. null heisst: nichts zu holen.
+   */
+  fetchCommitCalendar(ref: RepoRef): Promise<CommitCalendar | null>;
 }
 
 /** Fehler mit HTTP-Kontext, damit die UI verstaendliche Meldungen zeigen kann. */

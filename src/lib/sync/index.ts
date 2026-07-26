@@ -2,6 +2,7 @@ import type { Repository } from "@prisma/client";
 import { recordActivity, shorten } from "@/lib/activity";
 import { prisma } from "@/lib/db";
 import { clientForConnection, createClient, parseRepoUrl } from "@/lib/git";
+import type { GitClient } from "@/lib/git/types";
 import { notifyAfterSync } from "@/lib/notify";
 import { repoTitle } from "@/lib/repositories";
 import type { RepoSnapshotData } from "@/lib/git/types";
@@ -57,6 +58,9 @@ export async function syncRepository(repositoryId: string): Promise<SyncResult> 
   try {
     const data = await client.fetchRepo(ref);
     await persistSnapshot(repository, data);
+    // Erst nach dem Snapshot: die Zeile muss existieren, bevor der Kalender
+    // hineingeschrieben werden kann.
+    await maybeRefreshCalendar(repository.id, client, ref);
     // Nach dem Speichern, damit die Meldung den neuen Stand sieht.
     await notifyAfterSync(repository.id);
     return {
@@ -139,6 +143,57 @@ export async function syncProject(projectId: string): Promise<ProjectSyncResult>
     fetchedAt: new Date().toISOString(),
     repositories: ergebnisse,
   };
+}
+
+/** Wie lange ein geholter Kalender genuegt. */
+const CALENDAR_TTL_MS = 20 * 60 * 60 * 1000;
+
+/**
+ * Holt die Jahresuebersicht fuer die Heatmap – hoechstens einmal am Tag.
+ *
+ * Sie kostet zusaetzliche Aufrufe, bei GitLab und Gitea sogar mehrere. An
+ * einem Jahresueberblick aendert sich von Stunde zu Stunde aber nichts
+ * Sichtbares, und der Abgleich laeuft im Zweifel stuendlich.
+ *
+ * Fehler bleiben hier: der Kalender ist Beiwerk. Wenn er nicht zu holen ist,
+ * soll deshalb nicht der ganze Abgleich als gescheitert gelten.
+ */
+async function maybeRefreshCalendar(
+  repositoryId: string,
+  client: GitClient,
+  ref: { owner: string; name: string },
+): Promise<void> {
+  try {
+    const snapshot = await prisma.repoSnapshot.findUnique({
+      where: { repositoryId },
+      select: { commitCalendarAt: true },
+    });
+
+    const zuletzt = snapshot?.commitCalendarAt?.getTime() ?? 0;
+    if (Date.now() - zuletzt < CALENDAR_TTL_MS) return;
+
+    const calendar = await client.fetchCommitCalendar(ref);
+
+    // Nichts erhalten: entweder rechnet GitHub die Statistik gerade erst,
+    // oder das Repository hat keine Commits. Der Zeitstempel bleibt dann
+    // ungesetzt, damit es der naechste Abgleich erneut versucht – ihn hier zu
+    // setzen wuerde die Heatmap fuer einen Tag unterdruecken, obwohl sie
+    // vielleicht schon in Minuten bereitsteht.
+    if (!calendar) return;
+
+    await prisma.repoSnapshot.update({
+      where: { repositoryId },
+      data: {
+        commitCalendar: calendar as unknown as object,
+        commitCalendarAt: new Date(),
+      },
+    });
+  } catch (error) {
+    // Rate-Limit, Zeitueberschreitung, Ausfall: der Kalender ist Beiwerk und
+    // soll den Abgleich nicht scheitern lassen. Ohne Zeitstempel versucht es
+    // der naechste Durchgang von selbst wieder.
+    console.error("[nebula] Commit-Kalender konnte nicht geholt werden:", error);
+  }
 }
 
 /** Owner/Name aus den Feldern oder ersatzweise aus der URL bestimmen. */

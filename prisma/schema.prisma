@@ -127,6 +127,7 @@ model User {
   activities    Activity[]
   recoveryCodes RecoveryCode[]
   pendingLogins PendingLogin[]
+  templates     ProjectTemplate[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -466,6 +467,41 @@ model Task {
   @@index([projectId, status, position])
 }
 
+/// Eine Vorlage fuer neue Projekte: Stammdaten, Tags, Notizen und Aufgaben.
+///
+/// Bewusst benutzereigen und nicht fest eingebaut. Welche Tags und welche
+/// Startaufgaben sinnvoll sind, weiss nur, wer damit arbeitet – eine
+/// mitgelieferte Liste waere geraten.
+model ProjectTemplate {
+  id      String @id @default(cuid())
+  ownerId String
+  owner   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  name        String
+  /// Wozu die Vorlage gut ist – erscheint in der Auswahl.
+  description String?
+
+  // ── Was die Vorlage in das neue Projekt schreibt ───────────
+  summary            String?
+  projectDescription String?
+  status             ProjectStatus @default(IDEA)
+  priority           Int           @default(2)
+  accent             String        @default("violet")
+  tags               String[]      @default([])
+  progressFromTasks  Boolean       @default(false)
+
+  /// [{ title, content, pinned }]
+  notes Json @default("[]")
+  /// [{ title, description, status, labels }]
+  tasks Json @default("[]")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([ownerId, name])
+  @@index([ownerId])
+}
+
 /// Ein Eintrag im Verlauf eines Projekts: was ist wann passiert.
 model Activity {
   id        String       @id @default(cuid())
@@ -549,6 +585,13 @@ model RepoSnapshot {
   issues        Json @default("[]")
   /// Commits je Tag der letzten 30 Tage, aeltester zuerst.
   commitActivity Json @default("[]")
+
+  /// Commits je Tag ueber bis zu ein Jahr – die Heatmap.
+  /// { from, to, days: { "2026-07-26": 3 }, source, truncated }
+  /// Getrennt vom uebrigen Stand, weil das Holen zusaetzliche Aufrufe kostet
+  /// und deshalb hoechstens einmal am Tag geschieht.
+  commitCalendar   Json      @default("{}")
+  commitCalendarAt DateTime?
 
   // ── Letzter CI-Lauf auf dem Default-Branch ─────────────────
   /// success | failure | running | pending | cancelled

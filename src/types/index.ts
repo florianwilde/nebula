@@ -9,6 +9,7 @@ import type {
   Task,
   TaskStatus,
 } from "@prisma/client";
+import type { CommitCalendar } from "@/lib/git/calendar";
 import type {
   BranchInfo,
   CiInfo,
@@ -83,6 +84,7 @@ export interface RepoListEntry {
 export type {
   ActivityKind,
   BranchInfo,
+  CommitCalendar,
   CiInfo,
   CommitInfo,
   Note,
@@ -99,6 +101,25 @@ export type {
 /** Prisma liefert Json als unknown – hier bequem in Arrays zurueckholen. */
 export function asArray<T>(value: unknown): T[] {
   return Array.isArray(value) ? (value as T[]) : [];
+}
+
+/**
+ * Der Commit-Kalender aus dem Snapshot. Prisma liefert Json als unknown, und
+ * ein Datensatz aus der Zeit vor der Heatmap hat dort ein leeres Objekt –
+ * beides muss hier zu null werden, statt die Anzeige zu zerlegen.
+ */
+export function asCalendar(value: unknown): CommitCalendar | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const kandidat = value as Partial<CommitCalendar>;
+  if (typeof kandidat.from !== "string" || typeof kandidat.to !== "string") return null;
+  if (!kandidat.days || typeof kandidat.days !== "object") return null;
+  return {
+    from: kandidat.from,
+    to: kandidat.to,
+    days: kandidat.days as Record<string, number>,
+    source: kandidat.source === "stats" ? "stats" : "commits",
+    truncated: Boolean(kandidat.truncated),
+  };
 }
 
 export function asRecord(value: unknown): Record<string, number> {

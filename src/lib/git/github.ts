@@ -3,6 +3,7 @@ import type {
   BranchInfo,
   CiInfo,
   CiState,
+  CommitCalendar,
   CommitInfo,
   ConnectionCheck,
   GitClient,
@@ -14,6 +15,7 @@ import type {
   TagInfo,
   TicketInfo,
 } from "./types";
+import { dayKey } from "./calendar";
 import { GitApiError, bucketCommitActivity } from "./types";
 
 /**
@@ -206,6 +208,58 @@ export class GitHubClient implements GitClient {
       commitActivity: bucketCommitActivity(mappedCommits.map((commit) => commit.date)),
     };
   }
+
+  /**
+   * GitHub fuehrt die Statistik selbst: /stats/commit_activity liefert 52
+   * Wochen mit Tageswerten in einem einzigen Aufruf. Das ist deutlich
+   * sparsamer, als ein Jahr Commits seitenweise abzuholen.
+   *
+   * Die Statistik wird bei Bedarf erst berechnet; dann antwortet GitHub mit
+   * 202 und einem leeren Rumpf – daher der leere Fall unten.
+   *
+   * Bewusst getJson und nicht getJsonSafe: ein Rate-Limit oder ein Ausfall
+   * darf nicht als "keine Daten" durchgehen. Der Fehler geht nach oben, und
+   * der naechste Abgleich versucht es erneut.
+   */
+  async fetchCommitCalendar(ref: RepoRef): Promise<CommitCalendar | null> {
+    const base = `${this.apiBase}/repos/${encodeURIComponent(ref.owner)}/${encodeURIComponent(ref.name)}`;
+    const wochen = await getJson<GitHubWeek[]>(`${base}/stats/commit_activity`, {
+      headers: this.headers(),
+    });
+
+    if (!Array.isArray(wochen) || wochen.length === 0) {
+      // Entweder rechnet GitHub noch, oder das Repository hat keine Commits.
+      // Ersatzweise aus den geholten Commits zu bauen waere irrefuehrend –
+      // das taete so, als reichte der Zeitraum ein Jahr zurueck.
+      return null;
+    }
+
+    const days: Record<string, number> = {};
+    let von: string | null = null;
+    const heute = dayKey(new Date());
+
+    for (const woche of wochen) {
+      if (!woche?.week || !Array.isArray(woche.days)) continue;
+      woche.days.forEach((anzahl, index) => {
+        const tag = dayKey(new Date((woche.week + index * 86_400) * 1000));
+        if (tag > heute) return;
+        if (von === null || tag < von) von = tag;
+        if (anzahl > 0) days[tag] = anzahl;
+      });
+    }
+
+    if (von === null) return null;
+
+    return { from: von, to: heute, days, source: "stats", truncated: false };
+  }
+}
+
+interface GitHubWeek {
+  /** Unix-Zeit des Wochenanfangs (Sonntag). */
+  week: number;
+  /** Sieben Werte, Sonntag bis Samstag. */
+  days: number[];
+  total: number;
 }
 
 /** GitHub trennt Lauf-Status und Ergebnis; hier auf einen Wert zusammenfuehren. */

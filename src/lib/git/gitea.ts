@@ -1,4 +1,10 @@
 import { getJson, getJsonSafe, normalizeBaseUrl, shortSha, toIso } from "./http";
+import {
+  CALENDAR_PAGE_SIZE,
+  calendarByPaging,
+  calendarSince,
+  type CommitCalendar,
+} from "./calendar";
 import type {
   BranchInfo,
   CiInfo,
@@ -218,6 +224,27 @@ export class GiteaClient implements GitClient {
       ci,
       commitActivity: bucketCommitActivity(mappedCommits.map((commit) => commit.date)),
     };
+  }
+
+  /**
+   * Gitea kennt keine Jahresstatistik ueber die API, also seitenweise.
+   * `stat=false` und `verification=false` sparen dabei spuerbar Rechenzeit
+   * auf der Gegenseite – gebraucht wird nur das Datum.
+   */
+  async fetchCommitCalendar(ref: RepoRef): Promise<CommitCalendar | null> {
+    const base = `${this.apiBase}/repos/${encodeURIComponent(ref.owner)}/${encodeURIComponent(ref.name)}`;
+    const seit = calendarSince().toISOString();
+
+    // getJson und nicht getJsonSafe: ein Rate-Limit darf nicht als "keine
+    // Daten" durchgehen – siehe maybeRefreshCalendar.
+    return calendarByPaging(async (seite) => {
+      const commits = await getJson<GiteaCommit[]>(
+        `${base}/commits?limit=${CALENDAR_PAGE_SIZE}&page=${seite}` +
+          `&stat=false&verification=false&files=false&since=${encodeURIComponent(seit)}`,
+        { headers: this.headers() },
+      );
+      return commits.map((commit) => toIso(commit.commit?.author?.date));
+    });
   }
 }
 

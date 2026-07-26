@@ -1,4 +1,10 @@
 import { getJson, getJsonSafe, normalizeBaseUrl, shortSha, toIso } from "./http";
+import {
+  CALENDAR_PAGE_SIZE,
+  calendarByPaging,
+  calendarSince,
+  type CommitCalendar,
+} from "./calendar";
 import type {
   BranchInfo,
   CiInfo,
@@ -76,10 +82,13 @@ export class GitLabClient implements GitClient {
     });
   }
 
+  /** "gruppe/sub/projekt" URL-kodiert – so adressiert GitLab ein Projekt. */
+  private projectPath(ref: RepoRef): string {
+    return encodeURIComponent([ref.owner, ref.name].filter(Boolean).join("/"));
+  }
+
   async fetchRepo(ref: RepoRef): Promise<RepoSnapshotData> {
-    const path = [ref.owner, ref.name].filter(Boolean).join("/");
-    const encoded = encodeURIComponent(path);
-    const base = `${this.apiBase}/projects/${encoded}`;
+    const base = `${this.apiBase}/projects/${this.projectPath(ref)}`;
     const headers = this.headers();
 
     const project = await getJson<GitLabProject>(`${base}?statistics=true`, { headers });
@@ -197,6 +206,26 @@ export class GitLabClient implements GitClient {
       ci,
       commitActivity: bucketCommitActivity(mappedCommits.map((commit) => commit.date)),
     };
+  }
+
+  /**
+   * GitLab kennt keine fertige Jahresstatistik, also seitenweise mit `since`.
+   * Der Deckel in calendarByPaging begrenzt das auf wenige Aufrufe.
+   */
+  async fetchCommitCalendar(ref: RepoRef): Promise<CommitCalendar | null> {
+    const base = `${this.apiBase}/projects/${this.projectPath(ref)}`;
+    const seit = calendarSince().toISOString();
+
+    // getJson und nicht getJsonSafe: ein Rate-Limit darf nicht als "keine
+    // Daten" durchgehen – siehe maybeRefreshCalendar.
+    return calendarByPaging(async (seite) => {
+      const commits = await getJson<GitLabCommit[]>(
+        `${base}/repository/commits?per_page=${CALENDAR_PAGE_SIZE}&page=${seite}` +
+          `&since=${encodeURIComponent(seit)}`,
+        { headers: this.headers() },
+      );
+      return commits.map((commit) => toIso(commit.committed_date ?? commit.created_at));
+    });
   }
 }
 

@@ -24,10 +24,11 @@ import {
   Unlink,
 } from "lucide-react";
 import { CiBadge } from "@/components/CiBadge";
+import { Heatmap } from "@/components/Heatmap";
 import { RepositoryDialog } from "@/components/RepositoryDialog";
 import { Sparkline } from "@/components/Sparkline";
 import { repoTitle } from "@/lib/git/meta";
-import { asArray, asRecord } from "@/types";
+import { asArray, asCalendar, asRecord } from "@/types";
 import type {
   BranchInfo,
   CommitInfo,
@@ -109,6 +110,7 @@ export function GitPanel({
   const pulls = asArray<TicketInfo>(snapshot?.pullRequests);
   const issues = asArray<TicketInfo>(snapshot?.issues);
   const activity = asArray<number>(snapshot?.commitActivity);
+  const calendar = asCalendar(snapshot?.commitCalendar);
 
   /** Ein einzelnes Repository oder – ohne Argument – alle. */
   async function sync(nurDieses?: string) {
@@ -415,6 +417,9 @@ export function GitPanel({
               <Sparkline values={activity} height={40} />
             </div>
           ) : null}
+
+          {/* Der Jahresueberblick, sobald er einmal geholt wurde. */}
+          {calendar ? <Heatmap calendar={calendar} /> : null}
 
           {/* Sprachen */}
           {languageTotal > 0 ? (
