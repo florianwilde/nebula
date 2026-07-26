@@ -20,6 +20,28 @@ erreichbar ist. Der Zeitplan bleibt als Rückfalllösung.
 
 ---
 
+### 1.2 README-Vorschau `S`
+
+Das README aus dem Repo holen und auf der Projektseite anzeigen. Ein
+zusätzlicher API-Aufruf, Markdown kann Nebula schon. Erspart den Wechsel ins
+Git, nur um zu sehen, worum ein halbvergessenes Projekt eigentlich ging.
+
+### 1.3 Läuft es noch? `M`
+
+Eine Health-Check-URL je Projekt, die der Zeitgeber regelmäßig anpingt.
+Nebula wüsste dann, ob ein Projekt nicht nur existiert, sondern auch läuft.
+Nutzt Zeitgeber und Benachrichtigungen, die es schon gibt. Der SSRF-Schutz
+greift dabei wie bei den Git-Aufrufen.
+
+### 1.4 Persönliche API-Token `M`
+
+Derzeit geht die API nur mit Sitzungscookie. Ein Token je Konto würde
+`curl`-Aufrufe und Handy-Shortcuts erlauben — Idee aus dem Terminal anlegen,
+ohne den Browser zu öffnen. Nur der Hash in der Datenbank, wie bei den
+Sitzungen.
+
+---
+
 ## 2 · Größere Brocken
 
 ### 2.1 Passwort-Zurücksetzen per E-Mail `M`
@@ -38,11 +60,14 @@ Voraussetzung, falls du das Projekt veröffentlichen willst.
 
 | Idee | Aufwand | Nutzen |
 | --- | --- | --- |
+| Wochenrückblick | `S` | „Was ist diese Woche passiert" über alle Projekte, aus dem Aktivitätsverlauf |
+| Globale Zeitleiste | `S` | Derselbe Verlauf, aber projektübergreifend als eigene Seite |
+| Suche über Aufgaben | `S` | Die Volltextsuche deckt bisher nur Notizen ab |
 | Suchtreffer in Notizen hervorheben | `S` | In der Notiz selbst, nicht nur in der Trefferliste |
-| Wiederkehrende Aufgaben | `M` | Etwa „jeden Montag Abhängigkeiten prüfen" |
+| Aufgabe ↔ Commit verknüpfen | `M` | Enthält ein Commit `#5`, wird die übernommene Aufgabe verlinkt |
+| Tastaturkürzel-Übersicht mit `?` | `S` | Es gibt inzwischen genug davon |
 | Hell/Dunkel umschaltbar | `M` | Aktuell nur dunkel |
 | Eigenes Logo und Farbe | `S` | Ergänzt `APP_NAME` |
-| Barrierefreiheits-Durchsicht | `M` | Fokusreihenfolge, Screenreader, Kontraste |
 | Audit-Log für Adminaktionen | `M` | Nachvollziehbar, wer Konten geändert hat |
 
 ---
@@ -54,6 +79,11 @@ Damit klar ist, was **nicht** kommt und warum:
 - **Geteilte Projekte zwischen Konten.** Die Trennung ist derzeit hart und
   einfach zu prüfen. Freigaben bringen eine Rechteverwaltung mit sich — nur
   sinnvoll, wenn wirklich mehrere Leute zusammenarbeiten.
+- **Veraltete Abhängigkeiten prüfen.** Klingt verlockend, aber Renovate und
+  Dependabot machen das besser, und es wären viele Aufrufe an fremde
+  Registries — für eine Zahl, die im Repo selbst schon steht.
+- **Anhänge an Notizen.** Bräuchte Dateispeicher und damit eine zweite Sorge
+  bei jeder Sicherung. Ein Link ins Git tut es auch.
 - **Eigene Git-Operationen** (klonen, committen, pushen). Nebula ist eine
   Übersicht, keine Entwicklungsumgebung.
 - **Zeiterfassung, Rechnungen, Kundenverwaltung.** Andere Baustelle.
@@ -84,6 +114,7 @@ Damit klar ist, was **nicht** kommt und warum:
 | **v1.0.0** Aktivitätsverlauf je Projekt, Zwei-Faktor per TOTP, mehrere Repositories je Projekt | ✓ |
 | **v1.1.0** Freie Reihenfolge im Brett, Mehrfachauswahl, installierbar als App, Änderungsverlauf | ✓ |
 | **v1.2.0** Commit-Heatmap über ein Jahr, Projektvorlagen | ✓ |
+| **v1.3.0** Wiederkehrende Aufgaben, Barrierefreiheit nach WCAG 2.1 AA | ✓ |
 
 Zur Entscheidung beim Export: Git-Tokens gehen **nicht** mit. Die Verbindung wird nur
 beschrieben, das Token ist nach dem Import neu zu hinterlegen. Snapshots bleiben

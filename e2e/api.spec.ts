@@ -374,6 +374,76 @@ test("Brett: Reihenfolge und Mehrfachauswahl", async ({ request, playwright }) =
   expect((await geloescht.json()).changed).toBe(3);
 });
 
+test("Wiederkehrende Aufgaben legen die naechste Fassung an", async ({ request }) => {
+  await login(request, ADMIN);
+
+  const projekt = (
+    await (await request.post("/api/projects", { data: { name: "Wiederkehrend" } })).json()
+  ).project;
+
+  const woechentlich = (
+    await (
+      await request.post(`/api/projects/${projekt.id}/tasks`, {
+        data: {
+          title: "Abhaengigkeiten pruefen",
+          dueDate: "2026-07-06T12:00:00",
+          recurrence: "WEEKLY",
+          labels: ["wartung"],
+        },
+      })
+    ).json()
+  ).task;
+
+  // Ein Zwischenschritt loest noch nichts aus.
+  await request.patch(`/api/tasks/${woechentlich.id}`, { data: { status: "DOING" } });
+  let alle = (await (await request.get(`/api/projects/${projekt.id}/tasks`)).json()).tasks;
+  expect(alle).toHaveLength(1);
+
+  // Erst der Uebergang nach ERLEDIGT.
+  const erledigt = await request.patch(`/api/tasks/${woechentlich.id}`, {
+    data: { status: "DONE" },
+  });
+  expect((await erledigt.json()).next).not.toBeNull();
+
+  alle = (await (await request.get(`/api/projects/${projekt.id}/tasks`)).json()).tasks;
+  expect(alle).toHaveLength(2);
+
+  const folge = alle.find((task: { id: string }) => task.id !== woechentlich.id);
+  expect(folge.status).toBe("TODO");
+  expect(folge.title).toBe("Abhaengigkeiten pruefen");
+  expect(folge.labels).toEqual(["wartung"]);
+  expect(folge.recurrence).toBe("WEEKLY");
+  expect(folge.recurredFrom).toBe(woechentlich.id);
+  // Der Termin liegt in der Zukunft und auf demselben Wochentag.
+  expect(new Date(folge.dueDate).getTime()).toBeGreaterThan(Date.now());
+  expect(new Date(folge.dueDate).getUTCDay()).toBe(1);
+
+  // Erneut speichern erzeugt keine dritte.
+  await request.patch(`/api/tasks/${woechentlich.id}`, { data: { title: "Umbenannt" } });
+  alle = (await (await request.get(`/api/projects/${projekt.id}/tasks`)).json()).tasks;
+  expect(alle).toHaveLength(2);
+
+  // Der zweite Weg: durch Ziehen in die Spalte ERLEDIGT.
+  const gezogen = await request.patch(`/api/projects/${projekt.id}/tasks/reorder`, {
+    data: { columns: { DONE: [folge.id] } },
+  });
+  expect(gezogen.ok()).toBeTruthy();
+
+  alle = (await (await request.get(`/api/projects/${projekt.id}/tasks`)).json()).tasks;
+  expect(alle).toHaveLength(3);
+  expect(alle.filter((task: { status: string }) => task.status === "TODO")).toHaveLength(1);
+
+  // Eine einmalige Aufgabe bleibt einmalig.
+  const einmalig = (
+    await (
+      await request.post(`/api/projects/${projekt.id}/tasks`, { data: { title: "Nur einmal" } })
+    ).json()
+  ).task;
+  await request.patch(`/api/tasks/${einmalig.id}`, { data: { status: "DONE" } });
+  alle = (await (await request.get(`/api/projects/${projekt.id}/tasks`)).json()).tasks;
+  expect(alle).toHaveLength(4);
+});
+
 test("Projektvorlagen: aus Projekt sichern und anwenden", async ({ request, playwright }) => {
   await login(request, ADMIN);
 

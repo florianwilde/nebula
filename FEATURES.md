@@ -207,6 +207,23 @@ Blockiert · Erledigt**.
 - Erledigtes wird durchgestrichen; der Zeitpunkt wird festgehalten und beim Zurückziehen
   wieder gelöscht.
 
+### Wiederkehrende Aufgaben
+
+Täglich, wöchentlich, alle zwei Wochen oder monatlich. Wandert die Aufgabe nach
+**Erledigt** — im Dialog oder durch Ziehen —, entsteht die nächste von selbst. Die
+erledigte bleibt stehen, sonst ginge die Historie verloren.
+
+- **Gerechnet wird vom Fälligkeitsdatum, nicht vom Abhaken.** Eine wöchentliche Aufgabe
+  bleibt auf ihrem Montag, auch wenn sie einmal erst am Mittwoch erledigt wurde.
+- Lange Liegengebliebenes rutscht so weit vor, bis der Termin in der Zukunft liegt — eine
+  Aufgabe, die schon bei ihrer Entstehung überfällig ist, hilft niemandem.
+- Beim Monatsintervall bleibt der Tag im Monat erhalten. Der 31. Januar wird zum
+  28. Februar, nicht zum 3. März.
+- Nur der **Übergang** nach Erledigt löst aus. Eine bereits erledigte Aufgabe erneut zu
+  speichern erzeugt keine zweite Fassung.
+- Bewusst grob gehalten: feinere Regeln („jeden zweiten Dienstag im Monat") braucht ein
+  Projektdashboard nicht und wären ohne Kalenderansicht kaum nachvollziehbar.
+
 ### Aus Git-Issues übernehmen
 
 Im Git-Panel, Reiter *Issues*: ein Klick macht aus den offenen Issues Aufgaben — Titel,
@@ -502,8 +519,14 @@ letzten Zustellung stehen an der Karte.
 - **Animationen**: gestaffelt einblendende Karten, Hover-Lift mit Farbverlaufsrand,
   animierte Fortschrittsbalken.
 - **Responsiv** von Handy bis Ultrawide (bis zu vier Kartenspalten).
-- **Barrierearm**: durchgehende ARIA-Labels, Escape schließt Dialoge, sichtbarer
-  Fokusring, `prefers-reduced-motion` schaltet Animationen ab.
+- **Barrierefrei nach WCAG 2.1 AA**, und zwar geprüft statt behauptet: axe-core läuft über
+  zehn Seitenzustände einschließlich der Dialoge und meldet keine Verstöße. Durchgehende
+  ARIA-Labels, Escape schließt Dialoge, sichtbarer Fokusring, `prefers-reduced-motion`
+  schaltet Animationen ab.
+  Bei der ersten Durchsicht fielen 26 Kontrastverstöße auf: gedämpfter Text erreichte auf
+  dem sehr dunklen Untergrund nur 3,8 statt 4,5 zu 1. Statt an hundert Stellen die Klasse
+  zu tauschen, sind die beiden gedämpften Stufen im Theme aufgehellt — der Abstand
+  zwischen ihnen bleibt sichtbar.
 - **Deutschsprachig**, Datums- und Zahlenformate in `de-DE` mit fester Zeitzone
   Europe/Berlin, damit Server- und Browser-Darstellung übereinstimmen.
 - **Als App installierbar.** Ein Web-Manifest mit eigenen Symbolen — auf dem Handy
@@ -532,7 +555,8 @@ letzten Zustellung stehen an der Karte.
 | `AppSettings` | Betriebsart und Registrierung (eine Zeile) |
 | `Project` | Projektstammdaten, Status, Fortschritt, Besitzer |
 | `Repository` | Repositories eines Projekts inkl. Abgleichstand (n:1 zu Projekt) |
-| `Task` | Aufgaben mit Spalte, Position, Fälligkeit, Labels und Issue-Herkunft |
+| `Task` | Aufgaben mit Spalte, Position, Fälligkeit, Labels, Wiederholung und Issue-Herkunft |
+| `ProjectTemplate` | Vorlagen je Konto: Stammdaten, Tags, Notizen und Aufgaben |
 | `Activity` | Verlauf je Projekt, neueste zuerst, auf 200 Einträge begrenzt |
 | `NotificationTarget` | Zustellwege je Konto, mit verschlüsseltem Geheimnis |
 | `Note` | Notizen (n:1 zu Projekt, Cascade-Delete) |

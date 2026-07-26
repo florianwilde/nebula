@@ -42,6 +42,39 @@ export const KIND_META: Record<ChangeKind, { label: string; className: string }>
 
 export const CHANGELOG: Release[] = [
   {
+    version: "1.3.0",
+    date: "2026-07-26",
+    headline: "Was sich wiederholt, und was besser lesbar ist.",
+    changes: [
+      {
+        kind: "neu",
+        text:
+          "Wiederkehrende Aufgaben: täglich, wöchentlich, alle zwei Wochen oder monatlich. " +
+          "Wandert die Aufgabe nach „Erledigt“, entsteht die nächste von selbst.",
+      },
+      {
+        kind: "behoben",
+        text:
+          "Gedämpfter Text erreichte auf dem dunklen Untergrund nur 3,8 statt der " +
+          "geforderten 4,5 zu 1 — an 26 Stellen. Beide Stufen sind jetzt aufgehellt, " +
+          "der Abstand zwischen ihnen bleibt sichtbar.",
+      },
+      {
+        kind: "besser",
+        text:
+          "Die Barrierefreiheit ist mit axe-core über zehn Seitenzustände geprüft, " +
+          "einschließlich der Dialoge. Keine Verstöße mehr gegen WCAG 2.1 AA.",
+      },
+      {
+        kind: "besser",
+        text:
+          "Der Folgetermin rechnet vom Fälligkeitsdatum, nicht vom Abhaken — eine " +
+          "wöchentliche Aufgabe bleibt auf ihrem Wochentag. Lange Liegengebliebenes " +
+          "rutscht so weit vor, bis der Termin in der Zukunft liegt.",
+      },
+    ],
+  },
+  {
     version: "1.2.0",
     date: "2026-07-26",
     headline: "Ein Jahr auf einen Blick, und ein Start ohne Leerlauf.",
