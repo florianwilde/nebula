@@ -4,7 +4,7 @@ Dashboard für Vibe-Coding-Projekte. Next.js 15 (App Router), TypeScript,
 Tailwind 4, Prisma, PostgreSQL. Oberfläche und Texte sind **deutsch**.
 
 Funktionsumfang: [FEATURES.md](FEATURES.md) · Geplantes: [ROADMAP.md](ROADMAP.md) ·
-Betrieb: [README.md](README.md)
+Betrieb: [README.md](README.md) · Server: [DEPLOYMENT.md](DEPLOYMENT.md)
 
 ## Womit man arbeitet
 

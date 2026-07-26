@@ -31,7 +31,8 @@ Alle Daten liegen in **deiner lokalen PostgreSQL**. Es gibt keinen Cloud-Dienst 
 Access Tokens werden verschlüsselt abgelegt.
 
 Eine vollständige Auflistung aller Funktionen steht in **[FEATURES.md](FEATURES.md)**,
-geplante Erweiterungen in **[ROADMAP.md](ROADMAP.md)**.
+geplante Erweiterungen in **[ROADMAP.md](ROADMAP.md)**. Für den Dauerbetrieb auf einem
+Server — TLS, Firewall, Sicherungen und Updates — gibt es **[DEPLOYMENT.md](DEPLOYMENT.md)**.
 
 ---
 

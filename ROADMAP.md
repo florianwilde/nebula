@@ -110,6 +110,7 @@ Damit klar ist, was **nicht** kommt und warum:
 | **v1.2.0** Commit-Heatmap über ein Jahr, Projektvorlagen | ✓ |
 | **v1.3.0** Wiederkehrende Aufgaben, Barrierefreiheit nach WCAG 2.1 AA | ✓ |
 | **v1.4.0** README-Vorschau auf der Projektseite | ✓ |
+| **v1.5.0** Sicherheitsdurchsicht, Server-Anleitung und Update-Skript | ✓ |
 
 Zur Entscheidung beim Export: Git-Tokens gehen **nicht** mit. Die Verbindung wird nur
 beschrieben, das Token ist nach dem Import neu zu hinterlegen. Snapshots bleiben

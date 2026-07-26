@@ -42,6 +42,51 @@ export const KIND_META: Record<ChangeKind, { label: string; className: string }>
 
 export const CHANGELOG: Release[] = [
   {
+    version: "1.5.0",
+    date: "2026-07-27",
+    headline: "Sicherheitsdurchsicht und eine Anleitung für den Server.",
+    changes: [
+      {
+        kind: "behoben",
+        text:
+          "Ein Einmalkennwort ließ sich innerhalb seiner Gültigkeit mehrfach verwenden. " +
+          "Das eingelöste Zeitfenster wird jetzt gemerkt — RFC 6238 verlangt das " +
+          "ausdrücklich.",
+      },
+      {
+        kind: "behoben",
+        text:
+          "Der Bildoptimierer von Next war ohne Anmeldung erreichbar und reichte Bilder " +
+          "durch libvips, für das es offene Schwachstellen gibt. Nebula benutzt ihn " +
+          "nirgends — jetzt ist er abgeschaltet.",
+      },
+      {
+        kind: "neu",
+        text:
+          "DEPLOYMENT.md: Schritt für Schritt vom leeren Server bis zur Instanz hinter " +
+          "TLS, mit Firewall, Sicherungen und Betrieb.",
+      },
+      {
+        kind: "neu",
+        text:
+          "scripts/update.sh rollt ein Update aus: prüfen, holen, sichern, bauen, " +
+          "starten, Gesundheit prüfen — und nennt bei einem Fehlschlag den Weg zurück.",
+      },
+      {
+        kind: "besser",
+        text:
+          "Umsortieren im Brett und das Anlegen von Vorlagen sind jetzt ebenfalls " +
+          "ratenbegrenzt.",
+      },
+      {
+        kind: "besser",
+        text:
+          "Die Bereinigung des Markdowns ist mit elf Tests festgehalten: Skripte, " +
+          "Ereignis-Attribute, javascript: und data: kommen nicht durch.",
+      },
+    ],
+  },
+  {
     version: "1.4.0",
     date: "2026-07-26",
     headline: "Worum ging es hier nochmal?",

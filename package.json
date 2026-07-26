@@ -1,6 +1,6 @@
 {
   "name": "nebula",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "private": true,
   "description": "Nebula – Dashboard fuer Vibe-Coding Projekte mit Git-Anbindung (GitHub, GitLab, Gitea)",
   "scripts": {
