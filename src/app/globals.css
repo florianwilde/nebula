@@ -16,6 +16,22 @@
   --color-void-soft: #0a0c1a;
   --color-haze: #12142b;
 
+  /* ── Gedaempfte Textfarben ──────────────────────────────────
+     Tailwinds slate-500 und slate-600 kommen auf diesem sehr dunklen
+     Untergrund nur auf 3,8 bzw. 2,5 zu 1. WCAG AA verlangt 4,5 fuer
+     normalen Text, und beide werden hier reichlich fuer Hinweise und
+     Nebenangaben benutzt – axe-core hat das an 26 Stellen beanstandet.
+
+     Statt an hundert Stellen die Klasse zu tauschen, werden die beiden
+     Stufen hier aufgehellt. Der Abstand zwischen ihnen bleibt sichtbar,
+     der Rest des Entwurfs unangetastet.
+
+     Geprueft gegen die drei vorkommenden Untergruende #0b0d1c (Seite),
+     #0e0f17 (.glass) und #14141d (.popover) – der schlechteste Wert
+     zaehlt. */
+  --color-slate-500: #8a98b0; /* 6,3 : 1 */
+  --color-slate-600: #78879f; /* 5,0 : 1 */
+
   --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
     "Helvetica Neue", Arial, "Noto Sans", sans-serif;
   --font-mono: ui-monospace, "Cascadia Code", "Source Code Pro", Menlo,

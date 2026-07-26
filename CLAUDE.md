@@ -102,6 +102,13 @@ Bei Änderungen an der Oberfläche **hinsehen**. Chrome ist installiert, ein
 Skript mit `playwright-core` und `channel: "chrome"` genügt für Screenshots.
 Mehrere Anzeigefehler dieses Projekts sind ausschließlich so aufgefallen.
 
+**Barrierefreiheit misst man, statt sie zu behaupten.** `axe-core` liegt als
+Entwicklungsabhängigkeit bereit; ein Skript hängt es per `addScriptTag` in
+die laufende Seite und ruft `axe.run` mit den WCAG-Tags auf. Jeder
+Dialogzustand ist eine eigene Prüfung — geschlossene Dialoge stehen nicht im
+DOM. Der Kontrast gedämpfter Texte ist der Punkt, der hier schon einmal
+gerissen wurde; die aufgehellten Stufen stehen in `globals.css` im `@theme`.
+
 Wer den Standalone-Bau von Hand startet (`node .next/standalone/server.js`),
 muss vorher `.next/static` und `public` danebenkopieren — sonst lädt kein
 JavaScript, die Seite bleibt serverseitig gerendert, und Formulare senden
