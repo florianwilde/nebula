@@ -1,6 +1,6 @@
 {
   "name": "nebula",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "private": true,
   "description": "Nebula – Dashboard fuer Vibe-Coding Projekte mit Git-Anbindung (GitHub, GitLab, Gitea)",
   "scripts": {
@@ -25,7 +25,10 @@
     "setup": "node scripts/setup.mjs",
     "postinstall": "prisma generate",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:e2e": "npm run build && playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:all": "npm test && npm run test:e2e"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
@@ -47,6 +50,7 @@
     "zod": "^3.25.28"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.0",
     "@tailwindcss/postcss": "^4.1.7",
     "@types/node": "^22.15.21",
     "@types/react": "^19.1.5",

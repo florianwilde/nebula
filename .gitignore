@@ -46,6 +46,12 @@ yarn-error.log*
 # Sicherungen aus scripts/backup.* – enthalten alle Daten der Instanz
 /backups
 
+# Playwright
+/test-results
+/playwright-report
+/blob-report
+/playwright/.cache
+
 # editors
 .idea/
 .vscode/*
