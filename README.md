@@ -347,6 +347,7 @@ ausschließlich Daten des angemeldeten Kontos.
 | `POST` | `/api/projects/:id/sync` | Repo-Daten vom Git-System holen |
 | `GET` `POST` | `/api/projects/:id/tasks` | Aufgaben des Projekts |
 | `PATCH` | `/api/projects/:id/tasks/reorder` | Neue Reihenfolge nach dem Ziehen |
+| `POST` | `/api/projects/:id/tasks/from-issues` | Offene Issues als Aufgaben übernehmen |
 | `PATCH` `DELETE` | `/api/tasks/:id` | Aufgabe ändern / löschen |
 | `GET` `POST` | `/api/projects/:id/notes` | Notizen des Projekts |
 | `PATCH` `DELETE` | `/api/notes/:id` | Notiz ändern / löschen |

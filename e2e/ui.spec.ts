@@ -98,6 +98,27 @@ test("Volltextsuche findet Notizen", async ({ page }) => {
   await expect(page.getByText("Treffer in Notizen")).toBeVisible();
 });
 
+test("Schnellsuche findet Projekt und Notiz", async ({ page }) => {
+  await page.keyboard.press("Control+k");
+  await expect(page.getByRole("dialog", { name: "Schnellsuche" })).toBeVisible();
+
+  // Ohne Eingabe stehen Projekte und Bereiche bereit.
+  await expect(page.getByRole("dialog").getByText("Oberflaechentest")).toBeVisible();
+
+  await page.getByPlaceholder(/Projekt, Notiz oder Bereich/).fill("Zaunkoenig");
+  await expect(page.getByRole("dialog").getByText(/in Oberflaechentest/)).toBeVisible();
+
+  // Enter springt zum ersten Treffer.
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("heading", { name: "Oberflaechentest" })).toBeVisible();
+
+  // Escape schliesst wieder.
+  await page.keyboard.press("Control+k");
+  await expect(page.getByRole("dialog", { name: "Schnellsuche" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog", { name: "Schnellsuche" })).toBeHidden();
+});
+
 test("Abmelden fuehrt zurueck zur Anmeldung", async ({ page }) => {
   await page.getByRole("button", { name: /Benutzermenue/ }).click();
   await page.getByRole("menuitem", { name: "Abmelden" }).click();

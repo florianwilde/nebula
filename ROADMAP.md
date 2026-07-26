@@ -63,12 +63,10 @@ Voraussetzung, falls du das Projekt veröffentlichen willst.
 
 | Idee | Aufwand | Nutzen |
 | --- | --- | --- |
-| Schnellsuche per `Strg+K` | `S` | Springt direkt zu Projekt oder Aktion |
 | Suchtreffer in Notizen hervorheben | `S` | In der Notiz selbst, nicht nur in der Trefferliste |
 | Mehrfachauswahl im Board | `S` | Status oder Tags für mehrere auf einmal |
 | Aktivitätsverlauf je Projekt | `S` | Wer hat wann was geändert |
 | Wiederkehrende Aufgaben | `M` | Etwa „jeden Montag Abhängigkeiten prüfen" |
-| Aufgaben aus Git-Issues übernehmen | `M` | Offene Issues als Aufgaben einhängen |
 | Projektvorlagen | `S` | Neues Projekt mit vorgefüllten Tags und Notizen |
 | Hell/Dunkel umschaltbar | `M` | Aktuell nur dunkel |
 | Eigenes Logo und Farbe | `S` | Ergänzt `APP_NAME` |
@@ -112,6 +110,7 @@ Damit klar ist, was **nicht** kommt und warum:
 | **v0.6.0** Ende-zu-Ende-Tests mit Playwright, CI-Pipeline für Gitea Actions | ✓ |
 | **v0.7.0** Benachrichtigungen über ntfy, Webhook und E-Mail | ✓ |
 | **v0.8.0** Stillstehende Projekte melden, Schwelle im Adminbereich | ✓ |
+| **v0.9.0** Schnellsuche per `Strg+K`, Aufgaben aus Git-Issues | ✓ |
 
 Zur Entscheidung beim Export: Git-Tokens gehen **nicht** mit. Die Verbindung wird nur
 beschrieben, das Token ist nach dem Import neu zu hinterlegen. Snapshots bleiben

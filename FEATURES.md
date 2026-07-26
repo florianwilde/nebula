@@ -117,6 +117,19 @@ Der Status ist **direkt auf der Projektkarte** umschaltbar, ohne den Detailberei
 - **Archiv** ist standardmäßig ausgeblendet und per Schalter einblendbar.
 - **Leerzustände** mit direktem Einstieg statt einer leeren Fläche.
 
+### Schnellsuche
+
+**`Strg+K`** (auf dem Mac `Cmd+K`) öffnet überall eine Palette:
+
+- **Projekte** nach Name, Kurzbeschreibung und Tags — ohne Eingabe stehen die letzten
+  gleich bereit
+- **Notizen** über dieselbe Volltextsuche wie im Board, entprellt ab zwei Zeichen
+- **Bereiche**: Dashboard, Git-Verbindungen, Mein Konto, Admin-Einstellungen
+
+Bedienung über Tastatur: Pfeile wählen, `Enter` öffnet, `Esc` schließt. Die Projektliste
+wird beim ersten Öffnen geholt und dann behalten — sie bei jedem Tastendruck neu zu laden
+wäre Verschwendung.
+
 ### Kanban
 
 Spalten je Status, Karten per Ziehen verschiebbar. Der Wechsel wird sofort angezeigt und
@@ -151,6 +164,19 @@ Blockiert · Erledigt**.
   gedämpft.
 - Erledigtes wird durchgestrichen; der Zeitpunkt wird festgehalten und beim Zurückziehen
   wieder gelöscht.
+
+### Aus Git-Issues übernehmen
+
+Im Git-Panel, Reiter *Issues*: ein Klick macht aus den offenen Issues Aufgaben — Titel,
+Labels und ein Link zurück ins Git-System.
+
+- Grundlage ist der **zuletzt geholte Stand**, hier wird nichts nachgeladen. Ein Klick
+  soll nicht ungefragt fremde APIs ansprechen; wer den neuesten Stand will, gleicht
+  vorher ab.
+- Die Issue-Nummer bleibt an der Aufgabe und ist je Projekt eindeutig. Ein zweiter Klick
+  legt deshalb **keine Dubletten** an, auch wenn die Aufgabe inzwischen verschoben oder
+  umbenannt wurde.
+- Ohne Repo-Stand meldet der Server das mit einem Hinweis statt still nichts zu tun.
 
 ### Fortschritt aus Aufgaben
 

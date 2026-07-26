@@ -184,6 +184,20 @@ test("Aufgaben: Reihenfolge, abgeleiteter Fortschritt, fremde IDs", async ({ req
   expect(unveraendert.status).toBe("TODO");
 });
 
+test("Issues als Aufgaben uebernehmen, ohne Dubletten", async ({ request }) => {
+  await login(request, ADMIN);
+
+  const projekt = (
+    await (await request.post("/api/projects", { data: { name: "Issue-Projekt" } })).json()
+  ).project;
+
+  // Ohne Repo-Stand gibt es nichts zu uebernehmen – und das sagt der Server auch.
+  const ohneStand = await request.post(`/api/projects/${projekt.id}/tasks/from-issues`, {
+    data: {},
+  });
+  expect(ohneStand.status()).toBe(409);
+});
+
 test("Export enthaelt keine Geheimnisse, Import beachtet die Strategie", async ({ request }) => {
   await login(request, ADMIN);
 
