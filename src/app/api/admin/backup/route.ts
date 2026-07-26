@@ -56,6 +56,7 @@ export async function GET() {
     prisma.project.findMany({
       include: {
         notes: { orderBy: { createdAt: "asc" } },
+        tasks: { orderBy: [{ status: "asc" }, { position: "asc" }] },
         // Snapshots bleiben draussen: reproduzierbar und gross.
       },
       orderBy: { name: "asc" },

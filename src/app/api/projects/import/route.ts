@@ -159,7 +159,24 @@ export async function POST(request: Request) {
       repoOwner: incoming.repoOwner ?? null,
       repoName: incoming.repoName ?? null,
       connectionId: connection?.id ?? null,
+      progressFromTasks: incoming.progressFromTasks,
     };
+
+    const tasks = incoming.tasks.map((task, index) => ({
+      title: task.title,
+      description: task.description ?? null,
+      status: task.status,
+      // Position aus der Datei uebernehmen, notfalls die Reihenfolge in ihr.
+      position: task.position ?? index,
+      dueDate: task.dueDate && !Number.isNaN(Date.parse(task.dueDate))
+        ? new Date(task.dueDate)
+        : null,
+      labels: task.labels,
+      doneAt: task.status === "DONE" ? new Date() : null,
+      ...(task.createdAt && !Number.isNaN(Date.parse(task.createdAt))
+        ? { createdAt: new Date(task.createdAt) }
+        : {}),
+    }));
 
     const notes = incoming.notes.map((note) => ({
       title: note.title ?? null,
@@ -176,9 +193,10 @@ export async function POST(request: Request) {
         // erneuter Import erzeugt keine Dubletten.
         await prisma.$transaction([
           prisma.note.deleteMany({ where: { projectId: existing.id } }),
+          prisma.task.deleteMany({ where: { projectId: existing.id } }),
           prisma.project.update({
             where: { id: existing.id },
-            data: { ...data, slug, notes: { create: notes } },
+            data: { ...data, slug, notes: { create: notes }, tasks: { create: tasks } },
           }),
         ]);
         results.push({ ...base, action: "overwrite" });
@@ -190,6 +208,7 @@ export async function POST(request: Request) {
             ownerId: auth.user.id,
             slug: finalSlug,
             notes: { create: notes },
+            tasks: { create: tasks },
           },
         });
         results.push({

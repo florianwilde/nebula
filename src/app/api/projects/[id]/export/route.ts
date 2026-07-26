@@ -25,6 +25,7 @@ export async function GET(request: Request, { params }: Params) {
     where: { id, ownerId: auth.user.id },
     include: {
       notes: { orderBy: [{ pinned: "desc" }, { createdAt: "asc" }] },
+      tasks: { orderBy: [{ status: "asc" }, { position: "asc" }] },
       connection: { select: { name: true, provider: true, baseUrl: true } },
       snapshot: true,
     },

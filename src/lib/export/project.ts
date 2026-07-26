@@ -1,12 +1,13 @@
-import type { GitConnection, Note, Project, RepoSnapshot } from "@prisma/client";
+import type { GitConnection, Note, Project, RepoSnapshot, Task } from "@prisma/client";
 import { APP_NAME } from "@/lib/config";
 import { prisma } from "@/lib/db";
 import { PRIORITY_META, statusOf } from "@/lib/status";
-import { formatDateTime } from "@/lib/utils";
+import { formatDate, formatDateTime } from "@/lib/utils";
 import { EXPORT_KIND, EXPORT_VERSION, type ExportFile, type ExportedProject } from "./format";
 
 type ProjectForExport = Project & {
   notes: Note[];
+  tasks: Task[];
   connection: Pick<GitConnection, "name" | "provider" | "baseUrl"> | null;
 };
 
@@ -40,6 +41,16 @@ export function toExportedProject(project: ProjectForExport): ExportedProject {
       pinned: note.pinned,
       createdAt: note.createdAt.toISOString(),
     })),
+    tasks: project.tasks.map((task) => ({
+      title: task.title,
+      description: task.description,
+      status: task.status,
+      position: task.position,
+      dueDate: task.dueDate?.toISOString() ?? null,
+      labels: task.labels,
+      createdAt: task.createdAt.toISOString(),
+    })),
+    progressFromTasks: project.progressFromTasks,
     createdAt: project.createdAt.toISOString(),
   };
 }
@@ -63,6 +74,7 @@ export async function loadProjectsForExport(
     where: { ownerId, ...(projectId ? { id: projectId } : {}) },
     include: {
       notes: { orderBy: [{ pinned: "desc" }, { createdAt: "asc" }] },
+      tasks: { orderBy: [{ status: "asc" }, { position: "asc" }] },
       connection: { select: { name: true, provider: true, baseUrl: true } },
     },
     orderBy: { name: "asc" },
@@ -75,6 +87,13 @@ const PROVIDER_LABEL: Record<string, string> = {
   GITHUB: "GitHub",
   GITLAB: "GitLab",
   GITEA: "Gitea",
+};
+
+const TASK_LABEL: Record<string, string> = {
+  TODO: "Offen",
+  DOING: "In Arbeit",
+  BLOCKED: "Blockiert",
+  DONE: "Erledigt",
 };
 
 /**
@@ -129,6 +148,21 @@ export function toMarkdown(
       );
     }
     lines.push("");
+  }
+
+  if (project.tasks.length) {
+    lines.push("## Aufgaben", "");
+    for (const status of ["TODO", "DOING", "BLOCKED", "DONE"] as const) {
+      const inColumn = project.tasks.filter((task) => task.status === status);
+      if (!inColumn.length) continue;
+      lines.push(`### ${TASK_LABEL[status]}`, "");
+      for (const task of inColumn) {
+        const box = status === "DONE" ? "[x]" : "[ ]";
+        const due = task.dueDate ? ` _(faellig ${formatDate(task.dueDate)})_` : "";
+        lines.push(`- ${box} ${task.title}${due}`);
+      }
+      lines.push("");
+    }
   }
 
   if (project.notes.length) {

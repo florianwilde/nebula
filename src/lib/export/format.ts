@@ -27,6 +27,16 @@ export const exportedNoteSchema = z.object({
   createdAt: z.string().optional(),
 });
 
+export const exportedTaskSchema = z.object({
+  title: z.string().min(1).max(200),
+  description: z.string().max(5000).nullable().optional(),
+  status: z.enum(["TODO", "DOING", "BLOCKED", "DONE"]).optional().default("TODO"),
+  position: z.number().int().min(0).optional().default(0),
+  dueDate: z.string().nullable().optional(),
+  labels: z.array(z.string().max(30)).max(8).optional().default([]),
+  createdAt: z.string().optional(),
+});
+
 export const exportedConnectionSchema = z.object({
   name: z.string().max(80),
   provider: z.enum(PROVIDERS),
@@ -51,6 +61,8 @@ export const exportedProjectSchema = z.object({
   /** Nur zur Wiedererkennung – ohne Token. */
   connection: exportedConnectionSchema.nullable().optional(),
   notes: z.array(exportedNoteSchema).max(500).optional().default([]),
+  tasks: z.array(exportedTaskSchema).max(1000).optional().default([]),
+  progressFromTasks: z.boolean().optional().default(false),
   createdAt: z.string().optional(),
 });
 
