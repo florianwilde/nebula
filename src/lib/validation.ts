@@ -35,6 +35,41 @@ export const projectCreateSchema = z.object({
 
 export const projectUpdateSchema = projectCreateSchema.partial();
 
+/**
+ * Neue Reihenfolge im Brett. Uebergeben wird je betroffener Spalte die
+ * vollstaendige Liste in ihrer neuen Reihenfolge – daraus ergeben sich Status
+ * und Position eindeutig, und der Aufruf laesst sich gefahrlos wiederholen.
+ */
+export const projectReorderSchema = z.object({
+  columns: z
+    .record(z.enum(STATUS), z.array(z.string().min(1)).max(500))
+    .refine((value) => Object.keys(value).length > 0, "Keine Spalte angegeben"),
+});
+
+/** Dieselbe Aenderung fuer mehrere Projekte auf einmal. */
+export const projectBulkSchema = z
+  .object({
+    ids: z.array(z.string().min(1)).min(1).max(200),
+    action: z.enum(["status", "tags", "favorite", "delete"]),
+    status: z.enum(STATUS).optional(),
+    /** Bei action "tags": ergaenzen oder entfernen. */
+    tags: z.array(z.string().trim().min(1).max(30)).max(12).optional(),
+    tagMode: z.enum(["add", "remove"]).default("add"),
+    favorite: z.boolean().optional(),
+  })
+  .refine((value) => value.action !== "status" || value.status !== undefined, {
+    message: "Ohne Zielstatus laesst sich nichts verschieben",
+    path: ["status"],
+  })
+  .refine((value) => value.action !== "tags" || (value.tags?.length ?? 0) > 0, {
+    message: "Ohne Tags gibt es nichts zu aendern",
+    path: ["tags"],
+  })
+  .refine((value) => value.action !== "favorite" || value.favorite !== undefined, {
+    message: "Kein Zielzustand angegeben",
+    path: ["favorite"],
+  });
+
 // ── Repositories ─────────────────────────────────────────────
 
 export const repositoryCreateSchema = z.object({

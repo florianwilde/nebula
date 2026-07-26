@@ -8,7 +8,7 @@ import {
   repositoriesOf,
   type ExportedRepository,
 } from "@/lib/export/format";
-import { uniqueSlug } from "@/lib/projects";
+import { nextProjectPosition, uniqueSlug } from "@/lib/projects";
 import { LIMITS, rateLimit } from "@/lib/security/rateLimit";
 import {
   IMPORT_MAX_BODY_BYTES,
@@ -164,6 +164,8 @@ export async function POST(request: Request) {
     }
 
     const data = {
+      // Hinten an die Statusspalte des Bretts, in der Reihenfolge der Datei.
+      position: await nextProjectPosition(auth.user.id, incoming.status),
       name: incoming.name,
       summary: incoming.summary ?? null,
       description: incoming.description ?? null,

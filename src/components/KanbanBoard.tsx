@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -8,53 +8,81 @@ import {
   DragOverlay,
   PointerSensor,
   TouchSensor,
-  closestCorners,
-  useDraggable,
+  pointerWithin,
   useDroppable,
   useSensor,
   useSensors,
   type DragEndEvent,
+  type DragOverEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { restrictToWindowEdges } from "@dnd-kit/modifiers";
-import { GitBranch, GripVertical, NotebookPen } from "lucide-react";
+import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { GitBranch, GripVertical, Loader2, NotebookPen } from "lucide-react";
 import type { ProjectStatus } from "@prisma/client";
 import { CiBadge } from "@/components/CiBadge";
 import { STATUS_META, STATUS_ORDER, accentOf } from "@/lib/status";
 import { cn, truncate } from "@/lib/utils";
 import type { ProjectListItem } from "@/types";
 
+type Columns = Record<ProjectStatus, ProjectListItem[]>;
+
 /**
- * Statusspalten mit Ziehen und Ablegen.
+ * Statusspalten mit Ziehen, Ablegen und freier Reihenfolge.
  *
- * Der Statuswechsel wird sofort angezeigt und erst danach gespeichert;
- * scheitert das Speichern, springt die Karte zurueck. Die Reihenfolge
- * innerhalb einer Spalte ist nicht frei sortierbar – sie folgt der im Board
- * gewaehlten Sortierung, sonst muesste eine Position mitgespeichert werden.
+ * Die Reihenfolge innerhalb einer Spalte wird als Position am Projekt
+ * gespeichert – wie beim Aufgabenbrett. Deshalb richtet sich das Brett auch
+ * nicht nach der im Kopf gewaehlten Sortierung: die gilt fuer Raster und
+ * Gruppen, hier zaehlt die Anordnung von Hand.
+ *
+ * Verschieben wird sofort angezeigt und erst danach gespeichert; scheitert
+ * das Speichern, springt alles auf den Serverstand zurueck.
  */
 export function KanbanBoard({
   projects,
   showArchived,
+  selection,
+  onToggleSelect,
 }: {
   projects: ProjectListItem[];
   showArchived: boolean;
+  selection: Set<string>;
+  onToggleSelect: (id: string, selected: boolean) => void;
 }) {
   const router = useRouter();
-  const [overrides, setOverrides] = useState<Record<string, ProjectStatus>>({});
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
-  // Eine Verschiebung, die der Server bestaetigt hat, braucht keine
-  // oertliche Ausnahme mehr.
-  useEffect(() => {
-    setOverrides((current) => {
-      const next: Record<string, ProjectStatus> = {};
-      for (const [id, status] of Object.entries(current)) {
-        const project = projects.find((entry) => entry.id === id);
-        if (project && project.status !== status) next[id] = status;
+  const sichtbar = useMemo(
+    () => STATUS_ORDER.filter((status) => showArchived || status !== "ARCHIVED"),
+    [showArchived],
+  );
+
+  const group = useMemo(
+    () => (list: ProjectListItem[]): Columns => {
+      const leer = Object.fromEntries(
+        STATUS_ORDER.map((status) => [status, [] as ProjectListItem[]]),
+      ) as Columns;
+      for (const project of list) leer[project.status].push(project);
+      for (const status of STATUS_ORDER) {
+        // Bei gleicher Position bleibt es bei der Reihenfolge, in der die
+        // Liste kam – das ist die im Kopf gewaehlte Sortierung.
+        leer[status].sort((a, b) => a.position - b.position);
       }
-      return Object.keys(next).length === Object.keys(current).length ? current : next;
-    });
-  }, [projects]);
+      return leer;
+    },
+    [],
+  );
+
+  const [columns, setColumns] = useState<Columns>(() => group(projects));
+
+  // Waehrend eines Zuges nicht dazwischenfunken: der Serverstand ist dann
+  // noch der alte und wuerde die Karte zurueckspringen lassen.
+  const dragging = useRef(false);
+  useEffect(() => {
+    if (!dragging.current) setColumns(group(projects));
+  }, [projects, group]);
 
   const sensors = useSensors(
     // Erst ab ein paar Pixeln Bewegung ziehen – sonst liesse sich die Karte
@@ -63,72 +91,138 @@ export function KanbanBoard({
     useSensor(TouchSensor, { activationConstraint: { delay: 180, tolerance: 8 } }),
   );
 
-  const statusOf = (project: ProjectListItem) => overrides[project.id] ?? project.status;
+  const active = activeId
+    ? Object.values(columns).flat().find((project) => project.id === activeId) ?? null
+    : null;
 
-  const columns = useMemo(() => {
-    const visible = STATUS_ORDER.filter(
-      (status) => showArchived || status !== "ARCHIVED",
+  /** In welcher Spalte steckt diese Kennung – oder ist sie selbst eine? */
+  function containerOf(key: string): ProjectStatus | null {
+    if ((STATUS_ORDER as string[]).includes(key)) return key as ProjectStatus;
+    return (
+      STATUS_ORDER.find((status) => columns[status].some((project) => project.id === key)) ?? null
     );
-    return visible.map((status) => ({
-      status,
-      items: projects.filter((project) => statusOf(project) === status),
-    }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projects, overrides, showArchived]);
-
-  const active = activeId ? projects.find((project) => project.id === activeId) : null;
+  }
 
   function onDragStart(event: DragStartEvent) {
+    dragging.current = true;
     setActiveId(String(event.active.id));
   }
 
+  function onDragOver(event: DragOverEvent) {
+    const activeKey = String(event.active.id);
+    const overKey = event.over ? String(event.over.id) : null;
+    if (!overKey) return;
+
+    const from = containerOf(activeKey);
+    const to = containerOf(overKey);
+    if (!from || !to || from === to) return;
+
+    setColumns((current) => {
+      const moved = current[from].find((project) => project.id === activeKey);
+      if (!moved) return current;
+
+      const zielIndex = current[to].findIndex((project) => project.id === overKey);
+      const einfuegenBei = zielIndex >= 0 ? zielIndex : current[to].length;
+
+      return {
+        ...current,
+        [from]: current[from].filter((project) => project.id !== activeKey),
+        [to]: [
+          ...current[to].slice(0, einfuegenBei),
+          { ...moved, status: to },
+          ...current[to].slice(einfuegenBei),
+        ],
+      };
+    });
+  }
+
   async function onDragEnd(event: DragEndEvent) {
+    const activeKey = String(event.active.id);
+    const overKey = event.over ? String(event.over.id) : null;
+
+    let next = columns;
+
+    if (overKey) {
+      const container = containerOf(activeKey);
+      const ueber = containerOf(overKey);
+      if (container && container === ueber) {
+        const list = columns[container];
+        const alt = list.findIndex((project) => project.id === activeKey);
+        const neu = list.findIndex((project) => project.id === overKey);
+        if (alt >= 0 && neu >= 0 && alt !== neu) {
+          const sortiert = [...list];
+          const [moved] = sortiert.splice(alt, 1);
+          sortiert.splice(neu, 0, moved);
+          next = { ...columns, [container]: sortiert };
+          setColumns(next);
+        }
+      }
+    }
+
     setActiveId(null);
+    dragging.current = false;
+    await persist(next);
+  }
 
-    const id = String(event.active.id);
-    const target = event.over?.id ? (String(event.over.id) as ProjectStatus) : null;
-    if (!target) return;
-
-    const project = projects.find((entry) => entry.id === id);
-    if (!project) return;
-
-    const previous = statusOf(project);
-    if (previous === target) return;
-
-    setOverrides((current) => ({ ...current, [id]: target }));
-
+  async function persist(next: Columns) {
+    setSaving(true);
     try {
-      const response = await fetch(`/api/projects/${id}`, {
+      const response = await fetch("/api/projects/reorder", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: target }),
+        body: JSON.stringify({
+          columns: Object.fromEntries(
+            sichtbar.map((status) => [status, next[status].map((project) => project.id)]),
+          ),
+        }),
       });
       if (!response.ok) throw new Error("failed");
       router.refresh();
     } catch {
-      setOverrides((current) => {
-        const next = { ...current };
-        delete next[id];
-        return next;
-      });
+      // Zurueck auf den Serverstand – die Bewegung war dann nur optisch.
+      setColumns(group(projects));
+    } finally {
+      setSaving(false);
     }
   }
 
   return (
     <DndContext
       sensors={sensors}
-      collisionDetection={closestCorners}
+      collisionDetection={pointerWithin}
       modifiers={[restrictToWindowEdges]}
       onDragStart={onDragStart}
+      onDragOver={onDragOver}
       onDragEnd={onDragEnd}
-      onDragCancel={() => setActiveId(null)}
+      onDragCancel={() => {
+        setActiveId(null);
+        dragging.current = false;
+        setColumns(group(projects));
+      }}
     >
+      {saving ? (
+        <p className="mb-2 flex items-center gap-1.5 text-[11px] text-slate-500">
+          <Loader2 className="h-3 w-3 animate-spin" />
+          Reihenfolge wird gespeichert…
+        </p>
+      ) : null}
+
       <div className="flex gap-3 overflow-x-auto pb-3">
-        {columns.map((column) => (
-          <Column key={column.status} status={column.status} count={column.items.length}>
-            {column.items.map((project) => (
-              <KanbanCard key={project.id} project={project} />
-            ))}
+        {sichtbar.map((status) => (
+          <Column key={status} status={status} count={columns[status].length}>
+            <SortableContext
+              items={columns[status].map((project) => project.id)}
+              strategy={verticalListSortingStrategy}
+            >
+              {columns[status].map((project) => (
+                <KanbanCard
+                  key={project.id}
+                  project={project}
+                  selected={selection.has(project.id)}
+                  onToggleSelect={onToggleSelect}
+                />
+              ))}
+            </SortableContext>
           </Column>
         ))}
       </div>
@@ -196,28 +290,36 @@ function Column({
 function KanbanCard({
   project,
   overlay = false,
+  selected = false,
+  onToggleSelect,
 }: {
   project: ProjectListItem;
   overlay?: boolean;
+  selected?: boolean;
+  onToggleSelect?: (id: string, selected: boolean) => void;
 }) {
   const accent = accentOf(project.accent);
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: project.id });
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: project.id,
+  });
 
   return (
     <article
       ref={overlay ? undefined : setNodeRef}
+      style={
+        {
+          "--accent-from": accent.from,
+          "--accent-to": accent.to,
+          ...(overlay ? {} : { transform: CSS.Transform.toString(transform), transition }),
+        } as React.CSSProperties
+      }
       className={cn(
         "popover group relative overflow-hidden p-3",
         // Das Original bleibt als blasser Platzhalter stehen.
         isDragging && !overlay && "opacity-30",
         overlay && "rotate-2 cursor-grabbing shadow-2xl ring-1 ring-violet-400/40",
+        selected && "ring-1 ring-violet-400/60",
       )}
-      style={
-        {
-          "--accent-from": accent.from,
-          "--accent-to": accent.to,
-        } as React.CSSProperties
-      }
     >
       <span className="accent-bar absolute inset-x-0 top-0 h-[2px] opacity-70" aria-hidden="true" />
 
@@ -232,6 +334,16 @@ function KanbanCard({
         >
           <GripVertical className="h-3.5 w-3.5" />
         </button>
+
+        {onToggleSelect ? (
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={(event) => onToggleSelect(project.id, event.target.checked)}
+            className="mt-1 h-3.5 w-3.5 shrink-0 accent-violet-500"
+            aria-label={`${project.name} auswaehlen`}
+          />
+        ) : null}
 
         <div className="min-w-0 flex-1">
           <Link

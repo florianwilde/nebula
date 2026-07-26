@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { recordActivity } from "@/lib/activity";
 import { requireUserApi } from "@/lib/auth/guard";
 import { prisma } from "@/lib/db";
-import { projectListInclude, uniqueSlug } from "@/lib/projects";
+import { nextProjectPosition, projectListInclude, uniqueSlug } from "@/lib/projects";
 import { applyLeadingRepo } from "@/lib/repositories";
 import { LIMITS, rateLimit } from "@/lib/security/rateLimit";
 import { clientIp, jsonError, readJsonBody, tooManyRequests } from "@/lib/security/request";
@@ -87,6 +87,8 @@ export async function POST(request: Request) {
       accent: data.accent,
       tags: data.tags,
       favorite: data.favorite,
+      // Hinten an die Statusspalte des Bretts.
+      position: await nextProjectPosition(auth.user.id, data.status),
     },
     select: { id: true },
   });

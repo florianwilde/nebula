@@ -3,7 +3,12 @@ import { NextResponse } from "next/server";
 import { describeFields, describeStatus, recordActivities, shorten } from "@/lib/activity";
 import { requireUserApi } from "@/lib/auth/guard";
 import { prisma } from "@/lib/db";
-import { projectDetailInclude, projectListInclude, uniqueSlug } from "@/lib/projects";
+import {
+  nextProjectPosition,
+  projectDetailInclude,
+  projectListInclude,
+  uniqueSlug,
+} from "@/lib/projects";
 import { applyLeadingRepo, type RepoInput } from "@/lib/repositories";
 import { jsonError, readJsonBody } from "@/lib/security/request";
 import { refreshDerivedProgress } from "@/lib/tasks";
@@ -80,6 +85,13 @@ export async function PATCH(request: Request, { params }: Params) {
     "progressFromTasks",
   ] as const) {
     if (data[key] !== undefined) update[key] = data[key];
+  }
+
+  // Beim Statuswechsel ans Ende der neuen Spalte – sonst behielte das Projekt
+  // seinen alten Rang und saesse mitten in einer Spalte, in der es eben erst
+  // angekommen ist.
+  if (data.status !== undefined && data.status !== existing.status) {
+    update.position = await nextProjectPosition(auth.user.id, data.status);
   }
 
   await prisma.project.update({ where: { id }, data: update });

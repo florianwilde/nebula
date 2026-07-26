@@ -1,4 +1,4 @@
-import { Prisma } from "@prisma/client";
+import { Prisma, type ProjectStatus } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { slugify } from "@/lib/utils";
 
@@ -26,6 +26,25 @@ export async function uniqueSlug(
     counter += 1;
   }
   return `${base}-${Date.now()}`;
+}
+
+/**
+ * Naechste freie Position am Ende einer Statusspalte im Brett.
+ *
+ * Muss bei jedem Anlegen und bei jedem Statuswechsel gesetzt werden – sonst
+ * stehen alle auf 0 und das Brett zeigt eine Reihenfolge, die sich bei jedem
+ * Laden anders ergeben kann.
+ */
+export async function nextProjectPosition(
+  ownerId: string,
+  status: ProjectStatus,
+): Promise<number> {
+  const last = await prisma.project.findFirst({
+    where: { ownerId, status },
+    orderBy: { position: "desc" },
+    select: { position: true },
+  });
+  return (last?.position ?? -1) + 1;
 }
 
 /**

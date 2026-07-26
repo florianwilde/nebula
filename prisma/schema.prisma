@@ -315,6 +315,9 @@ model Project {
   accent      String        @default("violet")
   tags        String[]      @default([])
   favorite    Boolean       @default(false)
+  /// Rang innerhalb der Statusspalte im Brett. Nur dort wirksam – die
+  /// uebrigen Ansichten folgen der gewaehlten Sortierung.
+  position    Int           @default(0)
 
   /// Besitzer. Nullable wie bei GitConnection, damit Bestandsdaten beim
   /// Einrichten des ersten Kontos uebernommen werden koennen.
@@ -343,6 +346,7 @@ model Project {
   @@index([status])
   @@index([updatedAt])
   @@index([ownerId])
+  @@index([ownerId, status, position])
 }
 
 /// Ein Repository eines Projekts. Ein Vorhaben besteht oft aus mehreren –
