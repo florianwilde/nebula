@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowLeft,
+  BookmarkPlus,
   CalendarDays,
   CheckSquare,
   Download,
@@ -17,6 +18,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { ProjectDialog } from "@/components/ProjectDialog";
+import { SaveTemplateDialog } from "@/components/SaveTemplateDialog";
 import { StatusSelect } from "@/components/StatusSelect";
 import { Popover } from "@/components/ui/Popover";
 import { repoTitle } from "@/lib/git/meta";
@@ -36,6 +38,7 @@ export function ProjectHeader({
   const priority = PRIORITY_META[project.priority] ?? PRIORITY_META[2];
 
   const [editOpen, setEditOpen] = useState(false);
+  const [templateOpen, setTemplateOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const exportButtonRef = useRef<HTMLButtonElement>(null);
   const [favorite, setFavorite] = useState(project.favorite);
@@ -181,6 +184,14 @@ export function ProjectHeader({
             </button>
             <button
               type="button"
+              className="btn btn-ghost px-2.5 py-1.5 text-xs"
+              onClick={() => setTemplateOpen(true)}
+              title="Als Vorlage sichern"
+            >
+              <BookmarkPlus className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
               className="btn btn-ghost px-3 py-1.5 text-xs"
               onClick={() => setEditOpen(true)}
             >
@@ -283,6 +294,16 @@ export function ProjectHeader({
         onClose={() => setEditOpen(false)}
         connections={connections}
         project={project}
+      />
+
+      <SaveTemplateDialog
+        open={templateOpen}
+        onClose={() => setTemplateOpen(false)}
+        projectId={project.id}
+        projectName={project.name}
+        noteCount={project.notes.length}
+        // Erledigte kommen nicht mit – hier steht, was wirklich uebernommen wird.
+        taskCount={project.tasks.filter((task) => task.status !== "DONE").length}
       />
     </header>
   );

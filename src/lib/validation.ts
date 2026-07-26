@@ -3,6 +3,7 @@ import { z } from "zod";
 const STATUS = ["IDEA", "OPEN", "PLANNING", "IN_DEVELOPMENT", "DONE", "ARCHIVED"] as const;
 const PROVIDERS = ["GITHUB", "GITLAB", "GITEA"] as const;
 const ACCENTS = ["violet", "cyan", "emerald", "amber", "rose", "blue"] as const;
+const TASK_STATUS = ["TODO", "DOING", "BLOCKED", "DONE"] as const;
 
 const emptyToNull = (value: unknown) =>
   typeof value === "string" && value.trim() === "" ? null : value;
@@ -31,9 +32,17 @@ export const projectCreateSchema = z.object({
   autoSync: z.boolean().default(true),
   /** Fortschritt aus dem Verhaeltnis erledigter Aufgaben berechnen. */
   progressFromTasks: z.boolean().default(false),
+  /**
+   * Aus welcher Vorlage. Die Stammdaten hat die Oberflaeche bereits in die
+   * Felder oben uebernommen – hier zaehlen nur noch Notizen und Aufgaben,
+   * die sich im Dialog nicht darstellen lassen.
+   */
+  templateId: z.preprocess(emptyToNull, z.string().trim().nullable().optional()),
 });
 
-export const projectUpdateSchema = projectCreateSchema.partial();
+// templateId gilt nur beim Anlegen. Ein bestehendes Projekt nachtraeglich
+// "aus einer Vorlage" zu befuellen wuerde Notizen und Aufgaben verdoppeln.
+export const projectUpdateSchema = projectCreateSchema.partial().omit({ templateId: true });
 
 /**
  * Neue Reihenfolge im Brett. Uebergeben wird je betroffener Spalte die
@@ -70,6 +79,50 @@ export const projectBulkSchema = z
     path: ["favorite"],
   });
 
+// ── Projektvorlagen ──────────────────────────────────────────
+
+const templateNoteSchema = z.object({
+  title: z.preprocess(emptyToNull, z.string().trim().max(160).nullable().optional()),
+  content: z.string().trim().min(1).max(20000),
+  pinned: z.boolean().optional().default(false),
+});
+
+const templateTaskSchema = z.object({
+  title: z.string().trim().min(1).max(200),
+  description: z.preprocess(emptyToNull, z.string().trim().max(5000).nullable().optional()),
+  status: z.enum(TASK_STATUS).optional().default("TODO"),
+  labels: z.array(z.string().trim().min(1).max(30)).max(8).optional().default([]),
+});
+
+export const templateCreateSchema = z.object({
+  name: z.string().trim().min(1, "Name darf nicht leer sein").max(80),
+  description: z.preprocess(emptyToNull, z.string().trim().max(280).nullable().optional()),
+  summary: z.preprocess(emptyToNull, z.string().trim().max(280).nullable().optional()),
+  projectDescription: z.preprocess(
+    emptyToNull,
+    z.string().trim().max(20000).nullable().optional(),
+  ),
+  status: z.enum(STATUS).default("IDEA"),
+  priority: z.coerce.number().int().min(1).max(4).default(2),
+  accent: z.enum(ACCENTS).default("violet"),
+  tags: z.array(z.string().trim().min(1).max(30)).max(12).default([]),
+  progressFromTasks: z.boolean().default(false),
+  notes: z.array(templateNoteSchema).max(50).default([]),
+  tasks: z.array(templateTaskSchema).max(100).default([]),
+});
+
+export const templateUpdateSchema = templateCreateSchema.partial();
+
+/** Aus einem vorhandenen Projekt eine Vorlage machen. */
+export const templateFromProjectSchema = z.object({
+  projectId: z.string().min(1),
+  name: z.string().trim().min(1).max(80),
+  description: z.preprocess(emptyToNull, z.string().trim().max(280).nullable().optional()),
+  /** Notizen und Aufgaben mitnehmen – oder nur die Stammdaten. */
+  withNotes: z.boolean().default(true),
+  withTasks: z.boolean().default(true),
+});
+
 // ── Repositories ─────────────────────────────────────────────
 
 export const repositoryCreateSchema = z.object({
@@ -87,8 +140,6 @@ export const repositoryUpdateSchema = repositoryCreateSchema.partial().extend({
 });
 
 // ── Aufgaben ─────────────────────────────────────────────────
-
-const TASK_STATUS = ["TODO", "DOING", "BLOCKED", "DONE"] as const;
 
 const dueDateField = z.preprocess(
   emptyToNull,

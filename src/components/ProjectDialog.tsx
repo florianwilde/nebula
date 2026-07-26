@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, RefreshCw, Search } from "lucide-react";
+import { Loader2, RefreshCw, Search, Trash2 } from "lucide-react";
 import type { ProjectStatus } from "@prisma/client";
 import { Modal } from "@/components/ui/Modal";
 import { ACCENTS, PRIORITY_META, STATUS_META, STATUS_ORDER } from "@/lib/status";
@@ -15,6 +15,33 @@ interface ProjectDialogProps {
   connections: ConnectionSafe[];
   /** Vorhandenes Projekt = Bearbeiten, sonst Anlegen. */
   project?: ProjectListItem | null;
+}
+
+/** Eine Vorlage, so wie sie /api/templates liefert. */
+export interface ProjectTemplateEntry {
+  id: string;
+  name: string;
+  description: string | null;
+  summary: string | null;
+  projectDescription: string | null;
+  status: ProjectStatus;
+  priority: number;
+  accent: string;
+  tags: string[];
+  progressFromTasks: boolean;
+  notes: unknown[];
+  tasks: unknown[];
+}
+
+/** "3 Notizen, 5 Aufgaben" – oder was davon zutrifft. */
+function beschreibeVorlage(vorlage: ProjectTemplateEntry): string {
+  const teile: string[] = [];
+  const notizen = Array.isArray(vorlage.notes) ? vorlage.notes.length : 0;
+  const aufgaben = Array.isArray(vorlage.tasks) ? vorlage.tasks.length : 0;
+  if (notizen > 0) teile.push(`${notizen} ${notizen === 1 ? "Notiz" : "Notizen"}`);
+  if (aufgaben > 0) teile.push(`${aufgaben} ${aufgaben === 1 ? "Aufgabe" : "Aufgaben"}`);
+  if (vorlage.tags.length > 0) teile.push(vorlage.tags.map((tag) => `#${tag}`).join(" "));
+  return teile.length > 0 ? teile.join(" · ") : "nur Stammdaten";
 }
 
 interface FormState {
@@ -33,6 +60,8 @@ interface FormState {
   repoName: string;
   autoSync: boolean;
   progressFromTasks: boolean;
+  /** Nur beim Anlegen: aus welcher Vorlage Notizen und Aufgaben kommen. */
+  templateId: string;
 }
 
 const EMPTY: FormState = {
@@ -51,6 +80,7 @@ const EMPTY: FormState = {
   repoName: "",
   autoSync: true,
   progressFromTasks: false,
+  templateId: "",
 };
 
 export function ProjectDialog({ open, onClose, connections, project }: ProjectDialogProps) {
@@ -60,13 +90,71 @@ export function ProjectDialog({ open, onClose, connections, project }: ProjectDi
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
+  const isEdit = Boolean(project);
+
+  const [templates, setTemplates] = useState<ProjectTemplateEntry[]>([]);
+  const gewaehlteVorlage = templates.find((entry) => entry.id === form.templateId) ?? null;
+
+  /**
+   * Die Vorlagen werden erst geladen, wenn der Dialog aufgeht – und nur zum
+   * Anlegen. Beim Bearbeiten waeren sie nur Ballast.
+   */
+  useEffect(() => {
+    if (!open || isEdit) return;
+    let abgebrochen = false;
+    fetch("/api/templates")
+      .then((response) => (response.ok ? response.json() : { templates: [] }))
+      .then((payload) => {
+        if (!abgebrochen) setTemplates(payload.templates ?? []);
+      })
+      .catch(() => undefined);
+    return () => {
+      abgebrochen = true;
+    };
+  }, [open, isEdit]);
+
+  /**
+   * Uebernimmt die Stammdaten sichtbar in die Felder. Notizen und Aufgaben
+   * bleiben der Serverseite ueberlassen: sie liessen sich hier nicht
+   * darstellen, und wer die Vorlage wieder abwaehlt, soll sie auch nicht
+   * mitgeschleppt bekommen.
+   *
+   * Bereits Getipptes wird nicht ueberschrieben – nur leere Felder werden
+   * gefuellt.
+   */
+  function applyTemplate(templateId: string) {
+    const vorlage = templates.find((entry) => entry.id === templateId);
+    if (!vorlage) {
+      update("templateId", "");
+      return;
+    }
+
+    setForm((previous) => ({
+      ...previous,
+      templateId,
+      name: previous.name || vorlage.name,
+      summary: previous.summary || (vorlage.summary ?? ""),
+      description: previous.description || (vorlage.projectDescription ?? ""),
+      status: vorlage.status,
+      priority: vorlage.priority,
+      accent: vorlage.accent,
+      tags: previous.tags || vorlage.tags.join(", "),
+      progressFromTasks: vorlage.progressFromTasks,
+    }));
+  }
+
+  async function removeTemplate(vorlage: ProjectTemplateEntry) {
+    if (!window.confirm(`Vorlage „${vorlage.name}“ loeschen?`)) return;
+    await fetch(`/api/templates/${vorlage.id}`, { method: "DELETE" }).catch(() => undefined);
+    setTemplates((current) => current.filter((entry) => entry.id !== vorlage.id));
+    update("templateId", "");
+  }
+
   const [repoPickerOpen, setRepoPickerOpen] = useState(false);
   const [repos, setRepos] = useState<RepoListEntry[]>([]);
   const [reposLoading, setReposLoading] = useState(false);
   const [repoFilter, setRepoFilter] = useState("");
   const [repoError, setRepoError] = useState<string | null>(null);
-
-  const isEdit = Boolean(project);
 
   useEffect(() => {
     if (!open) return;
@@ -96,6 +184,7 @@ export function ProjectDialog({ open, onClose, connections, project }: ProjectDi
             repoName: project.repositories[0]?.repoName ?? "",
             autoSync: project.repositories[0]?.autoSync ?? true,
             progressFromTasks: project.progressFromTasks,
+            templateId: "",
           }
         : EMPTY,
     );
@@ -165,6 +254,8 @@ export function ProjectDialog({ open, onClose, connections, project }: ProjectDi
       repoName: form.repoName,
       autoSync: form.autoSync,
       progressFromTasks: form.progressFromTasks,
+      // Nur beim Anlegen; beim Bearbeiten kennt das Schema das Feld nicht.
+      ...(isEdit ? {} : { templateId: form.templateId || null }),
     };
 
     try {
@@ -203,6 +294,52 @@ export function ProjectDialog({ open, onClose, connections, project }: ProjectDi
       }
     >
       <form onSubmit={submit} className="space-y-5">
+        {/* Nur beim Anlegen. Ein bestehendes Projekt nachtraeglich aus einer
+            Vorlage zu befuellen wuerde Notizen und Aufgaben verdoppeln. */}
+        {!isEdit && templates.length > 0 ? (
+          <div className="glass-soft p-4">
+            <label className="field-label" htmlFor="project-template">
+              Aus Vorlage
+            </label>
+            <div className="flex flex-wrap items-center gap-2">
+              <select
+                id="project-template"
+                className="field w-auto min-w-[14rem] flex-1"
+                value={form.templateId}
+                onChange={(event) => applyTemplate(event.target.value)}
+              >
+                <option value="">– ohne Vorlage –</option>
+                {templates.map((template) => (
+                  <option key={template.id} value={template.id}>
+                    {template.name}
+                  </option>
+                ))}
+              </select>
+              {gewaehlteVorlage ? (
+                <button
+                  type="button"
+                  className="btn btn-ghost px-2.5 py-1.5 text-xs text-rose-200"
+                  onClick={() => removeTemplate(gewaehlteVorlage)}
+                  title="Diese Vorlage loeschen"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              ) : null}
+            </div>
+            {gewaehlteVorlage ? (
+              <p className="mt-1.5 text-xs text-slate-500">
+                {gewaehlteVorlage.description ? `${gewaehlteVorlage.description} · ` : ""}
+                {beschreibeVorlage(gewaehlteVorlage)}
+              </p>
+            ) : (
+              <p className="mt-1.5 text-xs text-slate-500">
+                Vorlagen entstehen aus einem bestehenden Projekt – im Projektkopf unter
+                „Als Vorlage sichern“.
+              </p>
+            )}
+          </div>
+        ) : null}
+
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="sm:col-span-2">
             <label className="field-label" htmlFor="project-name">

@@ -74,6 +74,20 @@ export async function POST(request: Request) {
     if (!connection) return jsonError("Git-Verbindung nicht gefunden.", 404);
   }
 
+  // Aus der Vorlage kommen nur Notizen und Aufgaben. Die Stammdaten hat die
+  // Oberflaeche schon in die Felder uebernommen, damit man sie vor dem
+  // Speichern noch sieht und aendern kann.
+  const vorlage = data.templateId
+    ? await prisma.projectTemplate.findFirst({
+        where: { id: data.templateId, ownerId: auth.user.id },
+        select: { name: true, notes: true, tasks: true },
+      })
+    : null;
+  if (data.templateId && !vorlage) return jsonError("Vorlage nicht gefunden.", 404);
+
+  const notes = templateNotes(vorlage?.notes);
+  const tasks = templateTasks(vorlage?.tasks);
+
   const angelegt = await prisma.project.create({
     data: {
       ownerId: auth.user.id,
@@ -87,8 +101,11 @@ export async function POST(request: Request) {
       accent: data.accent,
       tags: data.tags,
       favorite: data.favorite,
+      progressFromTasks: data.progressFromTasks,
       // Hinten an die Statusspalte des Bretts.
       position: await nextProjectPosition(auth.user.id, data.status),
+      notes: { create: notes },
+      tasks: { create: tasks },
     },
     select: { id: true },
   });
@@ -111,12 +128,56 @@ export async function POST(request: Request) {
     projectId: project.id,
     userId: auth.user.id,
     kind: "PROJECT_CREATED",
-    summary:
-      data.status === "IDEA"
+    summary: vorlage
+      ? `Aus Vorlage „${vorlage.name}“ angelegt`
+      : data.status === "IDEA"
         ? "Als Idee angelegt"
         : `Angelegt mit Status „${statusOf(data.status).label}“`,
-    meta: { status: data.status },
+    meta: {
+      status: data.status,
+      ...(vorlage ? { template: vorlage.name, notes: notes.length, tasks: tasks.length } : {}),
+    },
   });
 
   return NextResponse.json({ project }, { status: 201 });
+}
+
+/**
+ * Die Vorlage kommt als JSON aus der Datenbank und ist damit fuer TypeScript
+ * unbekannt. Hier wird sie auf das Noetige zurechtgeschnitten – lieber einen
+ * Eintrag auslassen als am Anlegen scheitern.
+ */
+function templateNotes(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === "object")
+    .filter((entry) => typeof entry.content === "string" && entry.content.trim().length > 0)
+    .slice(0, 50)
+    .map((entry) => ({
+      title: typeof entry.title === "string" ? entry.title : null,
+      content: entry.content as string,
+      pinned: entry.pinned === true,
+    }));
+}
+
+function templateTasks(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === "object")
+    .filter((entry) => typeof entry.title === "string" && entry.title.trim().length > 0)
+    .slice(0, 100)
+    .map((entry, index) => ({
+      title: entry.title as string,
+      description: typeof entry.description === "string" ? entry.description : null,
+      status: (["TODO", "DOING", "BLOCKED"] as const).includes(
+        entry.status as "TODO" | "DOING" | "BLOCKED",
+      )
+        ? (entry.status as "TODO" | "DOING" | "BLOCKED")
+        : ("TODO" as const),
+      // Reihenfolge wie in der Vorlage.
+      position: index,
+      labels: Array.isArray(entry.labels)
+        ? entry.labels.filter((label): label is string => typeof label === "string").slice(0, 8)
+        : [],
+    }));
 }
