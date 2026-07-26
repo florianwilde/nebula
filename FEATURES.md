@@ -138,6 +138,24 @@ Bedienung über Tastatur: Pfeile wählen, `Enter` öffnet, `Esc` schließt. Die 
 wird beim ersten Öffnen geholt und dann behalten — sie bei jedem Tastendruck neu zu laden
 wäre Verschwendung.
 
+### Projektvorlagen
+
+Ein Projekt, das sich bewährt hat, lässt sich im Projektkopf über **Als Vorlage sichern**
+festhalten: Status, Priorität, Farbe, Tags, Notizen und offene Aufgaben. Beim Anlegen eines
+neuen Projekts steht die Vorlage oben im Dialog zur Auswahl.
+
+Bewusst benutzereigen statt fest eingebaut — welche Tags und welche Startaufgaben sinnvoll
+sind, weiß nur, wer damit arbeitet. Eine mitgelieferte Liste wäre geraten.
+
+- **Erledigte Aufgaben kommen nicht mit.** Eine Vorlage beschreibt, was zu tun ist, nicht
+  was einmal getan wurde.
+- **Repositories gehen nicht mit.** Eine Vorlage, die jedes neue Projekt an dasselbe
+  Repository hängt, wäre eine Falle.
+- Die Stammdaten füllt der Dialog **sichtbar** in die Felder, damit sie vor dem Speichern
+  noch änderbar sind; bereits Getipptes wird nicht überschrieben. Notizen und Aufgaben legt
+  erst der Server an — im Dialog ließen sie sich nicht darstellen.
+- Vorlagen überleben das Löschen ihres Ursprungsprojekts.
+
 ### Mehrfachauswahl
 
 Ein Kästchen auf jeder Karte — es erscheint erst beim Überfahren, damit nicht auf jeder
@@ -301,6 +319,7 @@ Firmen-Gitea nebeneinander.
 | Tags | bis zu 25, mit SHA, Nachricht und Datum |
 | Commits | die letzten 15 zur Anzeige; geholt werden 100 für die Aktivitätskurve |
 | **Commit-Aktivität** | Balkenreihe der letzten Tage, auf Karte und Projektseite |
+| **Commit-Heatmap** | Ein Feld je Tag über bis zu ein Jahr, auf der Projektseite |
 | Releases | bis zu 10, inklusive Pre-Release- und Draft-Kennzeichnung |
 | Sprachen | Verteilung als Balken mit Prozentwerten |
 
@@ -327,8 +346,18 @@ bewusste Entscheidung sein. Einschalten in den Admin-Einstellungen.
 | Einstellung | Bedeutung |
 | --- | --- |
 | Abstand | 15 Minuten bis täglich |
-| Projekte je Durchlauf | 1–100, Voreinstellung 25 |
+| Repositories je Durchlauf | 1–100, Voreinstellung 25 |
 | Fertige und archivierte auslassen | Dort ändert sich selten noch etwas |
+
+Gezählt und begrenzt wird je **Repository**, nicht je Projekt: sonst zöge ein Projekt mit
+fünf Repos fünfmal so viele Anfragen nach sich, wie sein Platz im Kontingent hergibt.
+
+Die Daten für die **Heatmap** kommen getrennt und höchstens einmal am Tag — an einem
+Jahresüberblick ändert sich von Stunde zu Stunde nichts Sichtbares. Bei GitHub genügt dafür
+ein Aufruf der Jahresstatistik; GitLab und Gitea kennen keine, dort werden bis zu fünf
+Seiten Commits geholt. Reicht das nicht ein Jahr zurück, **beginnt die Heatmap beim
+ältesten bekannten Commit** und sagt es dazu — leere Felder für Zeiträume zu zeichnen, über
+die nichts bekannt ist, wäre eine Lüge.
 
 Wie der Durchlauf arbeitet:
 

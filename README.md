@@ -341,6 +341,9 @@ ausschließlich Daten des angemeldeten Kontos.
 | `GET` | `/api/projects/export` | Alle eigenen Projekte als JSON |
 | `GET` | `/api/projects/:id/export` | Ein Projekt (`?format=md` für Markdown) |
 | `POST` | `/api/projects/import` | Import, mit `dryRun` für die Vorschau |
+| `GET` `POST` | `/api/templates` | Projektvorlagen auflisten / anlegen |
+| `PATCH` `DELETE` | `/api/templates/:id` | Vorlage ändern / löschen |
+| `POST` | `/api/templates/from-project` | Aus einem Projekt eine Vorlage machen |
 | `GET` | `/api/admin/backup` | Vollständige Sicherung als JSON (Admin) |
 | `GET` | `/api/search?q=` | Volltextsuche über die eigenen Notizen |
 | `GET` `POST` | `/api/notifications` | Benachrichtigungsziele |
@@ -348,6 +351,8 @@ ausschließlich Daten des angemeldeten Kontos.
 | `POST` | `/api/notifications/:id/test` | Testnachricht senden |
 | `GET` `PATCH` `DELETE` | `/api/projects/:id` | Projekt lesen / ändern / löschen |
 | `POST` | `/api/projects/:id/sync` | Alle Repositories des Projekts abgleichen |
+| `PATCH` | `/api/projects/reorder` | Neue Reihenfolge im Brett |
+| `POST` | `/api/projects/bulk` | Status, Tags oder Löschen für mehrere |
 | `GET` | `/api/projects/:id/activity` | Verlauf des Projekts (`?limit=`) |
 | `GET` `POST` | `/api/projects/:id/repositories` | Repositories des Projekts |
 | `PATCH` `DELETE` | `/api/repositories/:id` | Repository ändern / vom Projekt lösen |

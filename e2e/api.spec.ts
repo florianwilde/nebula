@@ -374,6 +374,94 @@ test("Brett: Reihenfolge und Mehrfachauswahl", async ({ request, playwright }) =
   expect((await geloescht.json()).changed).toBe(3);
 });
 
+test("Projektvorlagen: aus Projekt sichern und anwenden", async ({ request, playwright }) => {
+  await login(request, ADMIN);
+
+  // Ein Projekt herrichten, das als Vorlage taugt.
+  const quelle = (
+    await (
+      await request.post("/api/projects", {
+        data: { name: "Vorlagenquelle", status: "PLANNING", priority: 3, tags: ["web", "docker"] },
+      })
+    ).json()
+  ).project;
+
+  await request.post(`/api/projects/${quelle.id}/notes`, {
+    data: { content: "Checkliste vor dem Start." },
+  });
+  const erledigt = (
+    await (
+      await request.post(`/api/projects/${quelle.id}/tasks`, { data: { title: "Schon fertig" } })
+    ).json()
+  ).task;
+  await request.patch(`/api/tasks/${erledigt.id}`, { data: { status: "DONE" } });
+  await request.post(`/api/projects/${quelle.id}/tasks`, { data: { title: "Repo anlegen" } });
+  await request.post(`/api/projects/${quelle.id}/tasks`, { data: { title: "CI einrichten" } });
+
+  const gesichert = await request.post("/api/templates/from-project", {
+    data: { projectId: quelle.id, name: "Web-App", description: "Mit Docker und CI" },
+  });
+  expect(gesichert.status()).toBe(201);
+  const vorlage = (await gesichert.json()).template;
+
+  expect(vorlage.tags).toEqual(["web", "docker"]);
+  expect(vorlage.status).toBe("PLANNING");
+  expect(vorlage.notes).toHaveLength(1);
+  // Erledigte Aufgaben kommen nicht mit: eine Vorlage beschreibt, was zu tun ist.
+  expect(vorlage.tasks).toHaveLength(2);
+  expect(vorlage.tasks.map((task: { title: string }) => task.title)).not.toContain("Schon fertig");
+
+  // Derselbe Name ein zweites Mal wird abgewiesen.
+  const doppelt = await request.post("/api/templates/from-project", {
+    data: { projectId: quelle.id, name: "Web-App" },
+  });
+  expect(doppelt.status()).toBe(409);
+
+  // Anwenden: Notizen und Aufgaben entstehen mit dem Projekt.
+  const neu = (
+    await (
+      await request.post("/api/projects", {
+        data: { name: "Aus Vorlage", status: "IDEA", templateId: vorlage.id },
+      })
+    ).json()
+  ).project;
+
+  const geladen = (await (await request.get(`/api/projects/${neu.id}`)).json()).project;
+  expect(geladen.notes).toHaveLength(1);
+  expect(geladen.tasks).toHaveLength(2);
+  // Die Reihenfolge der Vorlage bleibt erhalten.
+  expect(geladen.tasks.map((task: { title: string }) => task.title)).toEqual([
+    "Repo anlegen",
+    "CI einrichten",
+  ]);
+  // Der ausdrueckliche Status gewinnt gegen den der Vorlage.
+  expect(geladen.status).toBe("IDEA");
+
+  // Der Verlauf haelt die Herkunft fest.
+  const verlauf = (await (await request.get(`/api/projects/${neu.id}/activity`)).json()).activities;
+  expect(verlauf.some((entry: { summary: string }) => entry.summary.includes("Web-App"))).toBe(true);
+
+  // Eine fremde Vorlage laesst sich nicht unterschieben.
+  const fremd = await playwright.request.newContext({
+    baseURL: test.info().project.use.baseURL,
+  });
+  await login(fremd, ZWEITER);
+  expect((await (await fremd.get("/api/templates")).json()).templates).toHaveLength(0);
+  const untergeschoben = await fremd.post("/api/projects", {
+    data: { name: "Klau", templateId: vorlage.id },
+  });
+  expect(untergeschoben.status()).toBe(404);
+  expect((await fremd.delete(`/api/templates/${vorlage.id}`)).status()).toBe(404);
+  await fremd.dispose();
+
+  // Und die Vorlage ueberlebt das Loeschen ihres Ursprungsprojekts.
+  await request.delete(`/api/projects/${quelle.id}`);
+  const nochDa = (await (await request.get("/api/templates")).json()).templates;
+  expect(nochDa).toHaveLength(1);
+
+  expect((await request.delete(`/api/templates/${vorlage.id}`)).ok()).toBeTruthy();
+});
+
 test("Export enthaelt keine Geheimnisse, Import beachtet die Strategie", async ({ request }) => {
   await login(request, ADMIN);
 

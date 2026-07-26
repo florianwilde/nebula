@@ -42,6 +42,38 @@ export const KIND_META: Record<ChangeKind, { label: string; className: string }>
 
 export const CHANGELOG: Release[] = [
   {
+    version: "1.2.0",
+    date: "2026-07-26",
+    headline: "Ein Jahr auf einen Blick, und ein Start ohne Leerlauf.",
+    changes: [
+      {
+        kind: "neu",
+        text:
+          "Commit-Heatmap auf der Projektseite: ein Feld je Tag über bis zu ein Jahr, " +
+          "mit Farbskala und Datum im Tooltip.",
+      },
+      {
+        kind: "neu",
+        text:
+          "Projektvorlagen. Ein bewährtes Projekt über „Als Vorlage sichern“ festhalten — " +
+          "Tags, Notizen und offene Aufgaben stehen dann beim nächsten Projekt bereit.",
+      },
+      {
+        kind: "besser",
+        text:
+          "Die Heatmap-Daten kommen höchstens einmal am Tag und getrennt vom übrigen " +
+          "Abgleich. Bei GitHub genügt ein Aufruf der Jahresstatistik, bei GitLab und " +
+          "Gitea werden bis zu fünf Seiten Commits geholt.",
+      },
+      {
+        kind: "besser",
+        text:
+          "Reicht die Historie nicht ein Jahr zurück, beginnt die Heatmap beim ältesten " +
+          "bekannten Commit — leere Felder für unbekannte Zeiträume wären eine Lüge.",
+      },
+    ],
+  },
+  {
     version: "1.1.0",
     date: "2026-07-26",
     headline: "Das Brett wird zur Arbeitsfläche.",

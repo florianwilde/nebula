@@ -20,37 +20,26 @@ erreichbar ist. Der Zeitplan bleibt als Rückfalllösung.
 
 ---
 
-## 2 · Danach
+## 2 · Größere Brocken
 
-### 2.1 Commit-Aktivität als Heatmap `S`
-
-Die Sparkline gibt es auf Karte und Projektseite. Eine Heatmap über ein Jahr
-wäre die nächste Ausbaustufe — dafür braucht es allerdings mehr als eine
-Seite Commits, also Paginierung oder die Statistik-Endpunkte.
-
----
-
-## 3 · Größere Brocken
-
-### 3.1 Passwort-Zurücksetzen per E-Mail `M`
+### 2.1 Passwort-Zurücksetzen per E-Mail `M`
 
 Heute setzt ein Administrator das Passwort neu. Selbstbedienung braucht SMTP
 und damit eine weitere Konfiguration — lohnt erst im Mehrbenutzerbetrieb.
 
-### 3.2 Mehrsprachigkeit `L`
+### 2.2 Mehrsprachigkeit `L`
 
 Die Oberfläche ist durchgängig deutsch verdrahtet. Englisch dazu wäre eine
 Voraussetzung, falls du das Projekt veröffentlichen willst.
 
 ---
 
-## 4 · Kleinigkeiten
+## 3 · Kleinigkeiten
 
 | Idee | Aufwand | Nutzen |
 | --- | --- | --- |
 | Suchtreffer in Notizen hervorheben | `S` | In der Notiz selbst, nicht nur in der Trefferliste |
 | Wiederkehrende Aufgaben | `M` | Etwa „jeden Montag Abhängigkeiten prüfen" |
-| Projektvorlagen | `S` | Neues Projekt mit vorgefüllten Tags und Notizen |
 | Hell/Dunkel umschaltbar | `M` | Aktuell nur dunkel |
 | Eigenes Logo und Farbe | `S` | Ergänzt `APP_NAME` |
 | Barrierefreiheits-Durchsicht | `M` | Fokusreihenfolge, Screenreader, Kontraste |
@@ -58,7 +47,7 @@ Voraussetzung, falls du das Projekt veröffentlichen willst.
 
 ---
 
-## 5 · Bewusst nicht
+## 4 · Bewusst nicht
 
 Damit klar ist, was **nicht** kommt und warum:
 
@@ -94,6 +83,7 @@ Damit klar ist, was **nicht** kommt und warum:
 | **v0.9.0** Schnellsuche per `Strg+K`, Aufgaben aus Git-Issues | ✓ |
 | **v1.0.0** Aktivitätsverlauf je Projekt, Zwei-Faktor per TOTP, mehrere Repositories je Projekt | ✓ |
 | **v1.1.0** Freie Reihenfolge im Brett, Mehrfachauswahl, installierbar als App, Änderungsverlauf | ✓ |
+| **v1.2.0** Commit-Heatmap über ein Jahr, Projektvorlagen | ✓ |
 
 Zur Entscheidung beim Export: Git-Tokens gehen **nicht** mit. Die Verbindung wird nur
 beschrieben, das Token ist nach dem Import neu zu hinterlegen. Snapshots bleiben
