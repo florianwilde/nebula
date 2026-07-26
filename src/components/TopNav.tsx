@@ -108,6 +108,9 @@ function UserMenu({ user }: { user: SessionUser }) {
         className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/4 py-1.5 pl-1.5 pr-3 text-sm text-slate-200 transition-colors hover:bg-white/8"
         aria-haspopup="menu"
         aria-expanded={open}
+        // Auf schmalen Anzeigen bleibt nur das Kuerzel sichtbar – ohne
+        // Beschriftung liest ein Screenreader dann nur zwei Buchstaben vor.
+        aria-label={`Benutzermenue fuer ${label}`}
       >
         <span className="grid h-7 w-7 place-items-center rounded-lg bg-gradient-to-br from-violet-500/80 to-cyan-400/70 text-[11px] font-semibold text-white">
           {initials}

@@ -1,0 +1,78 @@
+# Prueft jeden Push und jeden Pull Request.
+#
+# Die Datei liegt unter .gitea/workflows und wird von Gitea Actions gelesen.
+# Die Syntax ist mit GitHub Actions kompatibel – wer das Repo dorthin
+# spiegelt, kopiert sie nach .github/workflows.
+#
+# Voraussetzung: In der Gitea-Instanz muessen Actions aktiviert sein
+# (app.ini: [actions] ENABLED = true) und mindestens ein Runner registriert.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  pruefen:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: nebula
+          POSTGRES_PASSWORD: nebula
+          # Der Name muss "test" enthalten – global-setup.ts leert die
+          # Datenbank und weigert sich bei allem anderen.
+          POSTGRES_DB: nebula_e2e_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U nebula"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      DATABASE_URL: postgresql://nebula:nebula@localhost:5432/nebula_e2e_test?schema=public
+      E2E_DATABASE_URL: postgresql://nebula:nebula@localhost:5432/nebula_e2e_test?schema=public
+      # Nur fuer den Lauf – keine echten Daten im Spiel.
+      APP_SECRET: ci-lauf-schluessel-nur-fuer-die-pipeline-0123456789
+      NEXT_TELEMETRY_DISABLED: "1"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Abhaengigkeiten
+        run: npm ci
+
+      - name: Typen pruefen
+        run: npx tsc --noEmit
+
+      - name: Unit-Tests
+        run: npm test
+
+      - name: Browser fuer die Oberflaechentests
+        run: npx playwright install --with-deps chromium
+
+      # Baut zuerst und startet den Server dann selbst (siehe
+      # playwright.config.ts, webServer).
+      - name: Ende-zu-Ende-Tests
+        run: npm run test:e2e
+
+      - name: Bericht bei Fehlschlag sichern
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-bericht
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
