@@ -8,8 +8,9 @@ import {
 } from "@/lib/auth/mfa";
 import { redeemRecoveryCode } from "@/lib/auth/recovery";
 import { createSession, setSessionCookie } from "@/lib/auth/session";
-import { verifyTotp } from "@/lib/auth/totp";
+import { matchTotp } from "@/lib/auth/totp";
 import { noteSuccessfulLogin } from "@/lib/auth/users";
+import { prisma } from "@/lib/db";
 import { LIMITS, rateLimit } from "@/lib/security/rateLimit";
 import { clientIp, jsonError, readJsonBody, tooManyRequests } from "@/lib/security/request";
 
@@ -63,9 +64,19 @@ export async function POST(request: Request) {
   // Wiederherstellungscode. Beide Wege zu probieren waere unnoetig – die
   // Formate ueberschneiden sich nicht.
   const istZiffern = /^[\d\s]+$/.test(eingabe);
-  const erfolg = istZiffern
-    ? Boolean(pending.user.totpSecret) && verifyTotp(pending.user.totpSecret!, eingabe)
-    : await redeemRecoveryCode(pending.user.id, eingabe);
+
+  // Bei den Ziffern zaehlt zusaetzlich, dass das Zeitfenster neuer ist als
+  // das zuletzt eingeloeste. Sonst liesse sich ein abgefangener Code die
+  // restliche Gueltigkeitsdauer ueber wiederverwenden – RFC 6238, 5.2.
+  const fenster =
+    istZiffern && pending.user.totpSecret
+      ? matchTotp(pending.user.totpSecret, eingabe)
+      : null;
+  const frisch =
+    fenster !== null &&
+    (pending.user.totpLastCounter === null || fenster > pending.user.totpLastCounter);
+
+  const erfolg = istZiffern ? frisch : await redeemRecoveryCode(pending.user.id, eingabe);
 
   if (!erfolg) {
     const weiterMoeglich = await noteMfaFailure(pending.id);
@@ -82,6 +93,14 @@ export async function POST(request: Request) {
 
   await discardPendingLogin(pending.id);
   await noteSuccessfulLogin(pending.user.id);
+
+  // Das eingeloeste Fenster merken, damit derselbe Code verbrannt ist.
+  if (fenster !== null) {
+    await prisma.user.update({
+      where: { id: pending.user.id },
+      data: { totpLastCounter: fenster },
+    });
+  }
 
   const session = await createSession(pending.user.id, {
     userAgent: request.headers.get("user-agent"),

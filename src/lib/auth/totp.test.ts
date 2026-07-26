@@ -6,6 +6,7 @@ import {
   counterFor,
   generateTotpSecret,
   groupSecret,
+  matchTotp,
   otpauthUri,
   totpCode,
   verifyTotp,
@@ -122,5 +123,35 @@ describe("Einrichtung", () => {
 
   it("gruppiert den Schluessel zum Abtippen", () => {
     expect(groupSecret("ABCDEFGH")).toBe("ABCD EFGH");
+  });
+});
+
+describe("matchTotp", () => {
+  const SECRET = base32Encode(Buffer.from("12345678901234567890", "utf8"));
+  const JETZT = new Date(1111111109_000);
+
+  /**
+   * Der Zaehler ist noetig, um einen verbrauchten Code zu entwerten. RFC 6238
+   * verlangt das in Abschnitt 5.2 ausdruecklich – sonst laesst sich ein
+   * abgefangener Code die restliche Gueltigkeitsdauer ueber wiederverwenden.
+   */
+  it("gibt das Zeitfenster zurueck, das gepasst hat", () => {
+    expect(matchTotp(SECRET, "081804", JETZT)).toBe(37037036);
+  });
+
+  it("nennt bei den Nachbarfenstern deren eigene Nummer", () => {
+    // Genau daran haengt die Entwertung: der Code aus dem vorigen Fenster
+    // darf den Merker nicht auf einen hoeheren Stand setzen.
+    const naechstes = new Date(JETZT.getTime() + TOTP_PERIOD * 1000);
+    expect(matchTotp(SECRET, "081804", naechstes)).toBe(37037036);
+  });
+
+  it("liefert null bei falschem Code", () => {
+    expect(matchTotp(SECRET, "000000", JETZT)).toBeNull();
+  });
+
+  it("stimmt mit verifyTotp ueberein", () => {
+    expect(matchTotp(SECRET, "081804", JETZT) !== null).toBe(verifyTotp(SECRET, "081804", JETZT));
+    expect(matchTotp(SECRET, "000000", JETZT) !== null).toBe(verifyTotp(SECRET, "000000", JETZT));
   });
 });

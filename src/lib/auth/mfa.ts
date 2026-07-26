@@ -75,6 +75,8 @@ export interface PendingLoginState {
     isActive: boolean;
     /** Entschluesselter TOTP-Schluessel; null, wenn er nicht lesbar ist. */
     totpSecret: string | null;
+    /** Zuletzt eingeloestes Zeitfenster – gegen die Wiederverwendung. */
+    totpLastCounter: number | null;
   };
 }
 
@@ -104,6 +106,7 @@ export async function readPendingLogin(): Promise<PendingLoginState | null> {
       role: pending.user.role,
       isActive: pending.user.isActive,
       totpSecret: tryDecryptSecret(pending.user.totpSecretCipher),
+      totpLastCounter: pending.user.totpLastCounter,
     },
   };
 }

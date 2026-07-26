@@ -102,26 +102,44 @@ export function counterFor(at: Date = new Date()): number {
 }
 
 /**
- * Prueft einen eingegebenen Code. Vergleicht in konstanter Zeit und probiert
- * die Nachbarfenster mit, damit eine leicht abweichende Uhr nicht stoert.
+ * Prueft einen eingegebenen Code und gibt das Zeitfenster zurueck, das
+ * gepasst hat – oder null.
+ *
+ * Das Fenster wird gebraucht, um einen verbrauchten Code zu entwerten:
+ * RFC 6238 verlangt in Abschnitt 5.2 ausdruecklich, dass derselbe Code kein
+ * zweites Mal angenommen wird. Ohne diese Zahl liesse sich ein abgefangener
+ * Code die restliche Gueltigkeitsdauer ueber wiederverwenden.
+ *
+ * Verglichen wird in konstanter Zeit, und die Nachbarfenster werden
+ * mitprobiert, damit eine leicht abweichende Uhr nicht stoert.
  */
+export function matchTotp(
+  secret: string,
+  code: string,
+  at: Date = new Date(),
+  window: number = TOTP_WINDOW,
+): number | null {
+  const eingabe = code.replace(/\s/g, "");
+  if (!/^\d+$/.test(eingabe) || eingabe.length !== TOTP_DIGITS) return null;
+
+  const jetzt = counterFor(at);
+  let treffer: number | null = null;
+  for (let schritt = -window; schritt <= window; schritt += 1) {
+    // Nicht fruehzeitig abbrechen: sonst haengt die Laufzeit davon ab,
+    // welches Fenster gepasst hat.
+    if (constantEquals(totpCode(secret, jetzt + schritt), eingabe)) treffer = jetzt + schritt;
+  }
+  return treffer;
+}
+
+/** Wie matchTotp, wenn nur interessiert *ob* der Code stimmt. */
 export function verifyTotp(
   secret: string,
   code: string,
   at: Date = new Date(),
   window: number = TOTP_WINDOW,
 ): boolean {
-  const eingabe = code.replace(/\s/g, "");
-  if (!/^\d+$/.test(eingabe) || eingabe.length !== TOTP_DIGITS) return false;
-
-  const jetzt = counterFor(at);
-  let treffer = false;
-  for (let schritt = -window; schritt <= window; schritt += 1) {
-    // Nicht fruehzeitig abbrechen: sonst haengt die Laufzeit davon ab,
-    // welches Fenster gepasst hat.
-    if (constantEquals(totpCode(secret, jetzt + schritt), eingabe)) treffer = true;
-  }
-  return treffer;
+  return matchTotp(secret, code, at, window) !== null;
 }
 
 function constantEquals(a: string, b: string): boolean {

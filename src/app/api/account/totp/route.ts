@@ -4,7 +4,7 @@ import { z } from "zod";
 import { requireUserApi } from "@/lib/auth/guard";
 import { verifyPassword } from "@/lib/auth/password";
 import { countUnusedRecoveryCodes, issueRecoveryCodes } from "@/lib/auth/recovery";
-import { generateTotpSecret, groupSecret, otpauthUri, verifyTotp } from "@/lib/auth/totp";
+import { generateTotpSecret, groupSecret, matchTotp, otpauthUri } from "@/lib/auth/totp";
 import { APP_NAME } from "@/lib/config";
 import { encryptSecret, tryDecryptSecret } from "@/lib/crypto";
 import { prisma } from "@/lib/db";
@@ -109,7 +109,8 @@ export async function PUT(request: Request) {
     return jsonError("Es liegt kein Schluessel vor. Bitte die Einrichtung neu starten.", 409);
   }
 
-  if (!verifyTotp(secret, parsed.data.code)) {
+  const fenster = matchTotp(secret, parsed.data.code);
+  if (fenster === null) {
     return jsonError(
       "Der Code stimmt nicht. Geht die Uhr des Geraets richtig?",
       401,
@@ -118,7 +119,9 @@ export async function PUT(request: Request) {
 
   await prisma.user.update({
     where: { id: auth.user.id },
-    data: { totpEnabledAt: new Date() },
+    // Das Fenster gleich mitverbrennen: der Code, der eben aktiviert hat,
+    // soll nicht Sekunden spaeter noch zum Anmelden taugen.
+    data: { totpEnabledAt: new Date(), totpLastCounter: fenster },
   });
 
   return NextResponse.json({
@@ -157,7 +160,7 @@ export async function DELETE(request: Request) {
   await prisma.$transaction([
     prisma.user.update({
       where: { id: auth.user.id },
-      data: { totpSecretCipher: null, totpEnabledAt: null },
+      data: { totpSecretCipher: null, totpEnabledAt: null, totpLastCounter: null },
     }),
     prisma.recoveryCode.deleteMany({ where: { userId: auth.user.id } }),
     prisma.pendingLogin.deleteMany({ where: { userId: auth.user.id } }),

@@ -128,6 +128,10 @@ model User {
   /// sperrt sich aus, wer die Einrichtung abbricht.
   totpSecretCipher String?
   totpEnabledAt    DateTime?
+  /// Zuletzt eingeloestes Zeitfenster. RFC 6238 verlangt, denselben Code
+  /// kein zweites Mal anzunehmen – ohne diesen Merker liesse sich ein
+  /// abgefangener Code die restliche Gueltigkeit ueber wiederverwenden.
+  totpLastCounter  Int?
 
   sessions    Session[]
   credentials Credential[]
