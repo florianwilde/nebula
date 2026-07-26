@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { recordActivity, shorten } from "@/lib/activity";
 import { requireUserApi } from "@/lib/auth/guard";
 import { prisma } from "@/lib/db";
 import { jsonError, readJsonBody } from "@/lib/security/request";
@@ -44,6 +45,18 @@ export async function PATCH(request: Request, { params }: Params) {
     },
   });
 
+  // Nur Anheften ist keine inhaltliche Aenderung und kommt nicht in den
+  // Verlauf – sonst steht dort dreimal dieselbe Notiz, weil jemand unschluessig war.
+  if (parsed.data.title !== undefined || parsed.data.content !== undefined) {
+    await recordActivity({
+      projectId: note.projectId,
+      userId: auth.user.id,
+      kind: "NOTE_UPDATED",
+      summary: `Notiz bearbeitet: ${shorten(updated.title || updated.content)}`,
+      meta: { noteId: id },
+    });
+  }
+
   return NextResponse.json({ note: updated });
 }
 
@@ -53,10 +66,25 @@ export async function DELETE(_request: Request, { params }: Params) {
 
   const { id } = await params;
 
+  // Vor dem Loeschen lesen: danach ist nicht mehr feststellbar, worum es ging.
+  const vorher = await prisma.note.findFirst({
+    where: { id, project: { ownerId: auth.user.id } },
+    select: { projectId: true, title: true, content: true },
+  });
+
   const result = await prisma.note.deleteMany({
     where: { id, project: { ownerId: auth.user.id } },
   });
   if (result.count === 0) return jsonError("Notiz nicht gefunden", 404);
+
+  if (vorher) {
+    await recordActivity({
+      projectId: vorher.projectId,
+      userId: auth.user.id,
+      kind: "NOTE_DELETED",
+      summary: `Notiz gelöscht: ${shorten(vorher.title || vorher.content)}`,
+    });
+  }
 
   return NextResponse.json({ ok: true });
 }

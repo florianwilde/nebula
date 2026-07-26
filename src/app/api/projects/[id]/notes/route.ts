@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { recordActivity, shorten } from "@/lib/activity";
 import { requireUserApi } from "@/lib/auth/guard";
 import { prisma } from "@/lib/db";
 import { jsonError, readJsonBody } from "@/lib/security/request";
@@ -63,6 +64,14 @@ export async function POST(request: Request, { params }: Params) {
 
   // Projekt "anfassen", damit die Sortierung nach Aktivitaet stimmt.
   await prisma.project.update({ where: { id }, data: { updatedAt: new Date() } });
+
+  await recordActivity({
+    projectId: id,
+    userId: auth.user.id,
+    kind: "NOTE_ADDED",
+    summary: `Notiz angelegt: ${shorten(note.title || note.content)}`,
+    meta: { noteId: note.id },
+  });
 
   return NextResponse.json({ note }, { status: 201 });
 }

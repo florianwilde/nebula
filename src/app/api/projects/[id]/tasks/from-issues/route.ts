@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { recordActivity } from "@/lib/activity";
 import { requireUserApi } from "@/lib/auth/guard";
 import { prisma } from "@/lib/db";
 import { jsonError, readJsonBody } from "@/lib/security/request";
@@ -97,6 +98,18 @@ export async function POST(request: Request, { params }: Params) {
   if (angelegt.length > 0) {
     await refreshDerivedProgress(id);
     await prisma.project.update({ where: { id }, data: { updatedAt: new Date() } });
+    // Ein Eintrag fuer den Vorgang, nicht einer je Aufgabe: sonst besteht der
+    // Verlauf nach einer Uebernahme aus nichts anderem mehr.
+    await recordActivity({
+      projectId: id,
+      userId: auth.user.id,
+      kind: "TASKS_IMPORTED",
+      summary:
+        angelegt.length === 1
+          ? "1 Issue als Aufgabe übernommen"
+          : `${angelegt.length} Issues als Aufgaben übernommen`,
+      meta: { numbers: angelegt.map((task) => task.sourceIssue) },
+    });
   }
 
   return NextResponse.json({

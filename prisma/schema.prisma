@@ -52,6 +52,25 @@ enum NotificationEvent {
   PROJECT_STALE
 }
 
+/// Was im Verlauf eines Projekts festgehalten wird. Bewusst grob: der
+/// Verlauf soll erzaehlen, was passiert ist, und nicht jede Feldaenderung
+/// mitschreiben.
+enum ActivityKind {
+  PROJECT_CREATED
+  PROJECT_UPDATED
+  STATUS_CHANGED
+  NOTE_ADDED
+  NOTE_UPDATED
+  NOTE_DELETED
+  TASK_ADDED
+  TASK_MOVED
+  TASK_DELETED
+  TASKS_IMPORTED
+  REPO_LINKED
+  REPO_COMMITS
+  SYNC_FAILED
+}
+
 /// Spalten des Aufgabenbretts innerhalb eines Projekts.
 enum TaskStatus {
   TODO
@@ -93,11 +112,21 @@ model User {
   failedLoginCount Int       @default(0)
   lockedUntil      DateTime?
 
+  /// TOTP-Schluessel, AES-256-GCM-verschluesselt (siehe src/lib/crypto.ts).
+  /// Hinterlegt heisst noch nicht scharf: erst ein bestaetigter Code setzt
+  /// totpEnabledAt. Bis dahin darf die Anmeldung nicht danach fragen, sonst
+  /// sperrt sich aus, wer die Einrichtung abbricht.
+  totpSecretCipher String?
+  totpEnabledAt    DateTime?
+
   sessions    Session[]
   credentials Credential[]
   projects    Project[]
   connections GitConnection[]
   notificationTargets NotificationTarget[]
+  activities    Activity[]
+  recoveryCodes RecoveryCode[]
+  pendingLogins PendingLogin[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -140,6 +169,45 @@ model Credential {
   createdAt    DateTime @default(now())
 
   @@index([userId])
+}
+
+/// Ein Wiederherstellungscode fuer den Fall, dass der Authenticator weg ist.
+/// Jeder Code gilt genau einmal.
+model RecoveryCode {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// SHA-256 des Codes. Kein langsames Verfahren wie bei Passwoertern: die
+  /// Codes sind zufaellig erzeugt und lang genug, dass Raten aussichtslos
+  /// ist – und bei einer Anmeldung waeren sonst zehn teure Vergleiche noetig.
+  codeHash String @unique
+
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+}
+
+/// Zwischenzustand einer Anmeldung: Passwort stimmt, der zweite Faktor fehlt
+/// noch. Bewusst eine eigene Zeile und keine halbfertige Sitzung – so kann
+/// aus diesem Zustand nichts entstehen, was einer Anmeldung aehnelt.
+model PendingLogin {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// Wie bei der Sitzung liegt nur der SHA-256-Hash des Cookie-Tokens hier.
+  tokenHash String @unique
+  /// Fehlversuche. Nach zu vielen wird der Vorgang verworfen, damit die
+  /// sechs Stellen nicht in Ruhe durchprobiert werden koennen.
+  attempts  Int    @default(0)
+
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
 }
 
 /// Kurzlebige WebAuthn-Challenge. Wird nach Gebrauch geloescht, damit sie
@@ -285,9 +353,10 @@ model Project {
   /// erst, wenn danach wieder ein Commit kam und es dann wieder still wurde.
   notifiedStaleAt   DateTime?
 
-  notes    Note[]
-  tasks    Task[]
-  snapshot RepoSnapshot?
+  notes      Note[]
+  tasks      Task[]
+  snapshot   RepoSnapshot?
+  activities Activity[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -359,6 +428,32 @@ model Task {
   /// Herkunft sind erlaubt: NULL gilt in Postgres als verschieden.
   @@unique([projectId, sourceIssue])
   @@index([projectId, status, position])
+}
+
+/// Ein Eintrag im Verlauf eines Projekts: was ist wann passiert.
+model Activity {
+  id        String       @id @default(cuid())
+  projectId String
+  project   Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  /// Wer. null bedeutet: die Anwendung selbst, also der Zeitgeber beim
+  /// automatischen Abgleich.
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  kind ActivityKind
+  /// Fertig formulierter Einzeiler. Die Formulierung beim Schreiben
+  /// festzuhalten spart der Anzeige das Nachschlagen von Namen, die es
+  /// spaeter womoeglich nicht mehr gibt – etwa den einer geloeschten Notiz.
+  summary String
+  /// Zusatzangaben wie { from: "IDEA", to: "DONE" }. Fuer die Anzeige nicht
+  /// noetig, aber nuetzlich, falls spaeter ausgewertet werden soll.
+  meta Json?
+
+  createdAt DateTime @default(now())
+
+  /// Absteigend gelesen, immer je Projekt.
+  @@index([projectId, createdAt])
 }
 
 /// Freie Notizen zu einem Projekt.

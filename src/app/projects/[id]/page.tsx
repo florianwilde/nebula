@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { FileText } from "lucide-react";
+import { ActivityFeed } from "@/components/ActivityFeed";
 import { GitPanel } from "@/components/GitPanel";
 import { Markdown } from "@/components/Markdown";
 import { NotesPanel } from "@/components/NotesPanel";
@@ -85,8 +86,9 @@ export default async function ProjectPage({ params }: PageProps) {
           <NotesPanel projectId={detail.id} notes={detail.notes} />
         </div>
 
-        <div className="lg:col-span-7">
+        <div className="space-y-6 lg:col-span-7">
           <GitPanel project={detail} />
+          <ActivityFeed projectId={detail.id} initial={detail.activities} />
         </div>
       </div>
     </div>

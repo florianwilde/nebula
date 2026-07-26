@@ -1,4 +1,5 @@
 import type { Project } from "@prisma/client";
+import { recordActivity, shorten } from "@/lib/activity";
 import { prisma } from "@/lib/db";
 import { clientForConnection, createClient, parseRepoUrl } from "@/lib/git";
 import { notifyAfterSync } from "@/lib/notify";
@@ -73,6 +74,15 @@ export async function syncProject(projectId: string): Promise<SyncResult> {
         syncFailureCount: { increment: 1 },
       },
     });
+    // Nur der Uebergang in den Fehlerzustand kommt in den Verlauf. Ein Repo
+    // mit abgelaufenem Token schlaegt sonst stuendlich neu auf.
+    if (!project.syncError) {
+      await recordActivity({
+        projectId: project.id,
+        kind: "SYNC_FAILED",
+        summary: `Abgleich fehlgeschlagen: ${shorten(message, 120)}`,
+      });
+    }
     await notifyAfterSync(project.id);
     return { ok: false, message };
   }
@@ -88,6 +98,40 @@ export function resolveRepoRef(project: Project) {
     if (parsed) return { owner: parsed.owner, name: parsed.name };
   }
   return null;
+}
+
+/**
+ * Haelt neue Commits im Verlauf fest.
+ *
+ * Der Abgleich laeuft im Zweifel stuendlich, ein Eintrag je Durchlauf waere
+ * also unbrauchbar. Vermerkt wird nur, wenn sich der letzte Commit tatsaechlich
+ * geaendert hat – und beim allerersten Abgleich gar nicht: dass ein Repo
+ * Commits hat, ist keine Neuigkeit.
+ */
+async function noteNewCommits(
+  projectId: string,
+  vorher: string | null,
+  data: RepoSnapshotData,
+) {
+  const neuester = data.commits[0]?.sha ?? null;
+  if (!neuester || !vorher || neuester === vorher) return;
+
+  // Wie viele Commits liegen zwischen altem und neuem Stand? Steht der alte
+  // nicht mehr in der Liste, waren es mehr als eine Seite – dann lieber ohne
+  // Zahl als mit einer falschen.
+  const index = data.commits.findIndex((commit) => commit.sha === vorher);
+  const anzahl = index > 0 ? index : null;
+  const wo = data.defaultBranch ? ` auf ${data.defaultBranch}` : "";
+
+  await recordActivity({
+    projectId,
+    kind: "REPO_COMMITS",
+    summary:
+      anzahl === null
+        ? `Neue Commits${wo}: ${shorten(data.commits[0]?.message ?? "", 60)}`
+        : `${anzahl} neue${anzahl === 1 ? "r" : ""} Commit${anzahl === 1 ? "" : "s"}${wo}: ${shorten(data.commits[0]?.message ?? "", 60)}`,
+    meta: { from: vorher, to: neuester, count: anzahl },
+  });
 }
 
 async function persistSnapshot(projectId: string, data: RepoSnapshotData) {
@@ -133,6 +177,12 @@ async function persistSnapshot(projectId: string, data: RepoSnapshotData) {
     fetchedAt: new Date(),
   };
 
+  // Vor dem Ueberschreiben lesen – danach ist der alte Stand weg.
+  const vorher = await prisma.repoSnapshot.findUnique({
+    where: { projectId },
+    select: { lastCommitSha: true },
+  });
+
   await prisma.$transaction([
     prisma.repoSnapshot.upsert({
       where: { projectId },
@@ -150,4 +200,6 @@ async function persistSnapshot(projectId: string, data: RepoSnapshotData) {
       },
     }),
   ]);
+
+  await noteNewCommits(projectId, vorher?.lastCommitSha ?? null, data);
 }

@@ -12,6 +12,9 @@ import { z } from "zod";
  *    ein Abgleich nach dem Import holt sie zurueck.
  *  - keine Datenbank-IDs. Die gelten nur in der Instanz, aus der exportiert
  *    wurde.
+ *  - kein Verlauf. Er beschreibt, was in *dieser* Instanz passiert ist, und
+ *    verwiese nach dem Import auf Konten, die es dort nicht gibt. Der Import
+ *    setzt stattdessen einen eigenen ersten Eintrag.
  */
 
 export const EXPORT_KIND = "nebula.projects";

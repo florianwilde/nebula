@@ -1,4 +1,5 @@
 import type { Prisma } from "@prisma/client";
+import { pruneActivities } from "@/lib/activity";
 import { getAppSettings } from "@/lib/auth/settings";
 import { prisma } from "@/lib/db";
 import { runStaleCheck } from "@/lib/notify/stale";
@@ -76,19 +77,19 @@ async function tick() {
       }
     }
 
-    // Unabhaengig vom Abgleich: der Stillstand ergibt sich aus dem
-    // gespeicherten Stand, dafuer muss nichts geholt werden.
-    await maybeCheckStale();
+    // Unabhaengig vom Abgleich: beides ergibt sich aus dem gespeicherten
+    // Stand, dafuer muss nichts geholt werden.
+    await dailyChores();
   } catch (error) {
     console.error("[nebula] Automatischer Abgleich fehlgeschlagen:", error);
   }
 }
 
 /**
- * Stillstandspruefung, hoechstens einmal am Tag. Laeuft nur, wenn ueberhaupt
- * jemand darauf hoert – sonst waere es reine Datenbanklast.
+ * Was hoechstens einmal am Tag zu tun ist: den Verlauf stutzen und nach
+ * stillstehenden Projekten sehen.
  */
-async function maybeCheckStale() {
+async function dailyChores() {
   const settings = await getAppSettings();
   const last = settings.lastStaleCheckAt?.getTime() ?? 0;
   if (Date.now() - last < STALE_CHECK_INTERVAL_MS) return;
@@ -104,6 +105,17 @@ async function maybeCheckStale() {
     data: { lastStaleCheckAt: new Date() },
   });
 
+  // Der Verlauf waechst mit jeder Aenderung; einmal am Tag zurueckschneiden
+  // reicht, um ihn beschraenkt zu halten.
+  try {
+    const entfernt = await pruneActivities();
+    if (entfernt > 0) console.log(`[nebula] Verlauf gestutzt: ${entfernt} Eintraege entfernt.`);
+  } catch (error) {
+    console.error("[nebula] Verlauf konnte nicht gestutzt werden:", error);
+  }
+
+  // Die Stillstandspruefung laeuft nur, wenn jemand zuhoert – sonst waere sie
+  // reine Datenbanklast.
   if (zuhoerer === 0) return;
 
   const report = await runStaleCheck(Math.max(1, settings.staleAfterDays));

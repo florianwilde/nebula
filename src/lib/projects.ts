@@ -64,5 +64,17 @@ export const projectDetailInclude = Prisma.validator<Prisma.ProjectInclude>()({
   tasks: {
     orderBy: [{ status: "asc" }, { position: "asc" }],
   },
+  // Erste Seite des Verlaufs; weitere holt die Anzeige bei Bedarf nach.
+  activities: {
+    orderBy: { createdAt: "desc" },
+    take: 20,
+    select: {
+      id: true,
+      kind: true,
+      summary: true,
+      createdAt: true,
+      user: { select: { username: true, displayName: true } },
+    },
+  },
   _count: { select: { notes: true, tasks: true } },
 });

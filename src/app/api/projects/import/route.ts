@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { recordActivity } from "@/lib/activity";
 import { requireUserApi } from "@/lib/auth/guard";
 import { prisma } from "@/lib/db";
 import { exportFileSchema, type ExportedProject } from "@/lib/export/format";
@@ -202,7 +203,7 @@ export async function POST(request: Request) {
         results.push({ ...base, action: "overwrite" });
       } else {
         const finalSlug = existing ? await uniqueSlug(incoming.name, auth.user.id) : slug;
-        await prisma.project.create({
+        const angelegt = await prisma.project.create({
           data: {
             ...data,
             ownerId: auth.user.id,
@@ -210,6 +211,15 @@ export async function POST(request: Request) {
             notes: { create: notes },
             tasks: { create: tasks },
           },
+        });
+        // Der Verlauf wird nicht mitexportiert – der erste Eintrag hier haelt
+        // wenigstens fest, woher das Projekt stammt.
+        await recordActivity({
+          projectId: angelegt.id,
+          userId: auth.user.id,
+          kind: "PROJECT_CREATED",
+          summary: "Aus einer Exportdatei importiert",
+          meta: { notes: notes.length, tasks: tasks.length },
         });
         results.push({
           ...base,

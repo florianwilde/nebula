@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server";
+import { recordActivity } from "@/lib/activity";
 import { requireUserApi } from "@/lib/auth/guard";
 import { prisma } from "@/lib/db";
 import { parseRepoUrl } from "@/lib/git";
 import { projectListInclude, uniqueSlug } from "@/lib/projects";
 import { LIMITS, rateLimit } from "@/lib/security/rateLimit";
 import { clientIp, jsonError, readJsonBody, tooManyRequests } from "@/lib/security/request";
+import { statusOf } from "@/lib/status";
 import { formatZodError, projectCreateSchema } from "@/lib/validation";
 
 export const dynamic = "force-dynamic";
@@ -103,6 +105,17 @@ export async function POST(request: Request) {
       connectionId: data.connectionId ?? null,
     },
     include: projectListInclude,
+  });
+
+  await recordActivity({
+    projectId: project.id,
+    userId: auth.user.id,
+    kind: "PROJECT_CREATED",
+    summary:
+      data.status === "IDEA"
+        ? "Als Idee angelegt"
+        : `Angelegt mit Status „${statusOf(data.status).label}“`,
+    meta: { status: data.status },
   });
 
   return NextResponse.json({ project }, { status: 201 });

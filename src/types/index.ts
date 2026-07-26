@@ -1,4 +1,5 @@
 import type {
+  ActivityKind,
   GitProvider,
   Note,
   Project,
@@ -43,11 +44,22 @@ export interface ProjectListItem extends Project {
   tasks: { id: string }[];
 }
 
+/** Ein Eintrag im Projektverlauf, so wie ihn die Anzeige braucht. */
+export interface ActivityEntry {
+  id: string;
+  kind: ActivityKind;
+  summary: string;
+  createdAt: Date | string;
+  /** null bedeutet: die Anwendung selbst, etwa der automatische Abgleich. */
+  user: { username: string; displayName: string | null } | null;
+}
+
 export interface ProjectDetail extends Project {
   connection: ConnectionSafe | null;
   snapshot: RepoSnapshot | null;
   notes: Note[];
   tasks: Task[];
+  activities: ActivityEntry[];
   _count: { notes: number; tasks: number };
 }
 
@@ -63,6 +75,7 @@ export interface RepoListEntry {
 }
 
 export type {
+  ActivityKind,
   BranchInfo,
   CiInfo,
   CommitInfo,

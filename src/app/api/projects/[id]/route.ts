@@ -1,4 +1,6 @@
+import type { ProjectStatus } from "@prisma/client";
 import { NextResponse } from "next/server";
+import { describeFields, describeStatus, recordActivities, shorten } from "@/lib/activity";
 import { requireUserApi } from "@/lib/auth/guard";
 import { prisma } from "@/lib/db";
 import { parseRepoUrl } from "@/lib/git";
@@ -98,6 +100,8 @@ export async function PATCH(request: Request, { params }: Params) {
 
   await prisma.project.update({ where: { id }, data: update });
 
+  await noteChanges(id, auth.user.id, existing, update);
+
   // Wird die Ableitung eingeschaltet, soll der Wert sofort stimmen und nicht
   // erst beim naechsten Aufgabenwechsel.
   if (data.progressFromTasks === true) {
@@ -110,6 +114,59 @@ export async function PATCH(request: Request, { params }: Params) {
   });
 
   return NextResponse.json({ project });
+}
+
+/**
+ * Haelt fest, was sich geaendert hat. Status und Repo-Verknuepfung bekommen
+ * einen eigenen Eintrag – sie sind die Vorgaenge, die man spaeter sucht. Alles
+ * uebrige fasst ein Eintrag zusammen, sonst ertraenkt eine Feinjustage der
+ * Farbe den Verlauf.
+ */
+async function noteChanges(
+  projectId: string,
+  userId: string,
+  before: { status: ProjectStatus; repoUrl: string | null },
+  update: Record<string, unknown>,
+) {
+  const rest = Object.keys(update).filter(
+    (key) => key !== "status" && key !== "slug" && !key.startsWith("repo"),
+  );
+  const entries: Parameters<typeof recordActivities>[0] = [];
+
+  if (update.status !== undefined && update.status !== before.status) {
+    const to = update.status as ProjectStatus;
+    entries.push({
+      projectId,
+      userId,
+      kind: "STATUS_CHANGED",
+      summary: describeStatus(before.status, to),
+      meta: { from: before.status, to },
+    });
+  }
+
+  if (update.repoUrl !== undefined && update.repoUrl !== before.repoUrl) {
+    const url = update.repoUrl as string | null;
+    entries.push({
+      projectId,
+      userId,
+      kind: "REPO_LINKED",
+      summary: url ? `Repository verknüpft: ${shorten(url)}` : "Repository-Verknüpfung entfernt",
+      meta: { repoUrl: url },
+    });
+  }
+
+  const felder = describeFields(rest);
+  if (felder) {
+    entries.push({
+      projectId,
+      userId,
+      kind: "PROJECT_UPDATED",
+      summary: felder,
+      meta: { fields: rest },
+    });
+  }
+
+  await recordActivities(entries);
 }
 
 export async function DELETE(_request: Request, { params }: Params) {

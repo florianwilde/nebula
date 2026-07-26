@@ -1,8 +1,10 @@
+import type { TaskStatus } from "@prisma/client";
 import { NextResponse } from "next/server";
+import { recordActivity, shorten } from "@/lib/activity";
 import { requireUserApi } from "@/lib/auth/guard";
 import { prisma } from "@/lib/db";
 import { jsonError, readJsonBody } from "@/lib/security/request";
-import { nextPosition, refreshDerivedProgress } from "@/lib/tasks";
+import { TASK_STATUS_META, nextPosition, refreshDerivedProgress } from "@/lib/tasks";
 import { formatZodError, taskUpdateSchema } from "@/lib/validation";
 
 export const dynamic = "force-dynamic";
@@ -13,7 +15,7 @@ type Params = { params: Promise<{ id: string }> };
 async function ownedTask(taskId: string, ownerId: string) {
   return prisma.task.findFirst({
     where: { id: taskId, project: { ownerId } },
-    select: { id: true, projectId: true, status: true },
+    select: { id: true, projectId: true, status: true, title: true },
   });
 }
 
@@ -57,6 +59,20 @@ export async function PATCH(request: Request, { params }: Params) {
   const task = await prisma.task.update({ where: { id }, data: update });
   await refreshDerivedProgress(existing.projectId);
 
+  // Nur der Spaltenwechsel kommt in den Verlauf. Ein umbenannter Titel oder
+  // ein neues Label sind zu kleinteilig, um die Geschichte des Projekts zu
+  // erzaehlen – und beim Ziehen im Brett ist der Wechsel die eigentliche Tat.
+  if (update.status !== undefined) {
+    const nach = update.status as TaskStatus;
+    await recordActivity({
+      projectId: existing.projectId,
+      userId: auth.user.id,
+      kind: "TASK_MOVED",
+      summary: `Aufgabe „${shorten(task.title, 50)}“ → ${TASK_STATUS_META[nach].label}`,
+      meta: { taskId: id, from: existing.status, to: nach },
+    });
+  }
+
   return NextResponse.json({ task });
 }
 
@@ -70,6 +86,13 @@ export async function DELETE(_request: Request, { params }: Params) {
 
   await prisma.task.delete({ where: { id } });
   await refreshDerivedProgress(existing.projectId);
+
+  await recordActivity({
+    projectId: existing.projectId,
+    userId: auth.user.id,
+    kind: "TASK_DELETED",
+    summary: `Aufgabe gelöscht: ${shorten(existing.title, 50)}`,
+  });
 
   return NextResponse.json({ ok: true });
 }
