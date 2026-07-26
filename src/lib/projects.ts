@@ -49,7 +49,10 @@ export const connectionSafeSelect = Prisma.validator<Prisma.GitConnectionSelect>
 export const projectListInclude = Prisma.validator<Prisma.ProjectInclude>()({
   connection: { select: connectionSafeSelect },
   snapshot: true,
-  _count: { select: { notes: true } },
+  _count: { select: { notes: true, tasks: true } },
+  // Nur die offenen Aufgaben zaehlen – fuer die Anzeige "3 von 8" auf der
+  // Karte, ohne die Aufgaben selbst mitzuladen.
+  tasks: { where: { status: "DONE" }, select: { id: true } },
 });
 
 export const projectDetailInclude = Prisma.validator<Prisma.ProjectInclude>()({
@@ -58,5 +61,8 @@ export const projectDetailInclude = Prisma.validator<Prisma.ProjectInclude>()({
   notes: {
     orderBy: [{ pinned: "desc" }, { updatedAt: "desc" }],
   },
-  _count: { select: { notes: true } },
+  tasks: {
+    orderBy: [{ status: "asc" }, { position: "asc" }],
+  },
+  _count: { select: { notes: true, tasks: true } },
 });

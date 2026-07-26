@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import {
   AlertTriangle,
+  CheckSquare,
   GitBranch,
   GitCommitHorizontal,
   NotebookPen,
@@ -152,6 +153,16 @@ export function ProjectCard({ project, index = 0 }: { project: ProjectListItem; 
             <span className="inline-flex items-center gap-1.5" suppressHydrationWarning>
               <GitCommitHorizontal className="h-3.5 w-3.5 text-slate-500" />
               {formatRelative(snapshot.lastCommitAt)}
+            </span>
+          ) : null}
+
+          {project._count.tasks > 0 ? (
+            <span
+              className="inline-flex items-center gap-1.5"
+              title={`${project.tasks.length} von ${project._count.tasks} Aufgaben erledigt`}
+            >
+              <CheckSquare className="h-3.5 w-3.5 text-slate-500" />
+              {project.tasks.length}/{project._count.tasks}
             </span>
           ) : null}
 

@@ -6,6 +6,7 @@ import Link from "next/link";
 import {
   ArrowLeft,
   CalendarDays,
+  CheckSquare,
   Download,
   ExternalLink,
   FileJson,
@@ -207,7 +208,15 @@ export function ProjectHeader({
       {/* Fortschritt direkt regelbar */}
       <div className="mt-6">
         <div className="mb-2 flex items-center justify-between text-xs text-slate-500">
-          <span>Fortschritt</span>
+          <span className="flex items-center gap-1.5">
+            Fortschritt
+            {project.progressFromTasks ? (
+              <span className="inline-flex items-center gap-1 rounded bg-white/6 px-1.5 py-0.5 text-[10px] text-slate-400">
+                <CheckSquare className="h-2.5 w-2.5" />
+                aus Aufgaben
+              </span>
+            ) : null}
+          </span>
           <span className="tabular-nums text-slate-300">{progress}%</span>
         </div>
         {/* Eigener Regler statt eines unsichtbaren Eingabefelds ueber einem
@@ -223,7 +232,11 @@ export function ProjectHeader({
           onTouchEnd={() => patch({ progress })}
           onKeyUp={() => patch({ progress })}
           aria-label="Fortschritt anpassen"
-          className="range"
+          // Wird der Wert aus Aufgaben abgeleitet, waere ein Zug hier
+          // wirkungslos – er wuerde beim naechsten Aufgabenwechsel wieder
+          // ueberschrieben.
+          disabled={project.progressFromTasks}
+          className={cn("range", project.progressFromTasks && "cursor-not-allowed opacity-50")}
           style={{ "--fill": `${progress}%` } as React.CSSProperties}
         />
       </div>

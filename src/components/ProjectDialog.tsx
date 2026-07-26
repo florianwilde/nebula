@@ -32,6 +32,7 @@ interface FormState {
   repoOwner: string;
   repoName: string;
   autoSync: boolean;
+  progressFromTasks: boolean;
 }
 
 const EMPTY: FormState = {
@@ -49,6 +50,7 @@ const EMPTY: FormState = {
   repoOwner: "",
   repoName: "",
   autoSync: true,
+  progressFromTasks: false,
 };
 
 export function ProjectDialog({ open, onClose, connections, project }: ProjectDialogProps) {
@@ -90,6 +92,7 @@ export function ProjectDialog({ open, onClose, connections, project }: ProjectDi
             repoOwner: project.repoOwner ?? "",
             repoName: project.repoName ?? "",
             autoSync: project.autoSync,
+            progressFromTasks: project.progressFromTasks,
           }
         : EMPTY,
     );
@@ -158,6 +161,7 @@ export function ProjectDialog({ open, onClose, connections, project }: ProjectDi
       repoOwner: form.repoOwner,
       repoName: form.repoName,
       autoSync: form.autoSync,
+      progressFromTasks: form.progressFromTasks,
     };
 
     try {
@@ -291,9 +295,25 @@ export function ProjectDialog({ open, onClose, connections, project }: ProjectDi
               step={5}
               value={form.progress}
               onChange={(event) => update("progress", Number(event.target.value))}
-              className="range"
+              disabled={form.progressFromTasks}
+              className={cn("range", form.progressFromTasks && "cursor-not-allowed opacity-40")}
               style={{ "--fill": `${form.progress}%` } as React.CSSProperties}
             />
+            <label className="mt-2 flex cursor-pointer items-start gap-2.5 text-sm text-slate-400">
+              <input
+                type="checkbox"
+                checked={form.progressFromTasks}
+                onChange={(event) => update("progressFromTasks", event.target.checked)}
+                className="mt-0.5 h-4 w-4 accent-violet-500"
+              />
+              <span>
+                Aus Aufgaben berechnen
+                <span className="mt-0.5 block text-[11px] text-slate-600">
+                  Der Fortschritt ergibt sich dann aus dem Anteil erledigter Aufgaben und
+                  laesst sich nicht mehr von Hand schieben.
+                </span>
+              </span>
+            </label>
           </div>
 
           <div className="sm:col-span-2">

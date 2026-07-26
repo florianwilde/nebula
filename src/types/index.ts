@@ -1,4 +1,12 @@
-import type { GitProvider, Note, Project, ProjectStatus, RepoSnapshot } from "@prisma/client";
+import type {
+  GitProvider,
+  Note,
+  Project,
+  ProjectStatus,
+  RepoSnapshot,
+  Task,
+  TaskStatus,
+} from "@prisma/client";
 import type {
   BranchInfo,
   CiInfo,
@@ -30,14 +38,17 @@ export interface ConnectionWithCount extends ConnectionSafe {
 export interface ProjectListItem extends Project {
   connection: ConnectionSafe | null;
   snapshot: RepoSnapshot | null;
-  _count: { notes: number };
+  _count: { notes: number; tasks: number };
+  /** Nur die erledigten – siehe projectListInclude. */
+  tasks: { id: string }[];
 }
 
 export interface ProjectDetail extends Project {
   connection: ConnectionSafe | null;
   snapshot: RepoSnapshot | null;
   notes: Note[];
-  _count: { notes: number };
+  tasks: Task[];
+  _count: { notes: number; tasks: number };
 }
 
 export interface RepoListEntry {
@@ -60,6 +71,8 @@ export type {
   ReleaseInfo,
   RepoSnapshot,
   TagInfo,
+  Task,
+  TaskStatus,
   TicketInfo,
 };
 

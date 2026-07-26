@@ -5,6 +5,7 @@ import { GitPanel } from "@/components/GitPanel";
 import { Markdown } from "@/components/Markdown";
 import { NotesPanel } from "@/components/NotesPanel";
 import { ProjectHeader } from "@/components/ProjectHeader";
+import { TaskBoard } from "@/components/tasks/TaskBoard";
 import { requireUserPage } from "@/lib/auth/guard";
 import { getSessionUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
@@ -57,6 +58,12 @@ export default async function ProjectPage({ params }: PageProps) {
       <ProjectHeader
         project={detail}
         connections={connections as unknown as ConnectionSafe[]}
+      />
+
+      <TaskBoard
+        projectId={detail.id}
+        tasks={detail.tasks}
+        progressFromTasks={detail.progressFromTasks}
       />
 
       <div className="grid gap-6 lg:grid-cols-12">
