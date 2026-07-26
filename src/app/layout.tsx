@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { CommandPalette } from "@/components/CommandPalette";
 import { TopNav } from "@/components/TopNav";
 import { getSessionUser } from "@/lib/auth/session";
 import { APP_NAME, APP_TAGLINE, APP_VERSION } from "@/lib/config";
@@ -44,6 +45,9 @@ export default async function RootLayout({
         <div className="aurora-grid" aria-hidden="true" />
 
         <TopNav user={user} appName={APP_NAME} tagline={APP_TAGLINE} />
+
+        {/* Nur fuer Angemeldete – auf der Anmeldeseite gibt es nichts zu suchen. */}
+        {user ? <CommandPalette isAdmin={user.role === "ADMIN"} /> : null}
 
         <main className="mx-auto w-full max-w-[1400px] px-4 pb-24 pt-6 sm:px-6 lg:px-8">
           {children}
