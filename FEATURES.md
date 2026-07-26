@@ -322,6 +322,56 @@ Dateneinsicht. Ein Administrator sieht dadurch weiterhin keine fremden Projekte.
 
 ---
 
+## 4b. Benachrichtigungen
+
+Einzurichten unter *Mein Konto → Benachrichtigungen*, pro Konto und beliebig viele Ziele.
+
+### Anlässe
+
+| Anlass | Wann |
+| --- | --- |
+| ⚠️ **Abgleich fehlgeschlagen** | Das Git-System war nicht erreichbar oder hat abgelehnt |
+| 🔴 **CI rot** | Der letzte Lauf auf dem Default-Branch ist fehlgeschlagen |
+| 🏷️ **Neues Release** | Ein neuer Tag oder ein neues Release ist aufgetaucht |
+
+### Nur bei Änderung
+
+Der entscheidende Punkt: Gemeldet wird **ausschließlich, wenn sich etwas ändert**
+gegenüber dem, worüber zuletzt benachrichtigt wurde. Ein Repository mit abgelaufenem
+Token meldet sich also **einmal**, nicht bei jedem stündlichen Durchlauf. Wird der Fehler
+ein anderer, kommt eine neue Meldung; ist er behoben und tritt später erneut auf, ebenso.
+
+Zwei Feinheiten:
+
+- **Beim allerersten Abgleich** eines Repositories wird kein Release gemeldet — sonst
+  wäre jede bereits vorhandene Version eine „Neuigkeit".
+- Der Merkstand wird auch dann fortgeschrieben, wenn **kein** Ziel eingerichtet ist. Sonst
+  käme beim ersten eingerichteten Ziel die ganze Vergangenheit hinterher.
+
+### Zustellwege
+
+| Weg | Details |
+| --- | --- |
+| **ntfy** | Vollständige Themen-URL. Titel, Priorität und Symbol als Kopfzeilen; optionales Bearer-Token für geschützte Themen. Läuft auch gegen ein selbst gehostetes ntfy im eigenen Netz. |
+| **Webhook** | JSON per POST mit Anlass, Titel, Text, Projektbezug und Tieflink. Mit hinterlegtem Geheimnis wird der Rumpf per HMAC-SHA256 signiert (`X-Nebula-Signature`), damit der Empfänger die Herkunft prüfen kann. |
+| **E-Mail** | Über SMTP. Steht erst zur Verfügung, wenn `SMTP_HOST` in der `.env` gesetzt ist — sonst ist die Auswahl in der Oberfläche gesperrt und erklärt, warum. |
+
+Jedes Ziel lässt sich einzeln **testen** und **pausieren**; Ergebnis und Zeitpunkt der
+letzten Zustellung stehen an der Karte.
+
+### Absicherung
+
+- Zieladressen sind Benutzereingaben, die der Server abruft — sie laufen deshalb durch
+  denselben **SSRF-Schutz** wie die Git-Verbindungen. Ein ntfy im eigenen Netz bleibt
+  erlaubt, Loopback und Cloud-Metadaten nicht.
+- Redirects werden **nicht verfolgt**: ein Umleitungsziel wäre nicht geprüft.
+- Geheimnisse liegen AES-256-GCM-verschlüsselt und verlassen den Server nie; die
+  Oberfläche zeigt nur einen Hinweis wie `test…mnis`.
+- Eine fehlgeschlagene Zustellung lässt den Abgleich nicht scheitern — der Fehler landet
+  am Ziel, nicht im Sync.
+
+---
+
 ## 5. Oberfläche
 
 - **Dark Glassmorphism**: milchige Glasflächen, driftende Nebel im Hintergrund, feines
@@ -349,6 +399,7 @@ Dateneinsicht. Ein Administrator sieht dadurch weiterhin keine fremden Projekte.
 | `AppSettings` | Betriebsart und Registrierung (eine Zeile) |
 | `Project` | Projektstammdaten, Status, Fortschritt, Repo-Verknüpfung, Besitzer |
 | `Task` | Aufgaben mit Spalte, Position, Fälligkeit und Labels |
+| `NotificationTarget` | Zustellwege je Konto, mit verschlüsseltem Geheimnis |
 | `Note` | Notizen (n:1 zu Projekt, Cascade-Delete) |
 | `GitConnection` | Git-Systeme inkl. verschlüsseltem Token, Besitzer |
 | `RepoSnapshot` | Zwischengespeicherter Repo-Stand (1:1 zu Projekt) |
@@ -414,6 +465,7 @@ Datenbank):
 | `security/ssrf` | Sperrlisten für Loopback, Link-Local, Metadaten-Endpunkt, CGNAT und Multicast; Formprüfung; die drei Umgebungsschalter |
 | `auth/password` | scrypt-Rundlauf, unterschiedliches Salz, Ablageformat, Verhalten bei kaputten Hashes, Passwortregeln |
 | `tasks` | Berechnung des abgeleiteten Fortschritts, Spaltenreihenfolge |
+| `notify/pending` | Wann eine Benachrichtigung fällig ist: neuer Fehler ja, gleicher Fehler nein; CI-Wechsel nach rot; Release erst ab dem zweiten Abgleich |
 
 **`npm run test:e2e` — Ende-zu-Ende** (Playwright, 13 Stück, rund 20 Sekunden). Läuft
 gegen die gebaute Anwendung mit eigener Datenbank auf Port 3111 — also durch Middleware,

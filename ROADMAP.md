@@ -11,31 +11,30 @@ Was bereits steht, listet [FEATURES.md](FEATURES.md).
 
 ## 1 · Als Nächstes empfohlen
 
-### 1.1 Benachrichtigungen `M`
+### 1.1 Stillstehende Projekte melden `S`
 
-Bei Sync-Fehlern, roter CI, neuen Releases oder Projekten, die lange
-stillstehen. Kanäle: E-Mail (SMTP), ntfy, generischer Webhook. Zusammen mit
-dem automatischen Abgleich und dem CI-Status ergibt das ein brauchbares
-Frühwarnsystem — die Daten liegen bereits vor.
+Die Benachrichtigungen decken Fehler und Releases ab. Was fehlt, ist der
+sanfte Stups: „Seit 60 Tagen kein Commit". Braucht einen eigenen Durchlauf,
+weil es kein Ereignis gibt, an dem es hängt — der Zeitgeber ist da.
 
----
-
-## 2 · Danach
-
-### 2.1 Webhooks statt Polling `M`
+### 1.2 Webhooks statt Polling `M`
 
 Ein Push aktualisiert den Snapshot sofort, statt bis zum nächsten Durchlauf
 zu warten. Braucht einen öffentlich erreichbaren Endpunkt mit
 Signaturprüfung je Provider — sinnvoll erst, wenn die Instanz von außen
 erreichbar ist. Der Zeitplan bleibt als Rückfalllösung.
 
-### 2.2 Commit-Aktivität als Heatmap `S`
+---
+
+## 2 · Danach
+
+### 2.1 Commit-Aktivität als Heatmap `S`
 
 Die Sparkline gibt es auf Karte und Projektseite. Eine Heatmap über ein Jahr
 wäre die nächste Ausbaustufe — dafür braucht es allerdings mehr als eine
 Seite Commits, also Paginierung oder die Statistik-Endpunkte.
 
-### 2.3 Kanban mit freier Reihenfolge `M`
+### 2.2 Kanban mit freier Reihenfolge `M`
 
 Heute folgt die Reihenfolge innerhalb einer Spalte der gewählten Sortierung.
 Frei sortieren hieße, eine Position je Projekt zu speichern.
@@ -117,6 +116,7 @@ Damit klar ist, was **nicht** kommt und warum:
 | **v0.4.0** Kanban mit Drag & Drop, CI-Status je Branch, Commit-Aktivität | ✓ |
 | **v0.5.0** Aufgabenbrett je Projekt mit sortierbaren Spalten, Fortschritt aus Aufgaben | ✓ |
 | **v0.6.0** Ende-zu-Ende-Tests mit Playwright, CI-Pipeline für Gitea Actions | ✓ |
+| **v0.7.0** Benachrichtigungen über ntfy, Webhook und E-Mail | ✓ |
 
 Zur Entscheidung beim Export: Git-Tokens gehen **nicht** mit. Die Verbindung wird nur
 beschrieben, das Token ist nach dem Import neu zu hinterlegen. Snapshots bleiben

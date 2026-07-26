@@ -127,6 +127,8 @@ Alle Variablen sind in [`.env.example`](.env.example) dokumentiert.
 | `GIT_ALLOW_LOOPBACK` | Git-Instanz auf demselben Rechner erlauben | `false` |
 | `GIT_BLOCK_PRIVATE` | Zugriff ins private LAN sperren | `false` |
 | `GIT_ALLOWED_HOSTS` | Strengster Modus: nur diese Hosts erlauben | leer |
+| `NOTIFY_TIMEOUT_MS` | Timeout beim Zustellen von Benachrichtigungen | `10000` |
+| `SMTP_HOST` … `SMTP_FROM` | SMTP-Zugang; ohne `SMTP_HOST` steht der Weg „E-Mail" nicht zur Verfügung | leer |
 
 `APP_NAME`, `APP_TAGLINE` und `APP_URL` werden **zur Laufzeit** gelesen. Dasselbe
 Docker-Image lässt sich also ohne Neubau umbenennen oder unter einer anderen Adresse
@@ -338,6 +340,9 @@ ausschließlich Daten des angemeldeten Kontos.
 | `POST` | `/api/projects/import` | Import, mit `dryRun` für die Vorschau |
 | `GET` | `/api/admin/backup` | Vollständige Sicherung als JSON (Admin) |
 | `GET` | `/api/search?q=` | Volltextsuche über die eigenen Notizen |
+| `GET` `POST` | `/api/notifications` | Benachrichtigungsziele |
+| `PATCH` `DELETE` | `/api/notifications/:id` | Ziel ändern / entfernen |
+| `POST` | `/api/notifications/:id/test` | Testnachricht senden |
 | `GET` `PATCH` `DELETE` | `/api/projects/:id` | Projekt lesen / ändern / löschen |
 | `POST` | `/api/projects/:id/sync` | Repo-Daten vom Git-System holen |
 | `GET` `POST` | `/api/projects/:id/tasks` | Aufgaben des Projekts |
