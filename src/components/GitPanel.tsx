@@ -16,19 +16,25 @@ import {
   Loader2,
   Lock,
   Package,
+  Plus,
   RefreshCw,
   ShieldCheck,
   Star,
   Tag,
+  Unlink,
 } from "lucide-react";
 import { CiBadge } from "@/components/CiBadge";
+import { RepositoryDialog } from "@/components/RepositoryDialog";
 import { Sparkline } from "@/components/Sparkline";
+import { repoTitle } from "@/lib/git/meta";
 import { asArray, asRecord } from "@/types";
 import type {
   BranchInfo,
   CommitInfo,
+  ConnectionSafe,
   ProjectDetail,
   ReleaseInfo,
+  RepositoryWithSnapshot,
   TagInfo,
   TicketInfo,
 } from "@/types";
@@ -45,22 +51,37 @@ const TABS = [
 
 type TabKey = (typeof TABS)[number]["key"];
 
-export function GitPanel({ project }: { project: ProjectDetail }) {
+export function GitPanel({
+  project,
+  connections,
+}: {
+  project: ProjectDetail;
+  connections: ConnectionSafe[];
+}) {
   const router = useRouter();
   const [tab, setTab] = useState<TabKey>("pulls");
   const [syncing, setSyncing] = useState(false);
   const [importing, setImporting] = useState(false);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
+  const [addOpen, setAddOpen] = useState(false);
+
+  const repositories = project.repositories;
+  const [selectedId, setSelectedId] = useState<string | null>(repositories[0]?.id ?? null);
+
+  // Nach dem Entfernen zeigt die Auswahl ins Leere – dann auf das fuehrende
+  // zurueckfallen, statt eine leere Ansicht zu zeigen.
+  const repository = repositories.find((entry) => entry.id === selectedId) ?? repositories[0] ?? null;
 
   /** Offene Issues als Aufgaben anlegen – ohne erneuten Abruf beim Provider. */
   async function importIssues() {
+    if (!repository) return;
     setImporting(true);
     setMessage(null);
     try {
       const response = await fetch(`/api/projects/${project.id}/tasks/from-issues`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: "{}",
+        body: JSON.stringify({ repositoryId: repository.id }),
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body.error ?? "Uebernahme fehlgeschlagen.");
@@ -79,7 +100,7 @@ export function GitPanel({ project }: { project: ProjectDetail }) {
     }
   }
 
-  const snapshot = project.snapshot;
+  const snapshot = repository?.snapshot ?? null;
   const branches = asArray<BranchInfo>(snapshot?.branches);
   const tags = asArray<TagInfo>(snapshot?.tags);
   const commits = asArray<CommitInfo>(snapshot?.commits);
@@ -89,13 +110,15 @@ export function GitPanel({ project }: { project: ProjectDetail }) {
   const issues = asArray<TicketInfo>(snapshot?.issues);
   const activity = asArray<number>(snapshot?.commitActivity);
 
-  const hasRepo = Boolean(project.repoOwner && project.repoName) || Boolean(project.repoUrl);
-
-  async function sync() {
+  /** Ein einzelnes Repository oder – ohne Argument – alle. */
+  async function sync(nurDieses?: string) {
     setSyncing(true);
     setMessage(null);
     try {
-      const response = await fetch(`/api/projects/${project.id}/sync`, { method: "POST" });
+      const url = nurDieses
+        ? `/api/repositories/${nurDieses}/sync`
+        : `/api/projects/${project.id}/sync`;
+      const response = await fetch(url, { method: "POST" });
       const payload = await response.json().catch(() => ({}));
       setMessage({ ok: response.ok, text: payload.message ?? "Unbekannte Antwort." });
       router.refresh();
@@ -109,16 +132,41 @@ export function GitPanel({ project }: { project: ProjectDetail }) {
     }
   }
 
-  if (!hasRepo) {
+  async function removeRepository(entry: RepositoryWithSnapshot) {
+    if (
+      !window.confirm(
+        `„${repoTitle(entry)}“ vom Projekt loesen? Der geholte Stand geht dabei verloren.`,
+      )
+    ) {
+      return;
+    }
+    await fetch(`/api/repositories/${entry.id}`, { method: "DELETE" }).catch(() => undefined);
+    setSelectedId(null);
+    router.refresh();
+  }
+
+  if (!repository) {
     return (
-      <div className="glass px-5 py-10 text-center">
-        <GitBranch className="mx-auto h-8 w-8 text-slate-600" />
-        <h3 className="mt-3 text-sm font-semibold text-slate-200">Kein Repository verknuepft</h3>
-        <p className="mx-auto mt-1 max-w-sm text-sm text-slate-500">
-          Hinterlege im Projekt eine Repository-URL und waehle eine Git-Verbindung, um
-          Branches, Tags, Commits und Releases hier zu sehen.
-        </p>
-      </div>
+      <>
+        <div className="glass px-5 py-10 text-center">
+          <GitBranch className="mx-auto h-8 w-8 text-slate-600" />
+          <h3 className="mt-3 text-sm font-semibold text-slate-200">Kein Repository verknuepft</h3>
+          <p className="mx-auto mt-1 max-w-sm text-sm text-slate-500">
+            Verknuepfe ein Repository, um Branches, Tags, Commits und Releases hier zu sehen.
+            Ein Projekt darf auch mehrere haben – etwa Frontend und Backend.
+          </p>
+          <button type="button" className="btn btn-primary mt-4" onClick={() => setAddOpen(true)}>
+            <Plus className="h-4 w-4" />
+            Repository verknuepfen
+          </button>
+        </div>
+        <RepositoryDialog
+          open={addOpen}
+          onClose={() => setAddOpen(false)}
+          projectId={project.id}
+          connections={connections}
+        />
+      </>
     );
   }
 
@@ -129,12 +177,53 @@ export function GitPanel({ project }: { project: ProjectDetail }) {
 
   return (
     <div className="space-y-4">
+      {/* Auswahl, sobald es mehr als eines gibt. Bei einem einzigen waere eine
+          Leiste mit genau einem Knopf nur Ballast. */}
+      {repositories.length > 1 ? (
+        <div className="glass flex flex-wrap items-center gap-1.5 p-2" role="tablist">
+          {repositories.map((entry) => {
+            const aktiv = entry.id === repository.id;
+            return (
+              <button
+                key={entry.id}
+                type="button"
+                role="tab"
+                aria-selected={aktiv}
+                onClick={() => setSelectedId(entry.id)}
+                className={cn(
+                  "flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs transition-colors",
+                  aktiv
+                    ? "bg-white/9 text-white"
+                    : "text-slate-400 hover:bg-white/5 hover:text-slate-200",
+                )}
+              >
+                {entry.syncError ? (
+                  <AlertTriangle className="h-3 w-3 text-rose-300" />
+                ) : (
+                  <GitBranch className="h-3 w-3 text-slate-500" />
+                )}
+                {repoTitle(entry)}
+              </button>
+            );
+          })}
+          <button
+            type="button"
+            onClick={() => setAddOpen(true)}
+            className="ml-auto rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-white/5 hover:text-violet-300"
+            aria-label="Weiteres Repository verknuepfen"
+            title="Weiteres Repository verknuepfen"
+          >
+            <Plus className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      ) : null}
+
       {/* Kopf mit Sync */}
       <div className="glass flex flex-wrap items-center justify-between gap-3 p-4">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <h2 className="truncate font-mono text-sm text-slate-100">
-              {snapshot?.fullName ?? `${project.repoOwner}/${project.repoName}`}
+              {snapshot?.fullName ?? repoTitle(repository)}
             </h2>
             {snapshot?.visibility ? (
               <span className="inline-flex items-center gap-1 rounded-md bg-white/6 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-slate-400">
@@ -160,21 +249,66 @@ export function GitPanel({ project }: { project: ProjectDetail }) {
             <CiBadge state={snapshot?.ciState} name={snapshot?.ciName} url={snapshot?.ciUrl} />
           </div>
           <p className="mt-1 text-xs text-slate-500" suppressHydrationWarning>
-            {project.lastSyncedAt
-              ? `Zuletzt synchronisiert ${formatRelative(project.lastSyncedAt)} · ${formatDateTime(project.lastSyncedAt)}`
+            {repository.lastSyncedAt
+              ? `Zuletzt synchronisiert ${formatRelative(repository.lastSyncedAt)} · ${formatDateTime(repository.lastSyncedAt)}`
               : "Noch nie synchronisiert."}
           </p>
         </div>
 
-        <button type="button" className="btn btn-primary" onClick={sync} disabled={syncing}>
-          {syncing ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
+        <div className="flex flex-wrap items-center gap-2">
+          {repositories.length > 1 ? (
+            <button
+              type="button"
+              className="btn btn-ghost"
+              onClick={() => sync()}
+              disabled={syncing}
+              title="Alle Repositories dieses Projekts abgleichen"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Alle
+            </button>
           ) : (
-            <RefreshCw className="h-4 w-4" />
+            <button
+              type="button"
+              onClick={() => setAddOpen(true)}
+              className="btn btn-ghost"
+              title="Weiteres Repository verknuepfen"
+            >
+              <Plus className="h-4 w-4" />
+              Repository
+            </button>
           )}
-          Jetzt synchronisieren
-        </button>
+          <button
+            type="button"
+            onClick={() => removeRepository(repository)}
+            className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-rose-500/10 hover:text-rose-300"
+            aria-label={`${repoTitle(repository)} vom Projekt loesen`}
+            title="Vom Projekt loesen"
+          >
+            <Unlink className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => sync(repository.id)}
+            disabled={syncing}
+          >
+            {syncing ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="h-4 w-4" />
+            )}
+            Jetzt synchronisieren
+          </button>
+        </div>
       </div>
+
+      <RepositoryDialog
+        open={addOpen}
+        onClose={() => setAddOpen(false)}
+        projectId={project.id}
+        connections={connections}
+      />
 
       {message ? (
         <p
@@ -189,10 +323,10 @@ export function GitPanel({ project }: { project: ProjectDetail }) {
         </p>
       ) : null}
 
-      {project.syncError && !message ? (
+      {repository.syncError && !message ? (
         <p className="flex items-start gap-2 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-          <span>{project.syncError}</span>
+          <span>{repository.syncError}</span>
         </p>
       ) : null}
 

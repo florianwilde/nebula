@@ -140,7 +140,9 @@ export function ProjectBoard({
         (project.summary ?? "").toLowerCase().includes(needle) ||
         (project.description ?? "").toLowerCase().includes(needle) ||
         project.tags.some((tag) => tag.includes(needle)) ||
-        (project.snapshot?.fullName ?? "").toLowerCase().includes(needle) ||
+        project.repositories.some((repo) =>
+          (repo.snapshot?.fullName ?? "").toLowerCase().includes(needle),
+        ) ||
         // Treffer in Notizen kommen vom Server dazu.
         noteHitProjectIds.has(project.id)
       );

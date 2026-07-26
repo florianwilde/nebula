@@ -19,6 +19,7 @@ import {
 import { ProjectDialog } from "@/components/ProjectDialog";
 import { StatusSelect } from "@/components/StatusSelect";
 import { Popover } from "@/components/ui/Popover";
+import { repoTitle } from "@/lib/git/meta";
 import { PRIORITY_META, accentOf } from "@/lib/status";
 import { cn, formatDate } from "@/lib/utils";
 import type { ConnectionSafe, ProjectDetail } from "@/types";
@@ -132,24 +133,22 @@ export function ProjectHeader({
               angelegt {formatDate(project.createdAt)}
             </span>
             <span style={{ color: priority.color }}>Prioritaet: {priority.label}</span>
-            {project.connection ? (
-              <span className="inline-flex items-center gap-1.5">
-                {project.connection.name}
-                <span className="text-slate-700">·</span>
-                {project.connection.provider}
-              </span>
-            ) : null}
-            {project.repoUrl ? (
-              <a
-                href={project.repoUrl}
-                target="_blank"
-                rel="noreferrer noopener"
-                className="inline-flex items-center gap-1.5 text-violet-300 transition-colors hover:text-violet-200"
-              >
-                Repository
-                <ExternalLink className="h-3 w-3" />
-              </a>
-            ) : null}
+            {/* Alle Repositories verlinken – bei einem einzigen sieht das aus
+                wie vorher, bei mehreren steht jedes fuer sich. */}
+            {project.repositories
+              .filter((repository) => repository.repoUrl)
+              .map((repository) => (
+                <a
+                  key={repository.id}
+                  href={repository.repoUrl!}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="inline-flex items-center gap-1.5 text-violet-300 transition-colors hover:text-violet-200"
+                >
+                  {project.repositories.length === 1 ? "Repository" : repoTitle(repository)}
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              ))}
           </div>
 
           {project.tags.length > 0 ? (

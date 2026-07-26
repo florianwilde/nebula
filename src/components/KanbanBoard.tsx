@@ -256,11 +256,12 @@ function KanbanCard({
       </div>
 
       <div className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[10px] text-slate-500">
-        <CiBadge state={project.snapshot?.ciState} compact />
-        {project.snapshot?.defaultBranch ? (
+        {/* Auf der schmalen Kanban-Karte nur das fuehrende Repository. */}
+        <CiBadge state={project.repositories[0]?.snapshot?.ciState} compact />
+        {project.repositories[0]?.snapshot?.defaultBranch ? (
           <span className="inline-flex items-center gap-1 font-mono">
             <GitBranch className="h-3 w-3" />
-            {project.snapshot.defaultBranch}
+            {project.repositories[0].snapshot.defaultBranch}
           </span>
         ) : null}
         {project._count.notes > 0 ? (

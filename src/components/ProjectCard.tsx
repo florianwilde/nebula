@@ -14,6 +14,7 @@ import {
 import { CiBadge } from "@/components/CiBadge";
 import { Sparkline } from "@/components/Sparkline";
 import { StatusSelect } from "@/components/StatusSelect";
+import { repoTitle } from "@/lib/git/meta";
 import { PRIORITY_META, accentOf } from "@/lib/status";
 import { cn, formatRelative, truncate } from "@/lib/utils";
 import { asArray, type ProjectListItem } from "@/types";
@@ -31,7 +32,14 @@ const PROVIDER_LABEL: Record<string, string> = {
 export function ProjectCard({ project, index = 0 }: { project: ProjectListItem; index?: number }) {
   const accent = accentOf(project.accent);
   const priority = PRIORITY_META[project.priority] ?? PRIORITY_META[2];
-  const snapshot = project.snapshot;
+  // Auf der Karte ist nur fuer eines Platz: das fuehrende. Wie viele es
+  // insgesamt sind, sagt die Zahl daneben.
+  const leading = project.repositories[0] ?? null;
+  const snapshot = leading?.snapshot ?? null;
+  const weitere = project.repositories.length - 1;
+  // Ein Fehler an irgendeinem Repo gehoert auf die Karte, nicht nur einer am
+  // fuehrenden – sonst bliebe er unbemerkt.
+  const syncError = project.repositories.find((repo) => repo.syncError)?.syncError ?? null;
   const activity = asArray<number>(snapshot?.commitActivity);
   const [favorite, setFavorite] = useState(project.favorite);
 
@@ -125,10 +133,20 @@ export function ProjectCard({ project, index = 0 }: { project: ProjectListItem; 
         <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 text-[11px] text-slate-400">
           <CiBadge state={snapshot?.ciState} name={snapshot?.ciName} compact />
 
-          {project.connection ? (
+          {leading?.connection ? (
             <span className="glass-soft inline-flex items-center gap-1.5 px-2 py-1">
               <span className="h-1.5 w-1.5 rounded-full bg-violet-400" aria-hidden="true" />
-              {PROVIDER_LABEL[project.connection.provider] ?? project.connection.provider}
+              {PROVIDER_LABEL[leading.connection.provider] ?? leading.connection.provider}
+            </span>
+          ) : null}
+
+          {weitere > 0 ? (
+            <span
+              className="inline-flex items-center gap-1.5"
+              title={project.repositories.map((repo) => repoTitle(repo)).join(", ")}
+            >
+              <GitBranch className="h-3.5 w-3.5 text-slate-500" />+{weitere} Repo
+              {weitere === 1 ? "" : "s"}
             </span>
           ) : null}
 
@@ -173,11 +191,8 @@ export function ProjectCard({ project, index = 0 }: { project: ProjectListItem; 
             </span>
           ) : null}
 
-          {project.syncError ? (
-            <span
-              className="inline-flex items-center gap-1.5 text-rose-300/80"
-              title={project.syncError}
-            >
+          {syncError ? (
+            <span className="inline-flex items-center gap-1.5 text-rose-300/80" title={syncError}>
               <AlertTriangle className="h-3.5 w-3.5" />
               Sync-Fehler
             </span>

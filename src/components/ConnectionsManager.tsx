@@ -140,8 +140,8 @@ export function ConnectionsManager({ connections }: { connections: ConnectionWit
   }
 
   async function remove(connection: ConnectionWithCount) {
-    const linked = connection._count?.projects ?? 0;
-    const hint = linked > 0 ? `\n\n${linked} Projekt(e) verlieren die Verknuepfung.` : "";
+    const linked = connection._count?.repositories ?? 0;
+    const hint = linked > 0 ? `\n\n${linked} Repository(s) verlieren die Verknuepfung.` : "";
     if (!window.confirm(`Verbindung „${connection.name}“ loeschen?${hint}`)) return;
     setBusyId(connection.id);
     await fetch(`/api/connections/${connection.id}`, { method: "DELETE" }).catch(() => undefined);
@@ -257,9 +257,9 @@ export function ConnectionsManager({ connections }: { connections: ConnectionWit
                     </div>
                   ) : null}
                   <div className="flex items-start justify-between gap-3">
-                    <dt className="text-slate-500">Projekte</dt>
+                    <dt className="text-slate-500">Repositories</dt>
                     <dd className="tabular-nums text-slate-300">
-                      {connection._count?.projects ?? 0}
+                      {connection._count?.repositories ?? 0}
                     </dd>
                   </div>
                   {connection.lastCheckedAt ? (

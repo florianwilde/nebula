@@ -87,7 +87,10 @@ export default async function ProjectPage({ params }: PageProps) {
         </div>
 
         <div className="space-y-6 lg:col-span-7">
-          <GitPanel project={detail} />
+          <GitPanel
+            project={detail}
+            connections={connections as unknown as ConnectionSafe[]}
+          />
           <ActivityFeed projectId={detail.id} initial={detail.activities} />
         </div>
       </div>

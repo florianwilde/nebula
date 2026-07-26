@@ -87,11 +87,14 @@ export function ProjectDialog({ open, onClose, connections, project }: ProjectDi
             accent: project.accent,
             tags: project.tags.join(", "),
             favorite: project.favorite,
-            connectionId: project.connectionId ?? "",
-            repoUrl: project.repoUrl ?? "",
-            repoOwner: project.repoOwner ?? "",
-            repoName: project.repoName ?? "",
-            autoSync: project.autoSync,
+            // Der Dialog bearbeitet das fuehrende Repository. Weitere
+            // verwaltet das Git-Panel – hier wuerde eine Liste den Dialog
+            // sprengen, in dem es eigentlich um das Projekt geht.
+            connectionId: project.repositories[0]?.connectionId ?? "",
+            repoUrl: project.repositories[0]?.repoUrl ?? "",
+            repoOwner: project.repositories[0]?.repoOwner ?? "",
+            repoName: project.repositories[0]?.repoName ?? "",
+            autoSync: project.repositories[0]?.autoSync ?? true,
             progressFromTasks: project.progressFromTasks,
           }
         : EMPTY,
