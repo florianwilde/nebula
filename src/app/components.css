@@ -124,6 +124,30 @@
   }
   .md a:hover { color: #ddd6fe; }
 
+  /* Bilder werden nicht geladen, sondern als Marke gezeigt – siehe die
+     Begruendung in Markdown.tsx. Damit sie nicht wie Fliesstext aussieht,
+     bekommt sie einen Rahmen und ein Symbol davor. */
+  .md .md-image {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3em;
+    border: 1px dashed rgba(255, 255, 255, 0.16);
+    border-radius: 0.4rem;
+    padding: 0.05em 0.45em;
+    font-size: 0.85em;
+    color: #8a98b0;
+    text-decoration: none;
+    vertical-align: baseline;
+  }
+  .md .md-image::before {
+    content: "▣";
+    opacity: 0.6;
+  }
+  .md a.md-image:hover {
+    color: #c4b5fd;
+    border-color: rgba(196, 181, 253, 0.4);
+  }
+
   .md strong { color: #f1f5f9; font-weight: 600; }
 
   .md ul, .md ol { margin: 0.75em 0; padding-left: 1.35em; }

@@ -5,6 +5,7 @@ import { ActivityFeed } from "@/components/ActivityFeed";
 import { GitPanel } from "@/components/GitPanel";
 import { Markdown } from "@/components/Markdown";
 import { NotesPanel } from "@/components/NotesPanel";
+import { ReadmePanel } from "@/components/ReadmePanel";
 import { ProjectHeader } from "@/components/ProjectHeader";
 import { TaskBoard } from "@/components/tasks/TaskBoard";
 import { requireUserPage } from "@/lib/auth/guard";
@@ -54,6 +55,20 @@ export default async function ProjectPage({ params }: PageProps) {
 
   const detail = project as unknown as ProjectDetail;
 
+  const fuehrend = detail.repositories[0]?.snapshot;
+  const readme = fuehrend?.readme
+    ? {
+        content: fuehrend.readme,
+        path: fuehrend.readmePath,
+        baseUrl: fuehrend.readmeBaseUrl,
+        // Die Basis endet auf dem Verzeichnis; angehaengt ergibt das die Datei.
+        fileUrl:
+          fuehrend.readmeBaseUrl && fuehrend.readmePath
+            ? `${fuehrend.readmeBaseUrl}${fuehrend.readmePath.split("/").pop()}`
+            : (fuehrend.htmlUrl ?? null),
+      }
+    : null;
+
   return (
     <div className="space-y-6 pt-4">
       <ProjectHeader
@@ -82,6 +97,17 @@ export default async function ProjectPage({ params }: PageProps) {
               </p>
             )}
           </section>
+
+          {/* Das README des fuehrenden Repositories – bei mehreren waere eine
+              zweite Vorschau untereinander mehr Laenge als Nutzen. */}
+          {readme ? (
+            <ReadmePanel
+              content={readme.content}
+              path={readme.path}
+              baseUrl={readme.baseUrl}
+              fileUrl={readme.fileUrl}
+            />
+          ) : null}
 
           <NotesPanel projectId={detail.id} notes={detail.notes} />
         </div>
