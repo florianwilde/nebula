@@ -37,17 +37,7 @@ Frei sortieren hieße, eine Position je Projekt zu speichern.
 
 ## 3 · Größere Brocken
 
-### 3.1 Mehrere Repositories je Projekt `M`
-
-Frontend und Backend getrennt, aber ein Projekt. Erfordert eine Zwischen­tabelle
-und Anpassungen in der Anzeige.
-
-### 3.2 Zwei-Faktor per TOTP `M`
-
-Als Alternative zum Passkey — nützlich, wenn die Instanz aus dem Internet
-erreichbar ist und nicht jedes Gerät Passkeys kann.
-
-### 3.3 Passwort-Zurücksetzen per E-Mail `M`
+### 3.1 Passwort-Zurücksetzen per E-Mail `M`
 
 Heute setzt ein Administrator das Passwort neu. Selbstbedienung braucht SMTP
 und damit eine weitere Konfiguration — lohnt erst im Mehrbenutzerbetrieb.
@@ -65,7 +55,6 @@ Voraussetzung, falls du das Projekt veröffentlichen willst.
 | --- | --- | --- |
 | Suchtreffer in Notizen hervorheben | `S` | In der Notiz selbst, nicht nur in der Trefferliste |
 | Mehrfachauswahl im Board | `S` | Status oder Tags für mehrere auf einmal |
-| Aktivitätsverlauf je Projekt | `S` | Wer hat wann was geändert |
 | Wiederkehrende Aufgaben | `M` | Etwa „jeden Montag Abhängigkeiten prüfen" |
 | Projektvorlagen | `S` | Neues Projekt mit vorgefüllten Tags und Notizen |
 | Hell/Dunkel umschaltbar | `M` | Aktuell nur dunkel |
@@ -111,6 +100,7 @@ Damit klar ist, was **nicht** kommt und warum:
 | **v0.7.0** Benachrichtigungen über ntfy, Webhook und E-Mail | ✓ |
 | **v0.8.0** Stillstehende Projekte melden, Schwelle im Adminbereich | ✓ |
 | **v0.9.0** Schnellsuche per `Strg+K`, Aufgaben aus Git-Issues | ✓ |
+| **v1.0.0** Aktivitätsverlauf je Projekt, Zwei-Faktor per TOTP, mehrere Repositories je Projekt | ✓ |
 
 Zur Entscheidung beim Export: Git-Tokens gehen **nicht** mit. Die Verbindung wird nur
 beschrieben, das Token ist nach dem Import neu zu hinterlegen. Snapshots bleiben

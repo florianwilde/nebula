@@ -27,6 +27,14 @@ sonst würden Konten ausgesperrt. Nach der Einrichtung ist `/setup` dauerhaft ge
 - **Passkey (WebAuthn).** Fingerabdruck, Gesichtserkennung oder Sicherheitsschlüssel. Die
   Anmeldung läuft über auffindbare Credentials, ein Benutzername ist also nicht nötig.
   Mehrere Passkeys pro Konto, benennbar und einzeln entfernbar.
+- **Zwei-Faktor per TOTP.** Zeitbasiertes Einmalkennwort zusätzlich zum Passwort, für jede
+  gängige Authenticator-App. Einrichtung über QR-Code oder abgetippten Schlüssel; scharf
+  wird er erst nach einem bestätigten Code, damit sich niemand aussperrt, der den Scan
+  nicht hinbekommt. Dazu zehn **Wiederherstellungscodes**, jeder genau einmal gültig —
+  sie werden nur bei der Ausgabe angezeigt. Abschalten und Neuerzeugen verlangen das
+  Passwort, nicht bloß eine offene Sitzung.
+- Die Passkey-Anmeldung fragt **nicht** nach dem zweiten Faktor: der Passkey ist bereits an
+  ein Gerät gebunden und damit selbst der zweite Faktor.
 - Ein Konto kann **ausschließlich** per Passkey nutzbar sein. Der letzte Passkey lässt sich
   dann nicht entfernen, solange kein Passwort gesetzt ist.
 - Fehlversuche werden gezählt; nach acht sperrt sich das Konto für 15 Minuten.
@@ -35,9 +43,9 @@ sonst würden Konten ausgesperrt. Nach der Einrichtung ist `/setup` dauerhaft ge
 
 ### 0.3 Mein Konto
 
-Anzeigename und E-Mail ändern · Passwort setzen oder wechseln · Passkeys verwalten ·
-aktive Sitzungen einsehen (Browser, Betriebssystem, IP, letzte Aktivität) · überall
-abmelden, wobei das eigene Gerät angemeldet bleibt.
+Anzeigename und E-Mail ändern · Passwort setzen oder wechseln · Zwei-Faktor einrichten und
+abschalten · Passkeys verwalten · aktive Sitzungen einsehen (Browser, Betriebssystem, IP,
+letzte Aktivität) · überall abmelden, wobei das eigene Gerät angemeldet bleibt.
 
 ### 0.4 Benutzerverwaltung (Administratoren)
 
@@ -214,6 +222,31 @@ statt verschoben.
 ---
 
 ## 4. Git-Anbindung
+
+### 4.0 Mehrere Repositories je Projekt
+
+Ein Vorhaben besteht oft aus mehreren Repositories — Frontend und Backend etwa, oder
+App und Infrastruktur. Sie gehören trotzdem in **eine** Karte.
+
+- Im Git-Panel steht eine Leiste mit allen Repositories des Projekts, sobald es mehr als
+  eines gibt. Jedes hat eigene Kennzahlen, Listen, CI und eigenen Abgleich; „Alle" gleicht
+  sie nacheinander ab — nicht gleichzeitig, denn ein Schwung Anfragen an denselben Anbieter
+  ist genau das, worauf Rate-Limits reagieren.
+- Eine frei wählbare **Bezeichnung** („Frontend") tritt an die Stelle von `owner/name`.
+- Das erste Repository ist das **führende**. Wo nur eines dargestellt werden kann — auf der
+  Karte im Dashboard, im Kanban —, ist es dieses. Die Karte zeigt daneben `+2 Repos`.
+  Ein Abgleichsfehler an *irgendeinem* Repository erscheint auf der Karte, sonst bliebe er
+  unbemerkt.
+- **Stillstand** bemisst sich am jüngsten Commit über alle Repositories: an einem Vorhaben
+  wird gearbeitet, sobald an einem seiner Teile gearbeitet wird.
+- Benachrichtigungen merken sich den gemeldeten Zustand **je Repository**. Sonst verdeckte
+  ein rotes Frontend die rote Pipeline des Backends. Der Betreff nennt das Repository nur,
+  wenn es nicht ohnehin so heißt wie das Projekt.
+- Übernommene Issues merken sich, aus welchem Repository sie stammen — Frontend und Backend
+  haben beide ein Issue Nummer 5, und das sind zwei Aufgaben.
+
+Der Projektdialog bearbeitet weiterhin nur das führende Repository; weitere verwaltet das
+Git-Panel. Beim Anlegen eines Projekts entsteht aus den Git-Feldern das erste.
 
 ### 4.1 Unterstützte Systeme
 
@@ -441,13 +474,17 @@ letzten Zustellung stehen an der Karte.
 | `Session` | Serverseitige Sitzungen (nur der Token-Hash) |
 | `Credential` | Passkeys inkl. öffentlichem Schlüssel und Signaturzähler |
 | `WebAuthnChallenge` | Kurzlebige, einmalig verwendbare Challenges |
+| `RecoveryCode` | Wiederherstellungscodes für die Zwei-Faktor-Anmeldung (nur der Hash) |
+| `PendingLogin` | Zwischenzustand zwischen Passwort und zweitem Faktor, fünf Minuten gültig |
 | `AppSettings` | Betriebsart und Registrierung (eine Zeile) |
-| `Project` | Projektstammdaten, Status, Fortschritt, Repo-Verknüpfung, Besitzer |
-| `Task` | Aufgaben mit Spalte, Position, Fälligkeit und Labels |
+| `Project` | Projektstammdaten, Status, Fortschritt, Besitzer |
+| `Repository` | Repositories eines Projekts inkl. Abgleichstand (n:1 zu Projekt) |
+| `Task` | Aufgaben mit Spalte, Position, Fälligkeit, Labels und Issue-Herkunft |
+| `Activity` | Verlauf je Projekt, neueste zuerst, auf 200 Einträge begrenzt |
 | `NotificationTarget` | Zustellwege je Konto, mit verschlüsseltem Geheimnis |
 | `Note` | Notizen (n:1 zu Projekt, Cascade-Delete) |
 | `GitConnection` | Git-Systeme inkl. verschlüsseltem Token, Besitzer |
-| `RepoSnapshot` | Zwischengespeicherter Repo-Stand (1:1 zu Projekt) |
+| `RepoSnapshot` | Zwischengespeicherter Repo-Stand (1:1 zu Repository) |
 
 `Project.ownerId` und `GitConnection.ownerId` sind bewusst optional: so überleben Daten aus
 der Zeit vor der Benutzerverwaltung die Migration und werden beim Anlegen des ersten Kontos

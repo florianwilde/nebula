@@ -191,11 +191,92 @@ test("Issues als Aufgaben uebernehmen, ohne Dubletten", async ({ request }) => {
     await (await request.post("/api/projects", { data: { name: "Issue-Projekt" } })).json()
   ).project;
 
-  // Ohne Repo-Stand gibt es nichts zu uebernehmen – und das sagt der Server auch.
+  // Ohne verknuepftes Repository gibt es nichts zu uebernehmen.
+  const ohneRepo = await request.post(`/api/projects/${projekt.id}/tasks/from-issues`, {
+    data: {},
+  });
+  expect(ohneRepo.status()).toBe(409);
+
+  // Mit Repository, aber ohne geholten Stand ebenfalls nicht – der Server
+  // laedt hier bewusst nichts nach.
+  await request.patch(`/api/projects/${projekt.id}`, {
+    data: { repoUrl: "https://github.com/vercel/swr" },
+  });
   const ohneStand = await request.post(`/api/projects/${projekt.id}/tasks/from-issues`, {
     data: {},
   });
   expect(ohneStand.status()).toBe(409);
+
+  // Nach einem bestimmten, das es nicht gibt, ist dagegen 404 richtig.
+  const fremdesRepo = await request.post(`/api/projects/${projekt.id}/tasks/from-issues`, {
+    data: { repositoryId: "gibt-es-nicht" },
+  });
+  expect(fremdesRepo.status()).toBe(404);
+});
+
+test("Mehrere Repositories je Projekt", async ({ request, playwright }) => {
+  await login(request, ADMIN);
+
+  // Beim Anlegen setzen die Git-Felder das fuehrende Repository.
+  const projekt = (
+    await (
+      await request.post("/api/projects", {
+        data: { name: "Zwei Teile", repoUrl: "https://github.com/vercel/swr" },
+      })
+    ).json()
+  ).project;
+
+  expect(projekt.repositories).toHaveLength(1);
+  expect(projekt.repositories[0].repoOwner).toBe("vercel");
+  expect(projekt.repositories[0].repoName).toBe("swr");
+
+  // Ein zweites dazu.
+  const zweites = await request.post(`/api/projects/${projekt.id}/repositories`, {
+    data: { label: "Backend", repoUrl: "https://github.com/vercel/next.js" },
+  });
+  expect(zweites.status()).toBe(201);
+  const backendId = (await zweites.json()).repository.id;
+
+  // Dasselbe Repo zweimal ist immer ein Versehen.
+  const doppelt = await request.post(`/api/projects/${projekt.id}/repositories`, {
+    data: { repoUrl: "https://github.com/vercel/next.js" },
+  });
+  expect(doppelt.status()).toBe(409);
+
+  // Halbe Angaben ergeben kein Repository.
+  const leer = await request.post(`/api/projects/${projekt.id}/repositories`, {
+    data: { label: "Nur ein Name" },
+  });
+  expect(leer.status()).toBe(422);
+
+  const geladen = (await (await request.get(`/api/projects/${projekt.id}`)).json()).project;
+  expect(geladen.repositories).toHaveLength(2);
+  // Das fuehrende steht vorn.
+  expect(geladen.repositories[0].repoName).toBe("swr");
+  expect(geladen.repositories[1].label).toBe("Backend");
+
+  // Der Projekt-PATCH bearbeitet weiterhin nur das fuehrende.
+  await request.patch(`/api/projects/${projekt.id}`, { data: { autoSync: false } });
+  const danach = (await (await request.get(`/api/projects/${projekt.id}`)).json()).project;
+  expect(danach.repositories[0].autoSync).toBe(false);
+  expect(danach.repositories[1].autoSync).toBe(true);
+
+  // Fremde Konten kommen an kein Repository.
+  const fremd = await playwright.request.newContext({
+    baseURL: test.info().project.use.baseURL,
+  });
+  await login(fremd, ZWEITER);
+  expect((await fremd.get(`/api/projects/${projekt.id}/repositories`)).status()).toBe(404);
+  expect((await fremd.patch(`/api/repositories/${backendId}`, { data: {} })).status()).toBe(404);
+  expect((await fremd.delete(`/api/repositories/${backendId}`)).status()).toBe(404);
+  expect((await fremd.post(`/api/repositories/${backendId}/sync`)).status()).toBe(404);
+  await fremd.dispose();
+
+  // Entfernen laesst das andere stehen.
+  expect((await request.delete(`/api/repositories/${backendId}`)).ok()).toBeTruthy();
+  const zumSchluss = (await (await request.get(`/api/projects/${projekt.id}`)).json()).project;
+  expect(zumSchluss.repositories).toHaveLength(1);
+  expect(zumSchluss.repositories[0].repoName).toBe("swr");
 });
 
 test("Export enthaelt keine Geheimnisse, Import beachtet die Strategie", async ({ request }) => {
@@ -218,6 +299,12 @@ test("Export enthaelt keine Geheimnisse, Import beachtet die Strategie", async (
   const datei = JSON.parse(roh);
   const vorher = datei.projects.length;
 
+  // Version 2: die Repositories stehen als Liste in der Datei.
+  expect(datei.version).toBe(2);
+  const mitRepo = datei.projects.find((entry: { name: string }) => entry.name === "Zwei Teile");
+  expect(mitRepo.repositories).toHaveLength(1);
+  expect(mitRepo.repositories[0].repoName).toBe("swr");
+
   // Ueberspringen aendert nichts.
   const uebersprungen = await request.post("/api/projects/import", {
     data: { data: datei, strategy: "skip", dryRun: false },
@@ -238,4 +325,37 @@ test("Export enthaelt keine Geheimnisse, Import beachtet die Strategie", async (
     data: { data: { irgendwas: true }, strategy: "skip", dryRun: true },
   });
   expect(muell.status()).toBe(422);
+});
+
+test("Dateien der Version 1 bleiben lesbar", async ({ request }) => {
+  await login(request, ADMIN);
+
+  // Damals stand genau ein Repository flach am Projekt. Wer eine solche
+  // Sicherung liegen hat, soll sie weiterhin einspielen koennen.
+  const alt = {
+    kind: "nebula.projects",
+    version: 1,
+    projects: [
+      {
+        name: "Aus Version eins",
+        repoUrl: "https://github.com/vercel/swr",
+        repoOwner: "vercel",
+        repoName: "swr",
+        autoSync: false,
+      },
+    ],
+  };
+
+  const gelesen = await request.post("/api/projects/import", {
+    data: { data: alt, strategy: "rename", dryRun: false },
+  });
+  expect(gelesen.ok()).toBeTruthy();
+
+  const projekte = (await (await request.get("/api/projects")).json()).projects;
+  const uebernommen = projekte.find(
+    (entry: { name: string }) => entry.name === "Aus Version eins",
+  );
+  expect(uebernommen.repositories).toHaveLength(1);
+  expect(uebernommen.repositories[0].repoOwner).toBe("vercel");
+  expect(uebernommen.repositories[0].autoSync).toBe(false);
 });

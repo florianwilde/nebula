@@ -69,14 +69,30 @@ SSRF-Schutz (`lib/security/ssrf.ts`).
 `prisma migrate dev` ist hier nicht benutzbar (interaktiv). Stattdessen:
 
 ```bash
-npx prisma migrate diff --from-schema-datasource prisma/schema.prisma \
-  --to-schema-datamodel prisma/schema.prisma --script --output prisma/migrations/<stempel>_<name>/migration.sql
+docker exec nebula-db psql -U nebula -d postgres -c "CREATE DATABASE nebula_shadow"
+npx prisma migrate diff --from-migrations prisma/migrations \
+  --to-schema-datamodel prisma/schema.prisma \
+  --shadow-database-url postgresql://nebula:nebula@localhost:5432/nebula_shadow \
+  --script --output prisma/migrations/<stempel>_<name>/migration.sql
 npx prisma migrate deploy
 ```
+
+**`--from-migrations`, nicht `--from-schema-datasource`.** Letzteres
+vergleicht mit der *laufenden* Datenbank. Ist eine eben erzeugte Migration
+dort noch nicht eingespielt, steht ihr Inhalt in der nächsten gleich noch
+einmal.
 
 **Die erzeugte SQL vor dem Anwenden lesen.** Der Volltextindex
 `Note_fulltext_idx` ist ein Ausdrucksindex, den Prisma nicht kennt (er wird
 bislang in Ruhe gelassen, aber das ist nicht garantiert).
+
+**Datenmigrationen von Hand schreiben.** `migrate diff` kennt nur den
+Zielzustand: Spalten, die woandershin wandern, würde es ersatzlos löschen.
+Vorgehen wie in `20260726230000_repositories`: neue Tabelle anlegen, Bestand
+per `INSERT … SELECT` übernehmen, dann erst die alten Spalten entfernen.
+Danach `migrate diff` erneut laufen lassen — kommt „empty migration“ heraus,
+stimmt das Ergebnis mit dem Schema überein. Und gegen eine Kopie mit echten
+Daten prüfen, nicht nur gegen eine leere Datenbank.
 
 ## Prüfen, nicht behaupten
 
@@ -85,6 +101,19 @@ Vor „fertig": `npx tsc --noEmit`, `npm test`, `npm run build`.
 Bei Änderungen an der Oberfläche **hinsehen**. Chrome ist installiert, ein
 Skript mit `playwright-core` und `channel: "chrome"` genügt für Screenshots.
 Mehrere Anzeigefehler dieses Projekts sind ausschließlich so aufgefallen.
+
+Wer den Standalone-Bau von Hand startet (`node .next/standalone/server.js`),
+muss vorher `.next/static` und `public` danebenkopieren — sonst lädt kein
+JavaScript, die Seite bleibt serverseitig gerendert, und Formulare senden
+sich nativ ab. Das sieht aus wie ein Anwendungsfehler, ist aber keiner:
+
+```bash
+cp -r .next/static .next/standalone/.next/ && cp -r public .next/standalone/
+```
+
+`pkill` gibt es in dieser Git-Bash nicht. Prozesse über PowerShell beenden
+(`Get-CimInstance Win32_Process … | Stop-Process`) — sonst läuft der alte
+Server weiter, hält die Prisma-DLL und blockiert den nächsten Bau.
 
 **Niemals gegen die echte Datenbank testen.** Eine Wegwerf-Datenbank anlegen
 und danach löschen:

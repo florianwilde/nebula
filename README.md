@@ -324,12 +324,15 @@ ausschließlich Daten des angemeldeten Kontos.
 | `GET` | `/api/health` | Status inkl. Datenbankverbindung (Docker-Healthcheck) |
 | `POST` | `/api/auth/setup` | Administratorkonto anlegen (nur beim ersten Mal) |
 | `POST` | `/api/auth/login` `/api/auth/logout` `/api/auth/register` | Anmeldung |
+| `POST` | `/api/auth/mfa` | Zweiter Faktor: Einmalkennwort oder Wiederherstellungscode |
 | `GET` | `/api/auth/session` | Aktuelle Sitzung und Instanzzustand |
 | `POST` | `/api/auth/passkey/{login,register}/{options,verify}` | WebAuthn |
 | `PATCH` | `/api/account/profile` | Eigenes Profil |
 | `POST` | `/api/account/password` | Eigenes Passwort setzen |
 | `GET` `DELETE` | `/api/account/sessions` | Eigene Sitzungen / überall abmelden |
 | `PATCH` `DELETE` | `/api/account/passkeys/:id` | Passkey umbenennen / entfernen |
+| `GET` `POST` `PUT` `DELETE` | `/api/account/totp` | Zwei-Faktor: Zustand, einrichten, aktivieren, abschalten |
+| `POST` | `/api/account/totp/recovery` | Neue Wiederherstellungscodes |
 | `GET` `PATCH` | `/api/admin/settings` | Betriebsart, Registrierung, Abgleich (Admin) |
 | `POST` | `/api/admin/sync/run` | Abgleich sofort anstoßen (Admin) |
 | `GET` `POST` | `/api/admin/users` | Konten auflisten / anlegen (Admin) |
@@ -344,7 +347,11 @@ ausschließlich Daten des angemeldeten Kontos.
 | `PATCH` `DELETE` | `/api/notifications/:id` | Ziel ändern / entfernen |
 | `POST` | `/api/notifications/:id/test` | Testnachricht senden |
 | `GET` `PATCH` `DELETE` | `/api/projects/:id` | Projekt lesen / ändern / löschen |
-| `POST` | `/api/projects/:id/sync` | Repo-Daten vom Git-System holen |
+| `POST` | `/api/projects/:id/sync` | Alle Repositories des Projekts abgleichen |
+| `GET` | `/api/projects/:id/activity` | Verlauf des Projekts (`?limit=`) |
+| `GET` `POST` | `/api/projects/:id/repositories` | Repositories des Projekts |
+| `PATCH` `DELETE` | `/api/repositories/:id` | Repository ändern / vom Projekt lösen |
+| `POST` | `/api/repositories/:id/sync` | Ein einzelnes Repository abgleichen |
 | `GET` `POST` | `/api/projects/:id/tasks` | Aufgaben des Projekts |
 | `PATCH` | `/api/projects/:id/tasks/reorder` | Neue Reihenfolge nach dem Ziehen |
 | `POST` | `/api/projects/:id/tasks/from-issues` | Offene Issues als Aufgaben übernehmen |
