@@ -1,5 +1,10 @@
 import type { Metadata } from "next";
 import { AccountManager, type AccountData } from "@/components/account/AccountManager";
+import {
+  NotificationSection,
+  type NotificationTargetEntry,
+} from "@/components/account/NotificationSection";
+import { emailAvailable } from "@/lib/notify";
 import { requireUserPage } from "@/lib/auth/guard";
 import { WEBAUTHN_AVAILABLE } from "@/lib/config";
 import { prisma } from "@/lib/db";
@@ -13,7 +18,7 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function AccountPage() {
   const user = await requireUserPage();
 
-  const [passkeys, sessions] = await Promise.all([
+  const [passkeys, sessions, targets] = await Promise.all([
     prisma.credential.findMany({
       where: { userId: user.id },
       select: {
@@ -36,6 +41,22 @@ export default async function AccountPage() {
         lastSeenAt: true,
       },
       orderBy: { lastSeenAt: "desc" },
+    }),
+    prisma.notificationTarget.findMany({
+      where: { userId: user.id },
+      select: {
+        id: true,
+        name: true,
+        channel: true,
+        target: true,
+        secretHint: true,
+        events: true,
+        isActive: true,
+        lastSentAt: true,
+        lastOk: true,
+        lastMessage: true,
+      },
+      orderBy: { name: "asc" },
     }),
   ]);
 
@@ -60,6 +81,11 @@ export default async function AccountPage() {
       </header>
 
       <AccountManager data={data} />
+
+      <NotificationSection
+        targets={targets as unknown as NotificationTargetEntry[]}
+        emailAvailable={emailAvailable()}
+      />
     </div>
   );
 }
