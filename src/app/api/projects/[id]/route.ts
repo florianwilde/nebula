@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { parseRepoUrl } from "@/lib/git";
 import { projectDetailInclude, projectListInclude, uniqueSlug } from "@/lib/projects";
 import { jsonError, readJsonBody } from "@/lib/security/request";
+import { refreshDerivedProgress } from "@/lib/tasks";
 import { formatZodError, projectUpdateSchema } from "@/lib/validation";
 
 export const dynamic = "force-dynamic";
@@ -75,6 +76,7 @@ export async function PATCH(request: Request, { params }: Params) {
     "tags",
     "favorite",
     "autoSync",
+    "progressFromTasks",
     "connectionId",
   ] as const) {
     if (data[key] !== undefined) update[key] = data[key];
@@ -94,9 +96,16 @@ export async function PATCH(request: Request, { params }: Params) {
   if (data.repoOwner !== undefined) update.repoOwner = data.repoOwner;
   if (data.repoName !== undefined) update.repoName = data.repoName;
 
-  const project = await prisma.project.update({
+  await prisma.project.update({ where: { id }, data: update });
+
+  // Wird die Ableitung eingeschaltet, soll der Wert sofort stimmen und nicht
+  // erst beim naechsten Aufgabenwechsel.
+  if (data.progressFromTasks === true) {
+    await refreshDerivedProgress(id);
+  }
+
+  const project = await prisma.project.findUniqueOrThrow({
     where: { id },
-    data: update,
     include: projectListInclude,
   });
 
