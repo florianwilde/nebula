@@ -16,6 +16,7 @@ import {
   X,
 } from "lucide-react";
 import type { ProjectStatus } from "@prisma/client";
+import { BulkBar } from "@/components/BulkBar";
 import { ImportDialog } from "@/components/ImportDialog";
 import { KanbanBoard } from "@/components/KanbanBoard";
 import { ProjectCard } from "@/components/ProjectCard";
@@ -54,6 +55,11 @@ function highlight(snippet: string): React.ReactNode[] {
 type SortKey = "updated" | "created" | "name" | "progress" | "priority";
 type ViewMode = "grid" | "grouped" | "kanban";
 
+const VIEWS: ViewMode[] = ["grid", "grouped", "kanban"];
+
+/** Wo Ansicht, Sortierung und Archivschalter im Browser liegen. */
+const ANSICHT_SCHLUESSEL = "nebula.board";
+
 const SORT_LABEL: Record<SortKey, string> = {
   updated: "Zuletzt geaendert",
   created: "Neueste zuerst",
@@ -74,11 +80,52 @@ export function ProjectBoard({
   const [sort, setSort] = useState<SortKey>("updated");
   const [view, setView] = useState<ViewMode>("grid");
   const [showArchived, setShowArchived] = useState(false);
+
+  /**
+   * Ansicht und Sortierung ueberdauern das Neuladen.
+   *
+   * Wer sein Brett von Hand anordnet, will es beim naechsten Aufruf auch
+   * sehen und nicht wieder das Raster. Bewusst erst nach dem ersten Rendern
+   * gelesen: der Server kennt den gespeicherten Wert nicht, und ein
+   * Unterschied zwischen beiden waere ein Hydrationsfehler.
+   *
+   * Der Suchbegriff bleibt aussen vor – eine Suche von gestern beim Oeffnen
+   * wiederherzustellen waere eher verwirrend als hilfreich.
+   */
+  useEffect(() => {
+    try {
+      const gespeichert = window.localStorage.getItem(ANSICHT_SCHLUESSEL);
+      if (!gespeichert) return;
+      const wert = JSON.parse(gespeichert) as Partial<{
+        view: ViewMode;
+        sort: SortKey;
+        showArchived: boolean;
+      }>;
+      if (wert.view && VIEWS.includes(wert.view)) setView(wert.view);
+      if (wert.sort && wert.sort in SORT_LABEL) setSort(wert.sort);
+      if (typeof wert.showArchived === "boolean") setShowArchived(wert.showArchived);
+    } catch {
+      // Kaputter oder gesperrter Speicher: dann eben die Voreinstellung.
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        ANSICHT_SCHLUESSEL,
+        JSON.stringify({ view, sort, showArchived }),
+      );
+    } catch {
+      // Im privaten Modus mancher Browser nicht beschreibbar – kein Grund,
+      // die Seite scheitern zu lassen.
+    }
+  }, [view, sort, showArchived]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [dataMenuOpen, setDataMenuOpen] = useState(false);
   const dataButtonRef = useRef<HTMLButtonElement>(null);
   const [noteHits, setNoteHits] = useState<NoteHit[]>([]);
+  const [selection, setSelection] = useState<Set<string>>(new Set());
 
   /**
    * Notizen liegen im Board nicht vor – sie mitzuladen wuerde die Seite
@@ -174,6 +221,28 @@ export function ProjectBoard({
     })).filter((group) => group.items.length > 0);
   }, [visible]);
 
+  /**
+   * Was der Filter ausblendet, bleibt nicht ausgewaehlt. Sonst traefe eine
+   * Massenaenderung Projekte, die man gar nicht mehr vor Augen hat.
+   */
+  useEffect(() => {
+    setSelection((current) => {
+      if (current.size === 0) return current;
+      const sichtbar = new Set(visible.map((project) => project.id));
+      const next = new Set([...current].filter((id) => sichtbar.has(id)));
+      return next.size === current.size ? current : next;
+    });
+  }, [visible]);
+
+  function toggleSelect(id: string, selected: boolean) {
+    setSelection((current) => {
+      const next = new Set(current);
+      if (selected) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  }
+
   function toggleStatus(status: ProjectStatus) {
     setStatusFilter((current) =>
       current.includes(status)
@@ -218,6 +287,14 @@ export function ProjectBoard({
               className="field w-auto min-w-[11rem]"
               value={sort}
               onChange={(event) => setSort(event.target.value as SortKey)}
+              // Im Brett zaehlt die Anordnung von Hand. Die Sortierung hier
+              // stehen zu lassen, ohne dass sie etwas bewirkt, waere irrefuehrend.
+              disabled={view === "kanban"}
+              title={
+                view === "kanban"
+                  ? "Im Brett bestimmt die Reihenfolge, in der du die Karten ablegst."
+                  : undefined
+              }
             >
               {(Object.keys(SORT_LABEL) as SortKey[]).map((key) => (
                 <option key={key} value={key}>
@@ -388,11 +465,22 @@ export function ProjectBoard({
       {visible.length === 0 ? (
         <EmptyState hasFilters={hasFilters} onCreate={() => setDialogOpen(true)} />
       ) : view === "kanban" ? (
-        <KanbanBoard projects={visible} showArchived={showArchived} />
+        <KanbanBoard
+          projects={visible}
+          showArchived={showArchived}
+          selection={selection}
+          onToggleSelect={toggleSelect}
+        />
       ) : view === "grid" ? (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
           {visible.map((project, index) => (
-            <ProjectCard key={project.id} project={project} index={index} />
+            <ProjectCard
+              key={project.id}
+              project={project}
+              index={index}
+              selected={selection.has(project.id)}
+              onToggleSelect={toggleSelect}
+            />
           ))}
         </div>
       ) : (
@@ -416,7 +504,13 @@ export function ProjectBoard({
                 </div>
                 <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                   {group.items.map((project, index) => (
-                    <ProjectCard key={project.id} project={project} index={index} />
+                    <ProjectCard
+                      key={project.id}
+                      project={project}
+                      index={index}
+                      selected={selection.has(project.id)}
+                      onToggleSelect={toggleSelect}
+                    />
                   ))}
                 </div>
               </div>
@@ -424,6 +518,14 @@ export function ProjectBoard({
           })}
         </div>
       )}
+
+      {selection.size > 0 ? (
+        <BulkBar
+          ids={[...selection]}
+          onDone={() => setSelection(new Set())}
+          onClear={() => setSelection(new Set())}
+        />
+      ) : null}
 
       <Popover
         anchorRef={dataButtonRef}

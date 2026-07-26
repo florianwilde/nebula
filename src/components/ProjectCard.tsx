@@ -29,7 +29,17 @@ const PROVIDER_LABEL: Record<string, string> = {
  * Karte im Board. Die gesamte Flaeche ist ein Link (per "stretched link"),
  * interaktive Elemente liegen darueber und bekommen pointer-events zurueck.
  */
-export function ProjectCard({ project, index = 0 }: { project: ProjectListItem; index?: number }) {
+export function ProjectCard({
+  project,
+  index = 0,
+  selected = false,
+  onToggleSelect,
+}: {
+  project: ProjectListItem;
+  index?: number;
+  selected?: boolean;
+  onToggleSelect?: (id: string, selected: boolean) => void;
+}) {
   const accent = accentOf(project.accent);
   const priority = PRIORITY_META[project.priority] ?? PRIORITY_META[2];
   // Auf der Karte ist nur fuer eines Platz: das fuehrende. Wie viele es
@@ -60,7 +70,10 @@ export function ProjectCard({ project, index = 0 }: { project: ProjectListItem; 
 
   return (
     <article
-      className="glass card-glow fade-up group relative overflow-hidden p-5"
+      className={cn(
+        "glass card-glow fade-up group relative overflow-hidden p-5",
+        selected && "ring-1 ring-violet-400/60",
+      )}
       style={
         {
           "--accent-from": accent.from,
@@ -81,6 +94,21 @@ export function ProjectCard({ project, index = 0 }: { project: ProjectListItem; 
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
+              {/* Gedaempft, aber immer da. Nur beim Ueberfahren einzublenden
+                  waere auf einem Touchgeraet gar nicht erreichbar – und wer
+                  es nie sieht, weiss nicht, dass es die Auswahl gibt. */}
+              {onToggleSelect ? (
+                <input
+                  type="checkbox"
+                  checked={selected}
+                  onChange={(event) => onToggleSelect(project.id, event.target.checked)}
+                  aria-label={`${project.name} auswaehlen`}
+                  className={cn(
+                    "pointer-events-auto h-3.5 w-3.5 shrink-0 accent-violet-500 transition-opacity",
+                    !selected && "opacity-35 group-hover:opacity-100 focus-visible:opacity-100",
+                  )}
+                />
+              ) : null}
               <h3 className="truncate text-base font-semibold text-white transition-colors group-hover:text-violet-200">
                 {project.name}
               </h3>
