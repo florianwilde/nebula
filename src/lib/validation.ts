@@ -23,9 +23,46 @@ export const projectCreateSchema = z.object({
   connectionId: z.preprocess(emptyToNull, z.string().trim().nullable().optional()),
   /** Am automatischen Abgleich teilnehmen. */
   autoSync: z.boolean().default(true),
+  /** Fortschritt aus dem Verhaeltnis erledigter Aufgaben berechnen. */
+  progressFromTasks: z.boolean().default(false),
 });
 
 export const projectUpdateSchema = projectCreateSchema.partial();
+
+// ── Aufgaben ─────────────────────────────────────────────────
+
+const TASK_STATUS = ["TODO", "DOING", "BLOCKED", "DONE"] as const;
+
+const dueDateField = z.preprocess(
+  emptyToNull,
+  z
+    .string()
+    .trim()
+    .refine((value) => !Number.isNaN(Date.parse(value)), "Kein gueltiges Datum")
+    .nullable()
+    .optional(),
+);
+
+export const taskCreateSchema = z.object({
+  title: z.string().trim().min(1, "Titel darf nicht leer sein").max(200),
+  description: z.preprocess(emptyToNull, z.string().trim().max(5000).nullable().optional()),
+  status: z.enum(TASK_STATUS).default("TODO"),
+  dueDate: dueDateField,
+  labels: z.array(z.string().trim().min(1).max(30)).max(8).default([]),
+});
+
+export const taskUpdateSchema = taskCreateSchema.partial();
+
+/**
+ * Neue Reihenfolge nach dem Ziehen. Uebergeben wird je betroffener Spalte
+ * die vollstaendige Liste der Aufgaben in ihrer neuen Reihenfolge – daraus
+ * ergeben sich Status und Position eindeutig.
+ */
+export const taskReorderSchema = z.object({
+  columns: z
+    .record(z.enum(TASK_STATUS), z.array(z.string().min(1)).max(500))
+    .refine((value) => Object.keys(value).length > 0, "Keine Spalte angegeben"),
+});
 
 export const noteCreateSchema = z.object({
   title: z.preprocess(emptyToNull, z.string().trim().max(160).nullable().optional()),

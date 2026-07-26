@@ -33,6 +33,14 @@ enum GitProvider {
   GITEA
 }
 
+/// Spalten des Aufgabenbretts innerhalb eines Projekts.
+enum TaskStatus {
+  TODO
+  DOING
+  BLOCKED
+  DONE
+}
+
 /// ADMIN darf Benutzer und Einstellungen verwalten. Auf fremde Projekte hat
 /// auch ein Admin keinen Zugriff – die Trennung ist bewusst hart.
 enum UserRole {
@@ -237,7 +245,12 @@ model Project {
   ownerId String?
   owner   User?   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
 
+  /// Fortschritt aus dem Verhaeltnis erledigter Aufgaben berechnen statt
+  /// von Hand zu schieben. Nur sinnvoll, wenn es ueberhaupt Aufgaben gibt.
+  progressFromTasks Boolean @default(false)
+
   notes    Note[]
+  tasks    Task[]
   snapshot RepoSnapshot?
 
   createdAt DateTime @default(now())
@@ -248,6 +261,30 @@ model Project {
   @@index([connectionId])
   @@index([updatedAt])
   @@index([ownerId])
+}
+
+/// Eine Aufgabe innerhalb eines Projekts – die Karten des Aufgabenbretts.
+model Task {
+  id          String     @id @default(cuid())
+  projectId   String
+  project     Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title       String
+  /// Optionale Notiz zur Aufgabe, Markdown wird dargestellt.
+  description String?
+  status      TaskStatus @default(TODO)
+  /// Rang innerhalb der Spalte. Anders als beim Projektbrett braucht es ihn
+  /// hier wirklich: Aufgaben haben eine Reihenfolge, die der Benutzer setzt.
+  /// Beim Umsortieren werden die Positionen einer Spalte neu durchnummeriert.
+  position    Int        @default(0)
+  dueDate     DateTime?
+  labels      String[]   @default([])
+  /// Zeitpunkt, zu dem die Aufgabe nach DONE gewandert ist.
+  doneAt      DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([projectId, status, position])
 }
 
 /// Freie Notizen zu einem Projekt.
