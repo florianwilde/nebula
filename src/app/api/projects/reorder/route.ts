@@ -3,7 +3,8 @@ import type { Prisma, ProjectStatus } from "@prisma/client";
 import { describeStatus, recordActivities } from "@/lib/activity";
 import { requireUserApi } from "@/lib/auth/guard";
 import { prisma } from "@/lib/db";
-import { readJsonBody } from "@/lib/security/request";
+import { LIMITS, rateLimit } from "@/lib/security/rateLimit";
+import { clientIp, readJsonBody, tooManyRequests } from "@/lib/security/request";
 import { formatZodError, projectReorderSchema } from "@/lib/validation";
 
 export const dynamic = "force-dynamic";
@@ -19,6 +20,13 @@ export const dynamic = "force-dynamic";
 export async function PATCH(request: Request) {
   const auth = await requireUserApi();
   if (!auth.ok) return auth.response;
+
+  const limited = rateLimit(
+    `mutate:${clientIp(request)}`,
+    LIMITS.mutation.limit,
+    LIMITS.mutation.windowMs,
+  );
+  if (!limited.ok) return tooManyRequests(limited.retryAfter);
 
   const body = await readJsonBody(request);
   if (!body.ok) return body.response;

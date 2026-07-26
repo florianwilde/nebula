@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { requireUserApi } from "@/lib/auth/guard";
 import { prisma } from "@/lib/db";
-import { jsonError, readJsonBody } from "@/lib/security/request";
+import { LIMITS, rateLimit } from "@/lib/security/rateLimit";
+import { clientIp, jsonError, readJsonBody, tooManyRequests } from "@/lib/security/request";
 import { formatZodError, templateFromProjectSchema } from "@/lib/validation";
 
 export const dynamic = "force-dynamic";
@@ -20,6 +21,13 @@ export const dynamic = "force-dynamic";
 export async function POST(request: Request) {
   const auth = await requireUserApi();
   if (!auth.ok) return auth.response;
+
+  const limited = rateLimit(
+    `mutate:${clientIp(request)}`,
+    LIMITS.mutation.limit,
+    LIMITS.mutation.windowMs,
+  );
+  if (!limited.ok) return tooManyRequests(limited.retryAfter);
 
   const body = await readJsonBody(request);
   if (!body.ok) return body.response;
