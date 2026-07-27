@@ -26,7 +26,11 @@ services:
       # Deterministische Sortierung unabhaengig vom Host-Locale
       POSTGRES_INITDB_ARGS: "--encoding=UTF8"
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      # Nur fuer die Entwicklung – die Anwendung erreicht die Datenbank im
+      # Container ueber "db:5432", nicht ueber den Host. Deshalb an 127.0.0.1
+      # gebunden. Im Serverbetrieb faellt die Freigabe ganz weg, siehe
+      # docker-compose.server.yml.
+      - "${POSTGRES_PORT:-127.0.0.1:5432}:5432"
     volumes:
       - nebula-db-data:/var/lib/postgresql/data
     healthcheck:
@@ -87,7 +91,7 @@ services:
       ADMINER_DEFAULT_SERVER: db
       ADMINER_DESIGN: dracula
     ports:
-      - "${ADMINER_PORT:-8080}:8080"
+      - "${ADMINER_PORT:-127.0.0.1:8080}:8080"
 
 volumes:
   nebula-db-data:

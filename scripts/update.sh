@@ -164,19 +164,24 @@ if [ "$gesund" -ne 1 ]; then
 fi
 ok "Container meldet sich gesund"
 
-# Die Anzeige der Adresse: aus APP_PORT kann "3000" oder "127.0.0.1:3000"
-# kommen – fuer die Ausgabe zaehlt nur, was hinter dem letzten Doppelpunkt steht.
-port_roh="$(sed -n 's/^[[:space:]]*APP_PORT[[:space:]]*=[[:space:]]*"\{0,1\}\([^"#]*\)"\{0,1\}[[:space:]]*$/\1/p' "$root/.env" | tail -n 1)"
-port_roh="${port_roh:-3000}"
-port="${port_roh##*:}"
+# Die Anzeige der Adresse. Nicht die .env raten, sondern Docker fragen: mit
+# docker-compose.server.yml veroeffentlicht der Container gar keinen Port und
+# haengt nur im Netz des Reverse Proxy. Dann gibt "port" nichts zurueck.
+adresse="$(docker compose --profile full port app 3000 2>/dev/null | tail -n 1 || true)"
 
-if command -v curl >/dev/null 2>&1; then
-  antwort_json="$(curl -fsS "http://127.0.0.1:${port}/api/health" 2>/dev/null || true)"
-  [ -n "$antwort_json" ] && ok "Antwort: $antwort_json"
+if [ -n "$adresse" ]; then
+  port="${adresse##*:}"
+  if command -v curl >/dev/null 2>&1; then
+    antwort_json="$(curl -fsS "http://127.0.0.1:${port}/api/health" 2>/dev/null || true)"
+    [ -n "$antwort_json" ] && ok "Antwort: $antwort_json"
+  fi
+  wo="$adresse"
+else
+  wo="im Docker-Netz (kein Host-Port veroeffentlicht)"
 fi
 
 # ── Fertig ───────────────────────────────────────────────────
 version_jetzt="$(paket_version)"
-printf '\n%s%s✓ Nebula v%s laeuft auf %s%s\n' "$gruen" "$fett" "$version_jetzt" "$port_roh" "$aus"
+printf '\n%s%s✓ Nebula v%s laeuft auf %s%s\n' "$gruen" "$fett" "$version_jetzt" "$wo" "$aus"
 [ -n "$sicherung" ] && printf '  Sicherung vor dem Update: %s\n' "$sicherung"
 printf '  Log mitlesen: docker compose --profile full logs -f app\n\n'

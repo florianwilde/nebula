@@ -122,8 +122,8 @@ Alle Variablen sind in [`.env.example`](.env.example) dokumentiert.
 | `PORT` | Port der Anwendung | `3000` |
 | `APP_PORT` | Host-Port-Mapping des App-Containers | `3000` |
 | `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | Zugangsdaten des DB-Containers | `nebula` |
-| `POSTGRES_PORT` | Host-Port der Datenbank | `5432` |
-| `ADMINER_PORT` | Host-Port von Adminer (`--profile tools`) | `8080` |
+| `POSTGRES_PORT` | Host-Port der Datenbank — nur für die Entwicklung, im Container läuft es über `db:5432` | `127.0.0.1:5432` |
+| `ADMINER_PORT` | Host-Port von Adminer (`--profile tools`) | `127.0.0.1:8080` |
 | `GIT_API_TIMEOUT_MS` | Timeout für Git-API-Aufrufe | `15000` |
 | `GIT_ALLOW_LOOPBACK` | Git-Instanz auf demselben Rechner erlauben | `false` |
 | `GIT_BLOCK_PRIVATE` | Zugriff ins private LAN sperren | `false` |

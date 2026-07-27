@@ -86,19 +86,54 @@ APP_PORT=127.0.0.1:3000
 > **`APP_URL` später zu ändern** macht bestehende **Passkeys ungültig**, weil
 > sie an die rpID gebunden sind. Passwörter funktionieren weiter.
 
-### Datenbankport schließen
+### Welche Ports überhaupt hinausgehen
 
-`docker-compose.yml` bildet Postgres standardmäßig auf `5432` ab, damit man
-in der Entwicklung von außen drankommt. Auf einem Server hat die Datenbank
-nichts im Internet zu suchen:
+| Container | Host-Port | Wann | Wird gebraucht? |
+| --- | --- | --- | --- |
+| `nebula-app` | `APP_PORT` → 3000 | `--profile full` | ja — das ist die Anwendung |
+| `nebula-db` | `POSTGRES_PORT` → 5432 | immer | **nein** |
+| `nebula-adminer` | `ADMINER_PORT` → 8080 | nur `--profile tools` | nein |
 
-```env
-POSTGRES_PORT=127.0.0.1:5432
+**Der Datenbankport muss nicht nach außen.** Im Vollbetrieb spricht die
+Anwendung Postgres über das interne Docker-Netz als `db:5432` an — die
+`DATABASE_URL` setzt Compose selbst. Auch `scripts/backup.sh` und
+`restore.sh` gehen über `docker exec`, nicht über den Host. Die Freigabe
+existiert allein für die Entwicklung, wo `npm run dev` auf dem Host läuft.
+
+Sie ist deshalb auf `127.0.0.1` gebunden und damit vom Netz aus nicht
+erreichbar. Auf einem Server kann sie ganz weg — siehe den nächsten
+Abschnitt.
+
+### Variante: gar keinen Port veröffentlichen
+
+Liegen mehrere Stacks auf demselben Docker-Host und regelt ein gemeinsamer
+Reverse Proxy den Zugang, braucht Nebula überhaupt keinen Host-Port. Dafür
+gibt es **`docker-compose.server.yml`**: es nimmt beide Freigaben zurück und
+hängt die Anwendung zusätzlich in ein geteiltes Netz.
+
+```bash
+docker network create proxy      # falls der Proxy-Stack es nicht schon anlegt
 ```
 
-Noch besser: die `ports:`-Zeile des `db`-Dienstes ganz entfernen. Die
-Anwendung erreicht die Datenbank über das interne Docker-Netz, nicht über
-den Host.
+```env
+# .env
+COMPOSE_FILE="docker-compose.yml:docker-compose.server.yml"
+COMPOSE_PROFILES="full"
+PROXY_NETWORK="proxy"            # so heißt das Netz
+PROXY_ALIAS="nebula"             # so findet der Proxy die Anwendung
+```
+
+Compose liest beides aus der `.env`. Danach genügt überall — auch in
+`scripts/update.sh` — ein schlichtes `docker compose up -d`. Im Proxy zeigt
+das Ziel dann nicht mehr auf `127.0.0.1:3000`, sondern auf **`nebula:3000`**;
+Schritt 6 zeigt beide Schreibweisen.
+
+> Ohne die Datei würde ein Override die Portlisten **zusammenhängen** statt
+> sie zu ersetzen — Compose führt `ports` anfügend zusammen. Das `!reset`
+> darin ist genau dafür da und braucht Compose 2.24 oder neuer.
+>
+> Das Trennzeichen in `COMPOSE_FILE` ist unter Linux der Doppelpunkt, unter
+> Windows das Semikolon.
 
 ## 4 · Starten
 
@@ -112,6 +147,13 @@ selbst die Migrationen ein und wartet dabei auf die Datenbank.
 ```bash
 docker compose --profile full logs -f app     # mitlesen, Strg+C beendet nur das Lesen
 curl -s localhost:3000/api/health             # {"status":"ok","database":"up",…}
+```
+
+Ohne veröffentlichten Port geht die Frage an den Container statt an den Host
+— das Abbild bringt einen `HEALTHCHECK` mit:
+
+```bash
+docker inspect --format '{{.State.Health.Status}}' nebula-app   # healthy
 ```
 
 ## 5 · Ersten Zugang anlegen
@@ -151,6 +193,16 @@ sudo systemctl reload caddy
 Das genügt. Caddy setzt `X-Forwarded-*` von selbst, holt das Zertifikat bei
 Let's Encrypt und leitet `http` auf `https` um.
 
+Läuft der Proxy selbst als Container im geteilten Netz (die Variante ohne
+veröffentlichte Ports), lautet das Ziel stattdessen `nebula:3000` —
+Docker löst den Alias auf:
+
+```caddyfile
+nebula.deine-domain.de {
+    reverse_proxy nebula:3000
+}
+```
+
 <details>
 <summary>Dasselbe mit nginx</summary>
 
@@ -189,7 +241,13 @@ sudo ufw enable
 ```
 
 Port 3000 und 5432 bleiben **zu**. Beide sind nach Schritt 3 ohnehin nur an
-`127.0.0.1` gebunden; die Firewall ist der zweite Riegel.
+`127.0.0.1` gebunden — oder gar nicht erst veröffentlicht; die Firewall ist
+der zweite Riegel.
+
+> Docker schreibt seine Portfreigaben direkt in `iptables` und geht dabei an
+> `ufw` **vorbei**. Eine Freigabe auf `0.0.0.0` steht also im Netz, auch wenn
+> `ufw` sie zu melden scheint. Genau deshalb wird hier an `127.0.0.1`
+> gebunden, statt sich auf die Firewall zu verlassen.
 
 ## 8 · Sicherungen automatisieren
 

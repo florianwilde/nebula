@@ -1,0 +1,46 @@
+# ─────────────────────────────────────────────────────────────
+#  Overlay fuer den Serverbetrieb: kein Port geht nach aussen.
+#
+#  Gedacht fuer einen Docker-Host, auf dem mehrere Stacks liegen und ein
+#  gemeinsamer Reverse Proxy die einzige Tuer nach draussen ist. Weder die
+#  Datenbank noch die Anwendung veroeffentlichen dann einen Host-Port; der
+#  Proxy erreicht Nebula ueber ein geteiltes Docker-Netz.
+#
+#  Aufruf:
+#    docker compose -f docker-compose.yml -f docker-compose.server.yml \
+#      --profile full up -d --build
+#
+#  Bequemer ist, das dauerhaft in die .env zu schreiben:
+#    COMPOSE_FILE=docker-compose.yml:docker-compose.server.yml
+#    COMPOSE_PROFILES=full
+#  Danach genuegt ueberall "docker compose up -d" – auch in update.sh.
+#
+#  Das Netz muss es vorher geben (der Proxy-Stack legt es ueblicherweise an):
+#    docker network create proxy
+#
+#  Im Proxy zeigt das Ziel dann auf  http://nebula:3000  bzw.  nebula-app:3000.
+# ─────────────────────────────────────────────────────────────
+
+services:
+  db:
+    # !reset loescht die Portfreigabe aus der Basisdatei. Ohne dieses Tag
+    # wuerden die Listen zusammengefuegt statt ersetzt – Compose behandelt
+    # "ports" beim Zusammenfuehren als anzuhaengende Liste.
+    ports: !reset []
+
+  app:
+    ports: !reset []
+    networks:
+      # Das stackeigene Netz: darueber spricht die Anwendung mit der Datenbank.
+      default:
+      # Das geteilte Netz zum Reverse Proxy. Der Alias ist der Name, unter dem
+      # der Proxy Nebula anspricht – kurz und eindeutig, denn "app" hiessen in
+      # einem geteilten Netz schnell mehrere Container.
+      proxy:
+        aliases:
+          - ${PROXY_ALIAS:-nebula}
+
+networks:
+  proxy:
+    external: true
+    name: ${PROXY_NETWORK:-proxy}
