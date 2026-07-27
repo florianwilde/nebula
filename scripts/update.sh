@@ -75,8 +75,15 @@ printf '  Aktuell: v%s (%s)\n' "$version_vorher" "$vorher"
 if [ "$pull" -eq 1 ]; then
   schritt "Neuen Stand holen"
 
-  if [ -n "$(git status --porcelain)" ]; then
-    abbruch "Das Arbeitsverzeichnis ist nicht sauber. Bitte erst committen oder verwerfen."
+  schmutz="$(git status --porcelain)"
+  if [ -n "$schmutz" ]; then
+    # Nicht nur meckern, sondern zeigen, worum es geht – sonst muss man
+    # raten, was man da eigentlich verwerfen soll.
+    printf '\n%sGeaendert gegenueber dem Stand im Git:%s\n' "$fett" "$aus"
+    printf '%s\n' "$schmutz" | sed 's/^/    /'
+    printf '\n  Verwerfen:  git checkout -- .\n'
+    printf '  Behalten:   git stash\n'
+    abbruch "Das Arbeitsverzeichnis ist nicht sauber."
   fi
 
   git fetch --all --tags --quiet
