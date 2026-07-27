@@ -1,14 +1,20 @@
 name: nebula
 
 # ─────────────────────────────────────────────────────────────
-#  Zwei Betriebsarten aus einer Datei:
+#  Diese Datei veroeffentlicht nur einen einzigen Port, und den auf dem
+#  Loopback: den der Anwendung. Die Datenbank bleibt im Docker-Netz.
 #
-#  1) Standalone-Entwicklung – nur die Datenbank im Container:
-#       docker compose up -d db
+#  1) Alles im Container (Server wie Entwicklung):
+#       docker compose --profile full up -d --build
+#
+#  2) Standalone-Entwicklung – Datenbank im Container, App auf dem Host.
+#     Dafuer muss Postgres auf dem Host erreichbar sein, also mit dem
+#     Entwicklungs-Overlay (oder kurz: npm run docker:db):
+#       docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d db
 #       npm run dev
 #
-#  2) Alles im Container:
-#       docker compose --profile full up -d --build
+#  3) Server ohne jede Portfreigabe, hinter einem Reverse Proxy im
+#     gemeinsamen Docker-Netz:      siehe docker-compose.server.yml
 #
 #  Optionales DB-Webinterface:
 #       docker compose --profile tools up -d adminer   → http://localhost:8080
@@ -25,12 +31,10 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-nebula}
       # Deterministische Sortierung unabhaengig vom Host-Locale
       POSTGRES_INITDB_ARGS: "--encoding=UTF8"
-    ports:
-      # Nur fuer die Entwicklung – die Anwendung erreicht die Datenbank im
-      # Container ueber "db:5432", nicht ueber den Host. Deshalb an 127.0.0.1
-      # gebunden. Im Serverbetrieb faellt die Freigabe ganz weg, siehe
-      # docker-compose.server.yml.
-      - "${POSTGRES_PORT:-127.0.0.1:5432}:5432"
+    # Absichtlich keine Portfreigabe: die Anwendung erreicht die Datenbank im
+    # Container ueber "db:5432", und backup.sh geht ueber "docker exec". Nach
+    # aussen muss hier nichts. Wer die Datenbank vom Host aus braucht – fuer
+    # "npm run dev" oder psql – nimmt docker-compose.dev.yml dazu.
     volumes:
       - nebula-db-data:/var/lib/postgresql/data
     healthcheck:
@@ -77,7 +81,11 @@ services:
       PORT: 3000
       HOSTNAME: 0.0.0.0
     ports:
-      - "${APP_PORT:-3000}:3000"
+      # Nur auf dem Loopback: nach draussen kommt man ueber den Reverse Proxy.
+      # Docker schreibt seine Freigaben an ufw vorbei direkt in iptables – eine
+      # Bindung auf 0.0.0.0 stuende also im Netz, auch bei aktiver Firewall.
+      # Ganz ohne Host-Port: docker-compose.server.yml.
+      - "${APP_PORT:-127.0.0.1:3000}:3000"
 
   adminer:
     profiles: ["tools"]

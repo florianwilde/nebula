@@ -62,7 +62,7 @@ chmod 600 .env
 openssl rand -base64 32        # den Wert als APP_SECRET eintragen
 ```
 
-Dann die `.env` öffnen und mindestens diese vier Werte anpassen:
+Dann die `.env` öffnen und mindestens diese drei Werte anpassen:
 
 ```env
 # Die Adresse, unter der du Nebula im Browser aufrufst.
@@ -74,10 +74,10 @@ APP_SECRET="…dein-langer-zufallswert…"
 
 # Das Datenbankpasswort. Die Voreinstellung „nebula" ist für Entwicklung.
 POSTGRES_PASSWORD="…noch-ein-langer-zufallswert…"
-
-# Nur lokal lauschen — nach außen geht es über den Reverse Proxy (Schritt 6).
-APP_PORT=127.0.0.1:3000
 ```
+
+Die Ports müssen nicht angefasst werden: `APP_PORT` steht schon auf
+`127.0.0.1:3000`, und die Datenbank veröffentlicht gar nichts.
 
 > **`APP_SECRET` später zu ändern** macht gespeicherte Git-Tokens unlesbar.
 > Sie müssen dann neu hinterlegt werden. Konten, Passwörter und Passkeys
@@ -88,28 +88,34 @@ APP_PORT=127.0.0.1:3000
 
 ### Welche Ports überhaupt hinausgehen
 
-| Container | Host-Port | Wann | Wird gebraucht? |
-| --- | --- | --- | --- |
-| `nebula-app` | `APP_PORT` → 3000 | `--profile full` | ja — das ist die Anwendung |
-| `nebula-db` | `POSTGRES_PORT` → 5432 | immer | **nein** |
-| `nebula-adminer` | `ADMINER_PORT` → 8080 | nur `--profile tools` | nein |
+Nach einer regulären Installation ist es **genau einer**:
 
-**Der Datenbankport muss nicht nach außen.** Im Vollbetrieb spricht die
-Anwendung Postgres über das interne Docker-Netz als `db:5432` an — die
-`DATABASE_URL` setzt Compose selbst. Auch `scripts/backup.sh` und
-`restore.sh` gehen über `docker exec`, nicht über den Host. Die Freigabe
-existiert allein für die Entwicklung, wo `npm run dev` auf dem Host läuft.
+| Container | Host-Port | Wann |
+| --- | --- | --- |
+| `nebula-app` | `APP_PORT`, Vorgabe `127.0.0.1:3000` | `--profile full` |
+| `nebula-db` | — | **nie** |
+| `nebula-adminer` | `ADMINER_PORT`, Vorgabe `127.0.0.1:8080` | nur `--profile tools` |
 
-Sie ist deshalb auf `127.0.0.1` gebunden und damit vom Netz aus nicht
-erreichbar. Auf einem Server kann sie ganz weg — siehe den nächsten
-Abschnitt.
+**Die Datenbank veröffentlicht nichts.** Im Vollbetrieb spricht die Anwendung
+Postgres über das interne Docker-Netz als `db:5432` an — die `DATABASE_URL`
+setzt Compose selbst. Auch `scripts/backup.sh` und `restore.sh` gehen über
+`docker exec`, nicht über den Host. Ein Host-Port wäre nur eine zusätzliche
+Angriffsfläche und würde mit anderen Postgres-Containern auf demselben Host
+um den Port streiten.
+
+Wer die Datenbank beim Entwickeln doch vom Host aus braucht — `npm run dev`
+läuft ja außerhalb des Containers — nimmt `docker-compose.dev.yml` dazu
+(`npm run docker:db`). Auf einem Server hat diese Datei nichts zu suchen.
+
+Auch der Port der Anwendung liegt auf `127.0.0.1`: nach draußen geht es über
+den Reverse Proxy aus Schritt 6.
 
 ### Variante: gar keinen Port veröffentlichen
 
 Liegen mehrere Stacks auf demselben Docker-Host und regelt ein gemeinsamer
 Reverse Proxy den Zugang, braucht Nebula überhaupt keinen Host-Port. Dafür
-gibt es **`docker-compose.server.yml`**: es nimmt beide Freigaben zurück und
-hängt die Anwendung zusätzlich in ein geteiltes Netz.
+gibt es **`docker-compose.server.yml`**: es nimmt die letzte verbliebene
+Freigabe zurück und hängt die Anwendung in ein geteiltes Netz.
 
 ```bash
 docker network create proxy      # falls der Proxy-Stack es nicht schon anlegt
@@ -240,9 +246,8 @@ sudo ufw allow 80,443/tcp
 sudo ufw enable
 ```
 
-Port 3000 und 5432 bleiben **zu**. Beide sind nach Schritt 3 ohnehin nur an
-`127.0.0.1` gebunden — oder gar nicht erst veröffentlicht; die Firewall ist
-der zweite Riegel.
+Port 3000 bleibt **zu**, 5432 wird ohnehin nie veröffentlicht. Die Firewall
+ist hier der zweite Riegel, nicht der erste.
 
 > Docker schreibt seine Portfreigaben direkt in `iptables` und geht dabei an
 > `ufw` **vorbei**. Eine Freigabe auf `0.0.0.0` steht also im Netz, auch wenn

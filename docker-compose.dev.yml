@@ -1,0 +1,23 @@
+# ─────────────────────────────────────────────────────────────
+#  Overlay fuer die Entwicklung: macht die Datenbank auf dem Host erreichbar.
+#
+#  Gebraucht wird das nur, wenn die Anwendung ausserhalb des Containers
+#  laeuft – "npm run dev" verbindet sich dann ueber localhost:5432. Im
+#  Vollbetrieb spricht die Anwendung "db:5432" im Docker-Netz an und braucht
+#  diese Datei nicht.
+#
+#  Aufruf:
+#    docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d db
+#    npm run dev
+#
+#  Kuerzer: npm run docker:db
+#
+#  Gebunden wird auf 127.0.0.1, nicht auf 0.0.0.0. Docker traegt Freigaben
+#  direkt in iptables ein und umgeht dabei ufw – eine offene Bindung stuende
+#  also auch bei aktiver Firewall im Netz.
+# ─────────────────────────────────────────────────────────────
+
+services:
+  db:
+    ports:
+      - "${POSTGRES_PORT:-127.0.0.1:5432}:5432"

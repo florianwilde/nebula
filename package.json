@@ -16,7 +16,7 @@
     "db:studio": "prisma studio",
     "db:seed": "prisma db seed",
     "db:reset": "prisma migrate reset",
-    "docker:db": "docker compose up -d db",
+    "docker:db": "docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d db",
     "docker:db:down": "docker compose stop db",
     "docker:up": "docker compose --profile full up -d --build",
     "docker:down": "docker compose --profile full down",

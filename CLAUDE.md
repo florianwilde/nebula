@@ -9,7 +9,8 @@ Betrieb: [README.md](README.md) · Server: [DEPLOYMENT.md](DEPLOYMENT.md)
 ## Womit man arbeitet
 
 ```bash
-docker compose up -d db        # Postgres, muss laufen
+npm run docker:db              # Postgres, muss laufen (mit dem dev-Overlay,
+                               # sonst hat die DB keinen Host-Port)
 npm run dev                    # Entwicklung
 npm test                       # Unit-Tests (Vitest, ohne DB)
 npx tsc --noEmit               # Typprüfung

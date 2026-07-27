@@ -52,7 +52,7 @@ node scripts/setup.mjs      # legt .env an und erzeugt ein zufälliges APP_SECRE
 Die App läuft nativ auf dem Rechner, nur PostgreSQL kommt aus dem Container:
 
 ```bash
-docker compose up -d db      # Postgres 17 auf localhost:5432
+npm run docker:db            # Postgres 17 auf 127.0.0.1:5432
 npm install
 npm run db:migrate           # Schema anlegen
 npm run db:seed              # optional: drei Beispielprojekte
@@ -120,9 +120,9 @@ Alle Variablen sind in [`.env.example`](.env.example) dokumentiert.
 | `APP_SECRET` | Schlüssel für die Token-Verschlüsselung (AES-256-GCM) | — **unbedingt setzen** |
 | `SESSION_TTL_DAYS` | Lebensdauer einer Anmeldung in Tagen | `30` |
 | `PORT` | Port der Anwendung | `3000` |
-| `APP_PORT` | Host-Port-Mapping des App-Containers | `3000` |
+| `APP_PORT` | Host-Port-Mapping des App-Containers | `127.0.0.1:3000` |
 | `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | Zugangsdaten des DB-Containers | `nebula` |
-| `POSTGRES_PORT` | Host-Port der Datenbank — nur für die Entwicklung, im Container läuft es über `db:5432` | `127.0.0.1:5432` |
+| `POSTGRES_PORT` | Host-Port der Datenbank — wirkt nur mit `docker-compose.dev.yml`, sonst hat die DB keinen | `127.0.0.1:5432` |
 | `ADMINER_PORT` | Host-Port von Adminer (`--profile tools`) | `127.0.0.1:8080` |
 | `GIT_API_TIMEOUT_MS` | Timeout für Git-API-Aufrufe | `15000` |
 | `GIT_ALLOW_LOOPBACK` | Git-Instanz auf demselben Rechner erlauben | `false` |
@@ -307,7 +307,7 @@ nebula/
 | `npm test` | Unit-Tests (Vitest, ohne Datenbank) |
 | `npm run test:e2e` | Ende-zu-Ende-Tests (Playwright, baut vorher) |
 | `npm run test:all` | Beides nacheinander |
-| `npm run docker:db` | Nur die Datenbank starten |
+| `npm run docker:db` | Nur die Datenbank starten, mit Host-Port für `npm run dev` |
 | `npm run docker:up` / `docker:down` | Kompletten Stack starten / stoppen |
 | `npm run docker:tools` | Adminer auf `http://localhost:8080` |
 
@@ -416,7 +416,7 @@ Grenzen, die du kennen solltest:
 
 | Symptom | Ursache / Lösung |
 | --- | --- |
-| `Can't reach database server` | Läuft `docker compose up -d db`? Stimmt `DATABASE_URL`? |
+| `Can't reach database server` | Läuft `npm run docker:db`? Ein blosses `docker compose up -d db` startet die DB **ohne Host-Port** — dann ist sie von `npm run dev` aus nicht erreichbar. Stimmt `DATABASE_URL`? |
 | `The table ... does not exist` | Migrationen fehlen: `npm run db:migrate` |
 | Sync meldet `401` | Token abgelaufen oder falsche Scopes — unter Git-Verbindungen neu setzen |
 | Sync meldet `404` | Owner/Repo prüfen; bei GitLab gehört die volle Gruppenkette in „Owner" |

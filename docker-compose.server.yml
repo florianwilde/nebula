@@ -1,10 +1,11 @@
 # ─────────────────────────────────────────────────────────────
-#  Overlay fuer den Serverbetrieb: kein Port geht nach aussen.
+#  Overlay fuer den Serverbetrieb: kein einziger Port geht zum Host.
 #
 #  Gedacht fuer einen Docker-Host, auf dem mehrere Stacks liegen und ein
-#  gemeinsamer Reverse Proxy die einzige Tuer nach draussen ist. Weder die
-#  Datenbank noch die Anwendung veroeffentlichen dann einen Host-Port; der
-#  Proxy erreicht Nebula ueber ein geteiltes Docker-Netz.
+#  gemeinsamer Reverse Proxy die einzige Tuer nach draussen ist. Die
+#  Datenbank veroeffentlicht ohnehin nichts; diese Datei nimmt zusaetzlich
+#  die Freigabe der Anwendung zurueck und haengt sie in ein geteiltes Netz,
+#  ueber das der Proxy sie erreicht.
 #
 #  Aufruf:
 #    docker compose -f docker-compose.yml -f docker-compose.server.yml \
@@ -14,6 +15,7 @@
 #    COMPOSE_FILE=docker-compose.yml:docker-compose.server.yml
 #    COMPOSE_PROFILES=full
 #  Danach genuegt ueberall "docker compose up -d" – auch in update.sh.
+#  (Trennzeichen: Doppelpunkt unter Linux, Semikolon unter Windows.)
 #
 #  Das Netz muss es vorher geben (der Proxy-Stack legt es ueblicherweise an):
 #    docker network create proxy
@@ -22,13 +24,11 @@
 # ─────────────────────────────────────────────────────────────
 
 services:
-  db:
+  app:
     # !reset loescht die Portfreigabe aus der Basisdatei. Ohne dieses Tag
     # wuerden die Listen zusammengefuegt statt ersetzt – Compose behandelt
-    # "ports" beim Zusammenfuehren als anzuhaengende Liste.
-    ports: !reset []
-
-  app:
+    # "ports" beim Zusammenfuehren als anzuhaengende Liste. Braucht
+    # Compose 2.24 oder neuer.
     ports: !reset []
     networks:
       # Das stackeigene Netz: darueber spricht die Anwendung mit der Datenbank.
