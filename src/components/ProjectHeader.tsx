@@ -74,7 +74,7 @@ export function ProjectHeader({
 
   return (
     <header
-      className="glass relative overflow-hidden p-6"
+      className="glass relative overflow-hidden p-4 sm:p-6"
       style={
         {
           "--accent-from": accent.from,
@@ -168,9 +168,13 @@ export function ProjectHeader({
           ) : null}
         </div>
 
-        <div className="flex flex-col items-end gap-3">
+        {/* Auf dem Telefon steht dieser Block unter dem Titel und faengt
+            links an; erst ab sm rueckt er nach rechts neben ihn. Vorher
+            standen vier Knoepfe in einer Zeile, die nicht umbrechen durfte –
+            "Loeschen" lag damit ausserhalb des Bildschirms. */}
+        <div className="flex flex-wrap items-center gap-2 sm:flex-col sm:items-end sm:gap-3">
           <StatusSelect projectId={project.id} status={project.status} />
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <button
               ref={exportButtonRef}
               type="button"
@@ -179,6 +183,7 @@ export function ProjectHeader({
               aria-haspopup="menu"
               aria-expanded={exportOpen}
               title="Exportieren"
+              aria-label="Exportieren"
             >
               <Download className="h-3.5 w-3.5" />
             </button>
@@ -187,6 +192,7 @@ export function ProjectHeader({
               className="btn btn-ghost px-2.5 py-1.5 text-xs"
               onClick={() => setTemplateOpen(true)}
               title="Als Vorlage sichern"
+              aria-label="Als Vorlage sichern"
             >
               <BookmarkPlus className="h-3.5 w-3.5" />
             </button>

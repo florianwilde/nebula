@@ -7,6 +7,7 @@ import {
   Database,
   Download,
   LayoutGrid,
+  List,
   ListFilter,
   NotebookPen,
   Plus,
@@ -21,6 +22,7 @@ import { ImportDialog } from "@/components/ImportDialog";
 import { KanbanBoard } from "@/components/KanbanBoard";
 import { ProjectCard } from "@/components/ProjectCard";
 import { ProjectDialog } from "@/components/ProjectDialog";
+import { ProjectList } from "@/components/ProjectList";
 import { Popover } from "@/components/ui/Popover";
 import { STATUS_META, STATUS_ORDER } from "@/lib/status";
 import { cn } from "@/lib/utils";
@@ -53,9 +55,17 @@ function highlight(snippet: string): React.ReactNode[] {
 }
 
 type SortKey = "updated" | "created" | "name" | "progress" | "priority";
-type ViewMode = "grid" | "grouped" | "kanban";
+type ViewMode = "grid" | "list" | "grouped" | "kanban";
 
-const VIEWS: ViewMode[] = ["grid", "grouped", "kanban"];
+const VIEWS: ViewMode[] = ["grid", "list", "grouped", "kanban"];
+
+/** Reihenfolge der Umschalter – zugleich die Beschriftung der Knoepfe. */
+const VIEW_META: Record<ViewMode, { label: string; title: string; icon: typeof LayoutGrid }> = {
+  grid: { label: "Raster", title: "Rasteransicht", icon: LayoutGrid },
+  list: { label: "Liste", title: "Kompakte Liste", icon: List },
+  grouped: { label: "Gruppiert", title: "Nach Status gruppiert", icon: Rows3 },
+  kanban: { label: "Brett", title: "Kanban – Status per Ziehen aendern", icon: Columns3 },
+};
 
 /** Wo Ansicht, Sortierung und Archivschalter im Browser liegen. */
 const ANSICHT_SCHLUESSEL = "nebula.board";
@@ -255,10 +265,14 @@ export function ProjectBoard({
 
   return (
     <section className="space-y-5">
-      {/* Steuerleiste */}
-      <div className="glass flex flex-col gap-4 p-4">
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="relative min-w-[220px] flex-1">
+      {/* Steuerleiste.
+          Auf dem Telefon steht die Suche allein in der ersten Zeile und die
+          Werkzeuge darunter. Frueher lagen beide in einer Zeile, die nicht
+          umbrechen konnte – der Knopf "Neues Projekt" wurde dabei aus dem
+          Bild geschoben und die ganze Seite seitlich scrollbar. */}
+      <div className="glass flex flex-col gap-3 p-3 sm:gap-4 sm:p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+          <div className="relative min-w-0 sm:min-w-[220px] sm:flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
             <input
               className="field pl-9"
@@ -282,9 +296,12 @@ export function ProjectBoard({
             <label className="sr-only" htmlFor="sort">
               Sortierung
             </label>
+            {/* min-w-0 ist hier entscheidend: ohne das weigert sich ein
+                Flex-Kind, unter seine Inhaltsbreite zu schrumpfen, und
+                drueckt stattdessen die Nachbarn hinaus. */}
             <select
               id="sort"
-              className="field w-auto min-w-[11rem]"
+              className="field w-auto min-w-0 flex-1 truncate sm:flex-none sm:min-w-[11rem]"
               value={sort}
               onChange={(event) => setSort(event.target.value as SortKey)}
               // Im Brett zaehlt die Anordnung von Hand. Die Sortierung hier
@@ -303,50 +320,11 @@ export function ProjectBoard({
               ))}
             </select>
 
-            <div className="flex overflow-hidden rounded-xl border border-white/9">
-              <button
-                type="button"
-                onClick={() => setView("grid")}
-                className={cn(
-                  "p-2 transition-colors",
-                  view === "grid" ? "bg-white/10 text-white" : "text-slate-500 hover:text-white",
-                )}
-                aria-label="Rasteransicht"
-                title="Rasteransicht"
-              >
-                <LayoutGrid className="h-4 w-4" />
-              </button>
-              <button
-                type="button"
-                onClick={() => setView("grouped")}
-                className={cn(
-                  "p-2 transition-colors",
-                  view === "grouped" ? "bg-white/10 text-white" : "text-slate-500 hover:text-white",
-                )}
-                aria-label="Nach Status gruppiert"
-                title="Nach Status gruppiert"
-              >
-                <Rows3 className="h-4 w-4" />
-              </button>
-              <button
-                type="button"
-                onClick={() => setView("kanban")}
-                className={cn(
-                  "p-2 transition-colors",
-                  view === "kanban" ? "bg-white/10 text-white" : "text-slate-500 hover:text-white",
-                )}
-                aria-label="Kanban-Spalten"
-                title="Kanban – Status per Ziehen aendern"
-              >
-                <Columns3 className="h-4 w-4" />
-              </button>
-            </div>
-
             <button
               ref={dataButtonRef}
               type="button"
               onClick={() => setDataMenuOpen((value) => !value)}
-              className="rounded-xl border border-white/9 p-2 text-slate-500 transition-colors hover:text-white"
+              className="shrink-0 rounded-xl border border-white/9 p-2.5 text-slate-500 transition-colors hover:text-white"
               aria-label="Daten exportieren oder importieren"
               title="Export und Import"
               aria-haspopup="menu"
@@ -355,11 +333,49 @@ export function ProjectBoard({
               <Database className="h-4 w-4" />
             </button>
 
-            <button type="button" className="btn btn-primary" onClick={() => setDialogOpen(true)}>
+            <button
+              type="button"
+              className="btn btn-primary shrink-0"
+              onClick={() => setDialogOpen(true)}
+              // Unterhalb von sm bleibt nur das Pluszeichen stehen. Ohne
+              // eigene Beschriftung liest ein Screenreader dann gar nichts vor.
+              aria-label="Neues Projekt"
+            >
               <Plus className="h-4 w-4" />
               <span className="hidden sm:inline">Neues Projekt</span>
             </button>
           </div>
+        </div>
+
+        {/* Ansichtsumschalter: auf schmalen Anzeigen ueber die volle Breite,
+            damit die vier Knoepfe gross genug zum Treffen bleiben. */}
+        <div
+          className="flex overflow-hidden rounded-xl border border-white/9 sm:w-auto sm:self-start"
+          role="group"
+          aria-label="Ansicht"
+        >
+          {VIEWS.map((mode) => {
+            const { label, title, icon: Icon } = VIEW_META[mode];
+            const active = view === mode;
+            return (
+              <button
+                key={mode}
+                type="button"
+                onClick={() => setView(mode)}
+                className={cn(
+                  "flex flex-1 items-center justify-center gap-1.5 px-3 py-2 text-xs transition-colors sm:flex-none",
+                  active ? "bg-white/10 text-white" : "text-slate-500 hover:text-white",
+                )}
+                aria-pressed={active}
+                title={title}
+              >
+                <Icon className="h-4 w-4 shrink-0" />
+                {/* Nur auf den schmalsten Anzeigen bleiben die Symbole allein –
+                    dort waeren vier Beschriftungen enger als die Fingerkuppe. */}
+                <span className="hidden xs:inline">{label}</span>
+              </button>
+            );
+          })}
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -471,6 +487,8 @@ export function ProjectBoard({
           selection={selection}
           onToggleSelect={toggleSelect}
         />
+      ) : view === "list" ? (
+        <ProjectList projects={visible} selection={selection} onToggleSelect={toggleSelect} />
       ) : view === "grid" ? (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
           {visible.map((project, index) => (

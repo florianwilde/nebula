@@ -253,7 +253,11 @@ function Column({
       // Eindeutiger Anker fuer Tests und Automatisierung.
       data-column={status}
       className={cn(
-        "flex w-[17rem] shrink-0 flex-col rounded-2xl border border-white/6 bg-white/2 transition-colors",
+        // Schmaler auf dem Telefon: bei 17rem stand die zweite Spalte fast
+        // vollstaendig ausserhalb des Bildschirms, und ohne einen sichtbaren
+        // Rest der naechsten Spalte sieht man dem Brett nicht an, dass es
+        // seitlich weitergeht.
+        "flex w-[14rem] shrink-0 flex-col rounded-2xl border border-white/6 bg-white/2 transition-colors sm:w-[17rem]",
         isOver && "border-violet-400/40 bg-violet-500/6",
       )}
     >

@@ -66,8 +66,13 @@ export function BulkBar({
   }
 
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-4 z-[90] flex justify-center px-4">
-      <div className="popover pointer-events-auto flex flex-wrap items-center gap-2 px-3 py-2 shadow-2xl">
+    // Der Abstand nach unten beruecksichtigt die Home-Anzeige des iPhones;
+    // ohne das liegt die Leiste im installierten Betrieb darunter.
+    <div
+      className="pointer-events-none fixed inset-x-0 bottom-4 z-[90] flex justify-center px-3"
+      style={{ bottom: "calc(1rem + env(safe-area-inset-bottom))" }}
+    >
+      <div className="popover pointer-events-auto flex max-w-full flex-wrap items-center justify-center gap-2 px-3 py-2 shadow-2xl">
         <span className="px-1 text-sm tabular-nums text-slate-200">
           {ids.length} ausgewählt
         </span>
@@ -122,8 +127,17 @@ export function BulkBar({
           <Tag className="h-3.5 w-3.5" />
           Tags
         </button>
-        <Popover open={tagsOpen} anchorRef={tagsRef} onClose={() => setTagsOpen(false)} align="start">
-          <div className="w-64 space-y-2 p-3">
+        {/* Die Breite gehoert an den Popover, nicht an sein Kind: der Popover
+            setzt overflow-hidden, ein breiteres Kind wird schlicht
+            abgeschnitten – frueher um die Haelfte des Abbrechen-Knopfs. */}
+        <Popover
+          open={tagsOpen}
+          anchorRef={tagsRef}
+          onClose={() => setTagsOpen(false)}
+          align="start"
+          width={288}
+        >
+          <div className="space-y-2 p-3">
             <label className="field-label" htmlFor="bulk-tags">
               Tags (kommagetrennt)
             </label>

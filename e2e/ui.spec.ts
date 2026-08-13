@@ -106,6 +106,31 @@ test("Volltextsuche findet Notizen", async ({ page }) => {
   await expect(page.getByText("Treffer in Notizen")).toBeVisible();
 });
 
+test("Listenansicht auf Telefonbreite ohne seitliches Scrollen", async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 667 });
+
+  await page.getByRole("button", { name: "Liste" }).click();
+  await expect(page.getByRole("link", { name: /Projekt Oberflaechentest/ })).toBeVisible();
+
+  // Der eigentliche Punkt der Ansicht: sie passt in die Breite. Frueher schob
+  // die Steuerleiste den Knopf "Neues Projekt" aus dem Bild und die ganze
+  // Seite liess sich seitwaerts schieben.
+  const masse = await page.evaluate(() => ({
+    scrollWidth: document.documentElement.scrollWidth,
+    clientWidth: document.documentElement.clientWidth,
+  }));
+  expect(masse.scrollWidth).toBeLessThanOrEqual(masse.clientWidth + 1);
+
+  // Auch der Knopf muss erreichbar bleiben – auf dieser Breite traegt er nur
+  // noch das Pluszeichen und lebt von seinem aria-label. Geprueft wird die
+  // rechte Kante: genau die lag vorher ausserhalb des Bildschirms.
+  const knopf = page.getByRole("button", { name: "Neues Projekt" });
+  await expect(knopf).toBeVisible();
+  const kasten = await knopf.boundingBox();
+  expect(kasten).not.toBeNull();
+  expect(kasten!.x + kasten!.width).toBeLessThanOrEqual(masse.clientWidth);
+});
+
 test("Schnellsuche findet Projekt und Notiz", async ({ page }) => {
   await page.keyboard.press("Control+k");
   await expect(page.getByRole("dialog", { name: "Schnellsuche" })).toBeVisible();

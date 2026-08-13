@@ -114,12 +114,18 @@ export function Heatmap({ calendar }: { calendar: CommitCalendar }) {
         </p>
       </div>
 
-      <div className="overflow-x-auto">
+      <div className="-mx-1 overflow-x-auto px-1">
+        {/*
+          Kein max-w-full: zusammen mit der festen Hoehe staucht das die
+          Wochen auf schmalen Anzeigen zu einem unlesbaren Streifen, statt
+          den Elter seitlich scrollen zu lassen. Die Kalenderfelder haben
+          eine feste Groesse – die Karte gehoert geschoben, nicht gequetscht.
+        */}
         <svg
           viewBox={`0 0 ${breite + 22} ${hoehe}`}
           width={breite + 22}
           height={hoehe}
-          className="max-w-full"
+          className="block shrink-0"
           role="img"
           aria-label={`Commits je Tag seit ${formatDate(calendar.from)}: ${gesamt} an ${tageMitCommits} Tagen`}
         >

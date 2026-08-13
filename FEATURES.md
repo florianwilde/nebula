@@ -115,7 +115,8 @@ Der Status ist **direkt auf der Projektkarte** umschaltbar, ohne den Detailberei
 - **Statusfilter** als Chips mit Trefferzähler, mehrere gleichzeitig kombinierbar.
 - **Sortierung** nach zuletzt geändert, Anlagedatum, Name, Fortschritt oder Priorität —
   Favoriten bleiben stets oben.
-- **Drei Ansichten**: freies Raster, nach Status gruppierte Abschnitte oder **Kanban**.
+- **Vier Ansichten**: freies Raster, **kompakte Liste**, nach Status gruppierte Abschnitte
+  oder **Kanban**.
 - **Volltextsuche über Notizen.** Die Suche im Board arbeitet auf den geladenen Projekten
   (Name, Kurzbeschreibung, Tags, Repo-Pfad). Notizen liegen dort nicht vor — sie
   mitzuladen würde die Seite aufblähen. Stattdessen sucht Postgres serverseitig mit
@@ -164,6 +165,23 @@ Karte dauerhaft eines steht. Sobald etwas ausgewählt ist, fährt unten eine Lei
 
 Was der Filter ausblendet, fällt aus der Auswahl. Sonst träfe eine Massenänderung Projekte,
 die man gar nicht mehr vor Augen hat. Fremde IDs fallen serverseitig still unter den Tisch.
+
+### Liste
+
+Eine Zeile je Projekt, alle gleich aufgebaut: Statusfarbe als Streifen, Name,
+Fortschrittsbalken mit Prozentwert, danach Aufgaben, Notizen, Branch und Alter des
+letzten Commits. Der Statuswechsler sitzt rechts, die ganze Zeile ist ein Link.
+
+Gedacht ist die Ansicht für zwei Fälle:
+
+- **Auf dem Telefon.** Eine Karte braucht rund 260 px Höhe und steht dort zwangsläufig
+  allein in der Zeile — fünf Projekte füllen zwei Bildschirme, bevor man überhaupt
+  etwas vergleichen kann. Eine Zeile kommt mit einem Viertel davon aus.
+- **Beim Vergleichen.** Weil alle Zeilen gleich gebaut sind, liegen Name, Fortschritt
+  und Status untereinander. Genau das verliert das Raster, sobald es einspaltig wird.
+
+Was nicht mehr in die Zeile passt, fällt der Reihe nach weg, statt sie zu sprengen:
+Notizen ab `sm`, Branch ab `md`, der letzte Commit und die Priorität ab `lg`.
 
 ### Kanban
 

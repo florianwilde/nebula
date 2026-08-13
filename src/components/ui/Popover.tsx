@@ -44,7 +44,11 @@ export function Popover({
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
   const [mounted, setMounted] = useState(false);
-  const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
+  const [position, setPosition] = useState<{
+    top: number;
+    left: number;
+    width: number;
+  } | null>(null);
 
   useEffect(() => setMounted(true), []);
 
@@ -56,14 +60,19 @@ export function Popover({
     const margin = 8;
     const gap = 6;
 
+    // Passt die Wunschbreite nicht ins Fenster, gilt das Fenster. Sonst
+    // liefert die Klemmung unten eine negative linke Kante und das Menue
+    // stuende zur Haelfte ausserhalb des Bildschirms.
+    const effektiv = Math.min(width, window.innerWidth - 2 * margin);
+
     // Bevorzugte Ausrichtung, bei Ueberlauf auf die andere Seite wechseln.
     // Nur Festklemmen am Fensterrand waere schlecht: bei einem Ausloeser weit
     // links stuende das Menue sonst quer ueber der Seite statt an seinem
     // Ausloeser.
-    let left = align === "end" ? rect.right - width : rect.left;
+    let left = align === "end" ? rect.right - effektiv : rect.left;
     if (left < margin) left = rect.left;
-    if (left + width > window.innerWidth - margin) left = rect.right - width;
-    left = Math.min(Math.max(margin, left), window.innerWidth - width - margin);
+    if (left + effektiv > window.innerWidth - margin) left = rect.right - effektiv;
+    left = Math.min(Math.max(margin, left), window.innerWidth - effektiv - margin);
 
     const panelHeight = panelRef.current?.offsetHeight ?? 0;
     let top = rect.bottom + gap;
@@ -73,7 +82,7 @@ export function Popover({
     const fitsAbove = rect.top - gap - panelHeight >= margin;
     if (!fitsBelow && fitsAbove) top = rect.top - gap - panelHeight;
 
-    setPosition({ top, left });
+    setPosition({ top, left, width: effektiv });
   }, [anchorRef, align, width]);
 
   // Bewusst useEffect statt useLayoutEffect: Letzteres warnt beim
@@ -127,7 +136,7 @@ export function Popover({
         position: "fixed",
         top: position?.top ?? -9999,
         left: position?.left ?? -9999,
-        width,
+        width: position?.width ?? width,
         // Bis die Position steht, unsichtbar halten – sonst blitzt das
         // Menue kurz an der falschen Stelle auf.
         visibility: position ? "visible" : "hidden",

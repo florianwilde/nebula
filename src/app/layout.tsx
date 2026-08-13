@@ -42,6 +42,11 @@ export const viewport: Viewport = {
   themeColor: "#05060f",
   width: "device-width",
   initialScale: 1,
+  // Die Seite reicht bis unter Statusleiste und Home-Anzeige; das ist noetig,
+  // damit der Hintergrund im installierten Betrieb nicht an einem weissen
+  // Balken endet. Was dadurch verdeckt wuerde, holen die env(safe-area-*)
+  // in globals.css wieder heraus.
+  viewportFit: "cover",
 };
 
 export default async function RootLayout({

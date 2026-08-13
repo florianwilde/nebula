@@ -277,6 +277,21 @@
     border: 1px solid transparent;
   }
 
+  /**
+   * Auf Zeigergeraeten reichen die 36px, die sich aus Schriftgroesse und
+   * Innenabstand ergeben. Ein Finger trifft das nicht zuverlaessig – dort
+   * gilt die uebliche Untergrenze von 44px.
+   *
+   * Ueber "pointer: coarse" statt einer Breitenabfrage: entscheidend ist das
+   * Eingabegeraet, nicht die Fenstergroesse. Ein Tablet im Querformat ist
+   * breit und wird trotzdem mit dem Finger bedient.
+   */
+  @media (pointer: coarse) {
+    .btn {
+      min-height: 2.75rem;
+    }
+  }
+
   .btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
@@ -333,6 +348,19 @@
     transition:
       border-color 0.2s ease,
       box-shadow 0.2s ease;
+  }
+
+  /**
+   * Unter 16px zoomt iOS Safari beim Hineintippen die ganze Seite heran und
+   * kehrt danach nicht von selbst zurueck – aus einem Formular wird so eine
+   * Schiebepartie. Deshalb auf Beruehrungsgeraeten volle 16px, unabhaengig
+   * von der Fensterbreite.
+   */
+  @media (pointer: coarse) {
+    .field {
+      font-size: 1rem;
+      padding: 0.65rem 0.85rem;
+    }
   }
 
   .field::placeholder {
@@ -415,5 +443,23 @@
 
   .range::-moz-range-track {
     background: transparent;
+  }
+
+  /* Ein 16px-Griff ist mit dem Finger kaum zu fassen. Die Spur bleibt
+     schmal, damit der Regler nicht ploetzlich klobig wirkt. */
+  @media (pointer: coarse) {
+    .range {
+      height: 10px;
+    }
+
+    .range::-webkit-slider-thumb {
+      height: 24px;
+      width: 24px;
+    }
+
+    .range::-moz-range-thumb {
+      height: 22px;
+      width: 22px;
+    }
   }
 }

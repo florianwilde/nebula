@@ -38,6 +38,13 @@
     Consolas, "DejaVu Sans Mono", monospace;
 
   --radius-card: 1.25rem;
+
+  /* Eine Stufe unterhalb von Tailwinds "sm" (40rem). Zwischen 320px und
+     640px liegt der gesamte Telefonbereich, und dort ist der Unterschied
+     zwischen "Beschriftung passt noch" und "passt nicht mehr" oft nur ein
+     Zentimeter breit. 22rem trennt die wirklich schmalen Geraete (iPhone SE
+     der ersten Reihe, 320px) vom Rest, der bei 360px und mehr anfaengt. */
+  --breakpoint-xs: 22rem;
 }
 
 :root {
@@ -63,7 +70,14 @@
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
+    /* Ein Notnagel gegen seitliches Scrollen, kein Ersatz fuer richtiges
+       Umbrechen: was hier abgeschnitten wird, ist auf dem Telefon einfach
+       nicht mehr erreichbar. Die Ursachen gehoeren in die Komponenten. */
     overflow-x: hidden;
+    /* Mit viewportFit: "cover" reicht die Seite bis in die Ecken; ohne diese
+       Einrueckung stuende der Inhalt im Querformat unter der Kameraleiste. */
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
   }
 
   ::selection {

@@ -52,13 +52,17 @@ export default async function DashboardPage() {
         </p>
       </header>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+      {/* Zwei Spalten schon auf dem Telefon: einspaltig fuellten die fuenf
+          Kacheln dort den ganzen ersten Bildschirm, und die Projekte – der
+          eigentliche Inhalt – begannen erst nach dem zweiten Wischen. */}
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-5">
         <StatCard
           label="Projekte"
           value={active.length}
           hint={`Ø Fortschritt ${averageProgress}%`}
           icon={CircleDot}
           color="#a78bfa"
+          className="col-span-2 lg:col-span-1"
         />
         <StatCard
           label="Ideen"

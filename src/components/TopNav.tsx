@@ -34,16 +34,18 @@ export function TopNav({
 
   return (
     <header className="sticky top-0 z-40 border-b border-white/5 bg-[#05060f]/70 backdrop-blur-xl">
-      <div className="mx-auto flex w-full max-w-[1400px] items-center gap-6 px-4 py-3 sm:px-6 lg:px-8">
-        <Link href="/" className="group flex items-center gap-3">
+      <div className="mx-auto flex w-full max-w-[1400px] items-center gap-3 px-4 py-3 sm:gap-6 sm:px-6 lg:px-8">
+        <Link href="/" className="group flex min-w-0 items-center gap-2 sm:gap-3">
           <span className="relative grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-violet-500 via-fuchsia-500 to-cyan-400 shadow-[0_8px_28px_-10px_rgba(168,85,247,0.9)] transition-transform group-hover:scale-105">
             <Sparkles className="h-4 w-4 text-white" strokeWidth={2.4} />
           </span>
-          <span className="flex flex-col leading-none">
-            <span className="text-gradient text-lg font-semibold tracking-tight">
+          <span className="flex min-w-0 flex-col leading-none">
+            <span className="text-gradient truncate text-lg font-semibold tracking-tight">
               {appName}
             </span>
-            <span className="mt-0.5 text-[10px] uppercase tracking-[0.2em] text-slate-500">
+            {/* Der weite Zeichenabstand kostet auf 375px mehr Platz, als die
+                Zeile wert ist – dort bleibt nur der Name stehen. */}
+            <span className="mt-0.5 hidden truncate text-[10px] uppercase tracking-[0.2em] text-slate-500 xs:block">
               {tagline}
             </span>
           </span>
@@ -51,13 +53,20 @@ export function TopNav({
 
         {user ? (
           <>
-            <nav className="flex items-center gap-1">
+            <nav className="flex shrink-0 items-center gap-1">
               {LINKS.map(({ href, label, icon: Icon }) => {
                 const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
                 return (
                   <Link
                     key={href}
                     href={href}
+                    // Unterhalb von sm bleibt nur das Symbol stehen. Ohne
+                    // eigene Beschriftung ist der Verweis dann fuer einen
+                    // Screenreader namenlos – axe-core meldet das als
+                    // "link-name", und zwar zu Recht: vorgelesen wird nichts.
+                    aria-label={label}
+                    title={label}
+                    aria-current={active ? "page" : undefined}
                     className={cn(
                       "flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors",
                       active

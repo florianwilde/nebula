@@ -53,7 +53,7 @@ export function Modal({
   if (!mounted || !open) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[120] flex items-start justify-center overflow-y-auto p-4 sm:p-8">
+    <div className="fixed inset-0 z-[120] flex items-start justify-center overflow-y-auto p-3 sm:p-8">
       <button
         type="button"
         aria-label="Dialog schliessen"
@@ -65,7 +65,7 @@ export function Modal({
         aria-modal="true"
         aria-label={title}
         className={cn(
-          "popover fade-up relative z-10 my-auto w-full rounded-2xl p-6",
+          "popover fade-up relative z-10 my-auto w-full rounded-2xl p-4 sm:p-6",
           width === "md" && "max-w-lg",
           width === "lg" && "max-w-2xl",
           width === "xl" && "max-w-4xl",
