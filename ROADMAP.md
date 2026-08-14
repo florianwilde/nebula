@@ -11,6 +11,31 @@ Was bereits steht, listet [FEATURES.md](FEATURES.md).
 
 ## 1 · Als Nächstes empfohlen
 
+### 1.0 v1.6.0 „unterwegs erfassen" `M`
+
+Drei Dinge, die zusammengehören: erfassen am Telefon, überblicken an einer
+Stelle, ansprechen per Shortcut.
+
+**Schnellerfassung.** „Ideen festhalten" steht als Erstes auf dem Dashboard,
+aber eine Idee anzulegen heißt bisher: Dialog mit sieben Feldern. Ein Feld,
+Name, Enter, Status `IDEA` — der Rest wird später am Rechner nachgezogen.
+Dasselbe für Aufgaben, dort mit Projektwähler.
+
+**Zentrales Aufgaben-Dashboard.** Eine Seite über alle Projekte hinweg.
+Zwei Dinge aus dem Schema sind dabei zu beachten:
+
+- `Task` hat kein `ownerId` — die Datentrennung läuft über
+  `project: { ownerId }`. Der Index `[projectId, status, position]` greift
+  für eine projektübergreifende Abfrage nicht; es braucht einen passenden.
+- `position` ist spaltenweise **je Projekt** vergeben und global damit
+  bedeutungslos. Die Seite sortiert deshalb nach Fälligkeit und ist bewusst
+  **nicht** per Ziehen sortierbar — sonst verspricht sie eine Ordnung, die
+  es nicht gibt.
+
+**Persönliche API-Token** — siehe 1.3, gehört sachlich hierher.
+
+---
+
 ### 1.1 Webhooks statt Polling `M`
 
 Ein Push aktualisiert den Snapshot sofort, statt bis zum nächsten Durchlauf
@@ -36,6 +61,50 @@ Sitzungen.
 
 ---
 
+### 1.4 v1.7.0 „Aufgaben und Issues" `M` + `M`
+
+Nachverfolgbarkeit zwischen Nebula-Aufgabe und Git. Die Zuordnung steht im
+Schema bereits: `sourceIssue`, `sourceUrl`, `sourceRepositoryId` samt
+`@@unique`. Die Richtung **Git → Nebula** gibt es seit v0.9.0
+(`tasks/from-issues`); es fehlt die Gegenrichtung.
+
+**Kein Widerspruch zu „Bewusst nicht".** Ausgeschlossen sind dort *eigene
+Git-Operationen* — klonen, committen, pushen. Issues laufen über die
+HTTP-API der Provider, dieselbe Schicht wie alles andere (`lib/git/http.ts`,
+SSRF-Schutz inklusive). Kein Klon, kein Arbeitsverzeichnis.
+
+Warum Issues und nicht eine Datei im Repo: **dort verlinkt Git ohnehin.**
+Ein `fixes #12` in der Commit-Nachricht stellt die Verbindung von selbst
+her — die Kette Aufgabe → Commit → PR gibt es geschenkt, statt sie zu bauen.
+Damit erledigt sich auch „Aufgabe ↔ Commit verknüpfen" aus Abschnitt 3.
+
+**Stufe 1 — eine Richtung, ausdrücklich** `M`
+Ein Knopf „als Issue anlegen" an der Aufgabe. Nummer und URL wandern in die
+vorhandenen Felder. Kein Automatismus: was nach außen geht, wird
+angestoßen, nicht nebenbei mitgeschrieben.
+
+**Stufe 2 — Rückweg über Webhooks** `M`
+Setzt 1.1 voraus. Geschlossenes Issue → Aufgabe nach `DONE`. Erst damit ist
+„synchron" ehrlich, ohne im Minutentakt fremde APIs zu fragen.
+
+**Die Zustände passen nicht aufeinander, und das bleibt so.** Nebula kennt
+`TODO/DOING/BLOCKED/DONE`, ein Issue nur offen/geschlossen. Ein Rundlauf
+verliert also `DOING` und `BLOCKED` — bewusst hingenommen: die feine
+Abstufung bleibt in Nebula, nach Git geht nur offen/zu. Labels wie
+`nebula:doing` wären die Alternative, würden aber den Issue-Tracker mit
+Zuständen zumüllen, die dort niemand pflegt.
+
+**Echte beidseitige Synchronisation mit Konfliktauflösung ist nicht
+vorgesehen.** Das ist der klassische Ort für stillen Datenverlust, und für
+ein persönliches Dashboard steht der Aufwand in keinem Verhältnis.
+
+Für Projekte ohne Issue-Tracker wäre eine `.nebula/tasks.md` über die
+Contents-API denkbar — aber nur als **einseitiger Spiegel**, nicht als
+Synchronisation: zwei Schreiber auf einer Datei, und jede Statusänderung
+ein Commit.
+
+---
+
 ## 2 · Größere Brocken
 
 ### 2.1 Passwort-Zurücksetzen per E-Mail `M`
@@ -58,7 +127,7 @@ Voraussetzung, falls du das Projekt veröffentlichen willst.
 | Globale Zeitleiste | `S` | Derselbe Verlauf, aber projektübergreifend als eigene Seite |
 | Suche über Aufgaben | `S` | Die Volltextsuche deckt bisher nur Notizen ab |
 | Suchtreffer in Notizen hervorheben | `S` | In der Notiz selbst, nicht nur in der Trefferliste |
-| Aufgabe ↔ Commit verknüpfen | `M` | Enthält ein Commit `#5`, wird die übernommene Aufgabe verlinkt |
+| Aufgabe ↔ Commit verknüpfen | `M` | Enthält ein Commit `#5`, wird die übernommene Aufgabe verlinkt — fällt weitgehend mit 1.4 ab |
 | Tastaturkürzel-Übersicht mit `?` | `S` | Es gibt inzwischen genug davon |
 | Hell/Dunkel umschaltbar | `M` | Aktuell nur dunkel |
 | Eigenes Logo und Farbe | `S` | Ergänzt `APP_NAME` |
