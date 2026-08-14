@@ -66,15 +66,64 @@ export const connectionSafeSelect = Prisma.validator<Prisma.GitConnectionSelect>
 });
 
 /**
+ * Felder eines Repositories, die nach aussen duerfen.
+ *
+ * Ausdruecklich als Liste und nicht als "include": ein include liefert jedes
+ * Skalarfeld mit, auch neu hinzugekommene. Das Webhook-Geheimnis waere so
+ * still in jede Projektantwort und in jede Seite gewandert – verschluesselt
+ * zwar, aber nach aussen gehoert es trotzdem nicht. Dieselbe Ueberlegung wie
+ * bei connectionSafeSelect.
+ *
+ * Ob ein Webhook eingerichtet ist, sagt webhookLastAt nicht zuverlaessig
+ * (frisch eingerichtet ist es null). Diese Angabe holt die Projektseite
+ * deshalb getrennt – siehe webhookRepositoryIds.
+ */
+export const repositorySafeSelect = Prisma.validator<Prisma.RepositorySelect>()({
+  id: true,
+  projectId: true,
+  label: true,
+  repoUrl: true,
+  repoOwner: true,
+  repoName: true,
+  defaultBranch: true,
+  connectionId: true,
+  position: true,
+  lastSyncedAt: true,
+  syncError: true,
+  autoSync: true,
+  syncFailureCount: true,
+  notifiedSyncError: true,
+  notifiedCiState: true,
+  notifiedRelease: true,
+  webhookLastAt: true,
+  createdAt: true,
+  updatedAt: true,
+  connection: { select: connectionSafeSelect },
+  snapshot: true,
+});
+
+/**
  * Ein Repository mitsamt Verbindung und Stand. Die Reihenfolge ist ueberall
  * dieselbe: das fuehrende zuerst, denn auf der Karte ist nur fuer eines Platz.
  */
 export const repositoryInclude = Prisma.validator<Prisma.ProjectInclude>()({
   repositories: {
-    include: { connection: { select: connectionSafeSelect }, snapshot: true },
+    select: repositorySafeSelect,
     orderBy: [{ position: "asc" }, { createdAt: "asc" }],
   },
 });
+
+/**
+ * IDs der Repositories eines Projekts, fuer die ein Webhook hinterlegt ist.
+ * Getrennt geholt, damit das Geheimnis selbst nirgends mitgereicht wird.
+ */
+export async function webhookRepositoryIds(projectId: string): Promise<string[]> {
+  const treffer = await prisma.repository.findMany({
+    where: { projectId, webhookSecret: { not: null } },
+    select: { id: true },
+  });
+  return treffer.map((eintrag) => eintrag.id);
+}
 
 export const projectListInclude = Prisma.validator<Prisma.ProjectInclude>()({
   ...repositoryInclude,

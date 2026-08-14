@@ -19,7 +19,13 @@ const SESSION_COOKIE = "nebula_session";
 
 /** Ohne Anmeldung erreichbar. */
 const PUBLIC_PATHS = ["/login", "/setup", "/register"];
-const PUBLIC_API_PREFIXES = ["/api/auth/"];
+/**
+ * Eingehende Webhooks bringen kein Cookie mit – sie kommen von GitHub,
+ * GitLab oder Gitea. Ausgewiesen wird sich dort mit einer Signatur ueber den
+ * Rumpf, geprueft im Endpunkt selbst (lib/webhooks/verify). Ohne gueltiges
+ * Geheimnis passiert nichts.
+ */
+const PUBLIC_API_PREFIXES = ["/api/auth/", "/api/webhooks/"];
 /**
  * Der Docker-Healthcheck hat kein Cookie. Manifest und Symbole braucht der
  * Browser, bevor sich jemand angemeldet hat – wuerden sie zur Anmeldeseite
@@ -91,7 +97,12 @@ export function middleware(request: NextRequest) {
   const isDev = process.env.NODE_ENV === "development";
 
   // ── 1. CSRF ────────────────────────────────────────────────
-  if (!SAFE_METHODS.has(request.method) && !isSameOrigin(request)) {
+  // Webhooks kommen von einem fremden Server und koennen keinen passenden
+  // Origin mitbringen. Die Herkunftspruefung schuetzt gegen den Browser
+  // eines angemeldeten Nutzers – hier gibt es keinen, und ausgewiesen wird
+  // sich stattdessen mit der Signatur ueber den Rumpf.
+  const istWebhook = pathname.startsWith("/api/webhooks/");
+  if (!istWebhook && !SAFE_METHODS.has(request.method) && !isSameOrigin(request)) {
     return NextResponse.json(
       { error: "Anfrage von fremdem Ursprung abgelehnt." },
       { status: 403 },

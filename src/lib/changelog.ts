@@ -42,6 +42,40 @@ export const KIND_META: Record<ChangeKind, { label: string; className: string }>
 
 export const CHANGELOG: Release[] = [
   {
+    version: "1.7.0",
+    date: "2026-08-15",
+    headline: "Aufgaben und Git-Issues finden zusammen.",
+    changes: [
+      {
+        kind: "neu",
+        text:
+          "Eine Aufgabe lässt sich als Issue im verknüpften Repository anlegen — per Knopf, " +
+          "nie nebenbei. Danach wandert der Zustand mit: erledigt schließt das Issue, ein " +
+          "Zurückziehen öffnet es wieder.",
+      },
+      {
+        kind: "neu",
+        text:
+          "Webhooks. Ein Push aktualisiert den Stand sofort, statt bis zum nächsten " +
+          "Abgleich zu warten; ein geschlossenes Issue hakt seine Aufgabe ab. Einzurichten " +
+          "am Repository — URL und Geheimnis stehen dort bereit.",
+      },
+      {
+        kind: "behoben",
+        text:
+          "Auf dem Telefon verdeckte die Bildschirmtastatur den halben Dialog, weil er mit " +
+          "der vollen Fensterhöhe rechnete. Dialoge richten sich jetzt nach dem sichtbaren " +
+          "Bereich und rücken über die Tastatur.",
+      },
+      {
+        kind: "besser",
+        text:
+          "Aufgaben lassen sich in der Übersicht direkt bearbeiten. Bisher führte von dort " +
+          "nur der Weg ins Projekt.",
+      },
+    ],
+  },
+  {
     version: "1.6.0",
     date: "2026-08-14",
     headline: "Unterwegs erfassen — und eine Oberfläche, die aufs Telefon passt.",

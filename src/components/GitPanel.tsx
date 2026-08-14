@@ -17,6 +17,7 @@ import {
   Lock,
   Package,
   Plus,
+  Radio,
   RefreshCw,
   ShieldCheck,
   Star,
@@ -26,6 +27,7 @@ import {
 import { CiBadge } from "@/components/CiBadge";
 import { Heatmap } from "@/components/Heatmap";
 import { RepositoryDialog } from "@/components/RepositoryDialog";
+import { WebhookDialog } from "@/components/WebhookDialog";
 import { Sparkline } from "@/components/Sparkline";
 import { repoTitle } from "@/lib/git/meta";
 import { asArray, asCalendar, asRecord } from "@/types";
@@ -55,9 +57,13 @@ type TabKey = (typeof TABS)[number]["key"];
 export function GitPanel({
   project,
   connections,
+  webhookRepoIds = [],
 }: {
   project: ProjectDetail;
   connections: ConnectionSafe[];
+  /** Repositories mit hinterlegtem Webhook. Das Geheimnis selbst bleibt
+      auf dem Server – hier kommt nur an, ob eines existiert. */
+  webhookRepoIds?: string[];
 }) {
   const router = useRouter();
   const [tab, setTab] = useState<TabKey>("pulls");
@@ -65,6 +71,7 @@ export function GitPanel({
   const [importing, setImporting] = useState(false);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [addOpen, setAddOpen] = useState(false);
+  const [webhookOpen, setWebhookOpen] = useState(false);
 
   const repositories = project.repositories;
   const [selectedId, setSelectedId] = useState<string | null>(repositories[0]?.id ?? null);
@@ -72,6 +79,7 @@ export function GitPanel({
   // Nach dem Entfernen zeigt die Auswahl ins Leere – dann auf das fuehrende
   // zurueckfallen, statt eine leere Ansicht zu zeigen.
   const repository = repositories.find((entry) => entry.id === selectedId) ?? repositories[0] ?? null;
+  const webhookAktiv = repository ? webhookRepoIds.includes(repository.id) : false;
 
   /** Offene Issues als Aufgaben anlegen – ohne erneuten Abruf beim Provider. */
   async function importIssues() {
@@ -282,6 +290,24 @@ export function GitPanel({
           )}
           <button
             type="button"
+            onClick={() => setWebhookOpen(true)}
+            className={cn(
+              "rounded-lg p-2 transition-colors",
+              webhookAktiv
+                ? "text-emerald-300 hover:bg-emerald-500/10"
+                : "text-slate-500 hover:bg-white/8 hover:text-violet-300",
+            )}
+            aria-label="Webhook einrichten"
+            title={
+              webhookAktiv
+                ? "Webhook ist eingerichtet – meldet Aenderungen sofort"
+                : "Webhook einrichten – Aenderungen sofort statt beim naechsten Abgleich"
+            }
+          >
+            <Radio className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
             onClick={() => removeRepository(repository)}
             className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-rose-500/10 hover:text-rose-300"
             aria-label={`${repoTitle(repository)} vom Projekt loesen`}
@@ -310,6 +336,16 @@ export function GitPanel({
         onClose={() => setAddOpen(false)}
         projectId={project.id}
         connections={connections}
+      />
+
+      <WebhookDialog
+        open={webhookOpen}
+        onClose={() => setWebhookOpen(false)}
+        repositoryId={repository.id}
+        repositoryTitle={repoTitle(repository)}
+        provider={repository.connection?.provider ?? null}
+        eingerichtet={webhookAktiv}
+        zuletzt={repository.webhookLastAt}
       />
 
       {message ? (

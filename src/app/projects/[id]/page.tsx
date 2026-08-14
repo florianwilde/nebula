@@ -11,7 +11,7 @@ import { TaskBoard } from "@/components/tasks/TaskBoard";
 import { requireUserPage } from "@/lib/auth/guard";
 import { getSessionUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
-import { connectionSafeSelect, projectDetailInclude } from "@/lib/projects";
+import { connectionSafeSelect, projectDetailInclude, webhookRepositoryIds } from "@/lib/projects";
 import type { ConnectionSafe, ProjectDetail } from "@/types";
 
 export const dynamic = "force-dynamic";
@@ -54,6 +54,9 @@ export default async function ProjectPage({ params }: PageProps) {
   if (!project) notFound();
 
   const detail = project as unknown as ProjectDetail;
+
+  // Nur die Angabe "hier haengt ein Webhook", nicht das Geheimnis selbst.
+  const webhookIds = await webhookRepositoryIds(detail.id);
 
   const fuehrend = detail.repositories[0]?.snapshot;
   const readme = fuehrend?.readme
@@ -116,6 +119,7 @@ export default async function ProjectPage({ params }: PageProps) {
           <GitPanel
             project={detail}
             connections={connections as unknown as ConnectionSafe[]}
+            webhookRepoIds={webhookIds}
           />
           <ActivityFeed projectId={detail.id} initial={detail.activities} />
         </div>

@@ -503,6 +503,78 @@ Dateneinsicht. Ein Administrator sieht dadurch weiterhin keine fremden Projekte.
 - **Zeitlimit** pro Aufruf über `GIT_API_TIMEOUT_MS` einstellbar; die Teilabfragen laufen
   parallel, eine fehlschlagende Liste bricht den restlichen Sync nicht ab.
 
+### 4.6 Aufgabe ↔ Git-Issue
+
+Die Verbindung geht in beide Richtungen — mit einer bewussten Grenze.
+
+**Nebula → Git.** Ein Knopf im Aufgabendialog legt zur Aufgabe ein Issue im
+verknüpften Repository an. Nummer und Adresse landen an der Aufgabe (`sourceIssue`,
+`sourceUrl`, `sourceRepositoryId` — dieselben Felder, die die Übernahme aus Issues seit
+v0.9.0 füllt, samt Eindeutigkeit je Repository gegen Dubletten). In den Rumpf kommt ein
+Rückverweis auf das Projekt.
+
+Ausdrücklich **per Knopf und nie nebenbei**: was in ein fremdes System geschrieben wird,
+soll jemand gewollt haben. Danach wandert der Zustand allerdings mit — erledigt schließt
+das Issue, ein Zurückziehen öffnet es wieder. Schlägt der Aufruf fehl, zieht die Aufgabe
+trotzdem um; ein nicht erreichbares Git-System darf das Abhaken nicht verhindern.
+
+**Git → Nebula** über Webhooks, siehe unten.
+
+**Die Zustände passen nicht aufeinander, und das bleibt so.** Nebula kennt
+`Offen · In Arbeit · Blockiert · Erledigt`, ein Issue nur offen oder geschlossen. Nach
+außen geht deshalb nur die Grenze um „erledigt“; ein Rundlauf verliert *In Arbeit* und
+*Blockiert*. Labels wie `nebula:doing` wären die Alternative, würden aber den
+Issue-Tracker mit Zuständen füllen, die dort niemand pflegt. Die feine Abstufung bleibt
+in Nebula.
+
+Eine echte beidseitige Synchronisation mit Konfliktauflösung gibt es **nicht** — das ist
+der klassische Ort für stillen Datenverlust.
+
+**Kein Widerspruch zu „keine eigenen Git-Operationen“:** Issues laufen über die HTTP-API
+der Provider, dieselbe Schicht wie alles andere (`lib/git/http.ts`, SSRF-Schutz
+inklusive). Kein Klon, kein Arbeitsverzeichnis. Schreibende Aufrufe folgen dabei
+**keinen Umleitungen** — ein 307 auf eine interne Adresse nähme den Rumpf und den Token
+im Header mit.
+
+### 4.7 Webhooks
+
+Ein Push aktualisiert den Stand sofort, statt bis zum nächsten Durchlauf des Zeitgebers
+zu warten; ein geschlossenes Issue hakt seine Aufgabe ab. Der Zeitplan bleibt als
+Rückfalllösung bestehen.
+
+Einzurichten am Repository (Funksymbol im Git-Bereich): Nebula erzeugt URL und
+Geheimnis, eingetragen wird der Haken im Git-System von Hand. Über die API anzulegen
+wäre machbar, verlangte aber Administrationsrechte am Repository — deutlich mehr, als
+Nebula sonst braucht.
+
+Das Geheimnis ist **genau einmal** zu sehen; danach liegt es verschlüsselt in der
+Datenbank, wie die Zugangstoken, und verlässt den Server nicht mehr.
+
+| System | Ausweis | Kopfzeile |
+| --- | --- | --- |
+| GitHub | HMAC-SHA256 über den Rumpf | `X-Hub-Signature-256: sha256=…` |
+| Gitea | dieselbe Rechnung, ohne Präfix | `X-Gitea-Signature` (ältere: `X-Hub-Signature-256`) |
+| GitLab | das Geheimnis im Klartext | `X-Gitlab-Token` |
+
+GitLabs Verfahren ist schwächer: es beweist nur, dass der Absender das Geheimnis kennt,
+nicht dass der Rumpf unverändert ist. Mehr gibt die Plattform nicht her; verglichen wird
+trotzdem zeitkonstant.
+
+Geprüft wird gegen den **rohen** Rumpf — durch `JSON.parse` und `JSON.stringify` gedreht
+käme eine andere Zeichenfolge heraus und die Signatur passte nie.
+
+Was der Endpunkt bewusst **nicht** tut: den Rumpf als Quelle für Inhalte benutzen. Titel,
+Beschreibung und Zustand kommen weiter aus Nebula beziehungsweise beim nächsten Abgleich
+aus der API. Wer das Geheimnis kennt, kann also höchstens eine Aufgabe auf- oder zumachen
+und einen Abgleich auslösen — keine beliebigen Daten einschleusen.
+
+Unbekannte Ereignisse werden angenommen und liegen gelassen. Ein Fehler brächte das
+Git-System zum Wiederholen und irgendwann zum Abschalten des Hakens.
+
+Der Endpunkt ist der einzige ohne Anmeldung, der schreibt. Deshalb: Ratenbegrenzung je
+Repository (60/Minute), Deckel auf die Rumpfgröße, und ein unbekanntes Repository
+antwortet wie ein nicht eingerichtetes — mit 404, damit die ID nicht bestätigt wird.
+
 ---
 
 ## 4a. Export, Import und Sicherung

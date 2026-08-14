@@ -407,6 +407,16 @@ model Repository {
   notifiedCiState   String?
   notifiedRelease   String?
 
+  /// Gemeinsames Geheimnis fuer eingehende Webhooks, verschluesselt wie die
+  /// Zugangstoken. Je Repository, weil der Haken im Git-System dort
+  /// eingetragen wird und sich einzeln zuruecknehmen laesst.
+  /// NULL heisst: fuer dieses Repository ist kein Webhook eingerichtet, und
+  /// eingehende Aufrufe werden abgewiesen.
+  webhookSecret String?
+  /// Wann zuletzt ein gueltiger Webhook ankam – die einzige Rueckmeldung
+  /// darueber, ob der Haken im Git-System wirklich funktioniert.
+  webhookLastAt DateTime?
+
   snapshot RepoSnapshot?
 
   createdAt DateTime @default(now())

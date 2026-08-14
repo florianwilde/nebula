@@ -27,15 +27,6 @@ Migration wert.
 
 ---
 
-### 1.1 Webhooks statt Polling `M`
-
-Ein Push aktualisiert den Snapshot sofort, statt bis zum nächsten Durchlauf
-zu warten. Braucht einen öffentlich erreichbaren Endpunkt mit
-Signaturprüfung je Provider — sinnvoll erst, wenn die Instanz von außen
-erreichbar ist. Der Zeitplan bleibt als Rückfalllösung.
-
----
-
 ### 1.2 Läuft es noch? `M`
 
 Eine Health-Check-URL je Projekt, die der Zeitgeber regelmäßig anpingt.
@@ -52,47 +43,21 @@ Sitzungen.
 
 ---
 
-### 1.4 v1.7.0 „Aufgaben und Issues" `M` + `M`
+### 1.4 Aufgaben ↔ Issues: was noch fehlt `S`
 
-Nachverfolgbarkeit zwischen Nebula-Aufgabe und Git. Die Zuordnung steht im
-Schema bereits: `sourceIssue`, `sourceUrl`, `sourceRepositoryId` samt
-`@@unique`. Die Richtung **Git → Nebula** gibt es seit v0.9.0
-(`tasks/from-issues`); es fehlt die Gegenrichtung.
+Mit v1.7.0 stehen beide Richtungen: „als Issue anlegen“ und der Rückweg über
+Webhooks. Offen geblieben ist Kleinkram:
 
-**Kein Widerspruch zu „Bewusst nicht".** Ausgeschlossen sind dort *eigene
-Git-Operationen* — klonen, committen, pushen. Issues laufen über die
-HTTP-API der Provider, dieselbe Schicht wie alles andere (`lib/git/http.ts`,
-SSRF-Schutz inklusive). Kein Klon, kein Arbeitsverzeichnis.
+- **Mehrere Repositories.** Der Knopf nimmt immer das führende. Bei einem
+  Projekt aus Frontend und Backend fehlt die Wahl.
+- **Beim Übernehmen aus Issues** wird der Rückweg nicht automatisch
+  eingerichtet — der Webhook ist getrennt zu setzen.
 
-Warum Issues und nicht eine Datei im Repo: **dort verlinkt Git ohnehin.**
-Ein `fixes #12` in der Commit-Nachricht stellt die Verbindung von selbst
-her — die Kette Aufgabe → Commit → PR gibt es geschenkt, statt sie zu bauen.
-Damit erledigt sich auch „Aufgabe ↔ Commit verknüpfen" aus Abschnitt 3.
-
-**Stufe 1 — eine Richtung, ausdrücklich** `M`
-Ein Knopf „als Issue anlegen" an der Aufgabe. Nummer und URL wandern in die
-vorhandenen Felder. Kein Automatismus: was nach außen geht, wird
-angestoßen, nicht nebenbei mitgeschrieben.
-
-**Stufe 2 — Rückweg über Webhooks** `M`
-Setzt 1.1 voraus. Geschlossenes Issue → Aufgabe nach `DONE`. Erst damit ist
-„synchron" ehrlich, ohne im Minutentakt fremde APIs zu fragen.
-
-**Die Zustände passen nicht aufeinander, und das bleibt so.** Nebula kennt
-`TODO/DOING/BLOCKED/DONE`, ein Issue nur offen/geschlossen. Ein Rundlauf
-verliert also `DOING` und `BLOCKED` — bewusst hingenommen: die feine
-Abstufung bleibt in Nebula, nach Git geht nur offen/zu. Labels wie
-`nebula:doing` wären die Alternative, würden aber den Issue-Tracker mit
-Zuständen zumüllen, die dort niemand pflegt.
-
-**Echte beidseitige Synchronisation mit Konfliktauflösung ist nicht
-vorgesehen.** Das ist der klassische Ort für stillen Datenverlust, und für
-ein persönliches Dashboard steht der Aufwand in keinem Verhältnis.
-
-Für Projekte ohne Issue-Tracker wäre eine `.nebula/tasks.md` über die
-Contents-API denkbar — aber nur als **einseitiger Spiegel**, nicht als
-Synchronisation: zwei Schreiber auf einer Datei, und jede Statusänderung
-ein Commit.
+Was **nicht** kommt, bleibt wie besprochen: eine echte beidseitige
+Synchronisation mit Konfliktauflösung. Die Zustände passen ohnehin nicht
+aufeinander — ein Issue kennt nur offen und geschlossen, `DOING` und
+`BLOCKED` gehen im Rundlauf verloren. Das ist hingenommen, statt den
+Issue-Tracker mit Labels zu füllen, die dort niemand pflegt.
 
 ---
 
@@ -172,6 +137,7 @@ Damit klar ist, was **nicht** kommt und warum:
 | **v1.4.0** README-Vorschau auf der Projektseite | ✓ |
 | **v1.5.0** Sicherheitsdurchsicht, Server-Anleitung und Update-Skript | ✓ |
 | **v1.6.0** Mobile Ansicht, Listenansicht, Schnellerfassung, Aufgaben über alle Projekte | ✓ |
+| **v1.7.0** Aufgabe als Git-Issue anlegen, Webhooks für Push und Issues | ✓ |
 
 Zur Entscheidung beim Export: Git-Tokens gehen **nicht** mit. Die Verbindung wird nur
 beschrieben, das Token ist nach dem Import neu zu hinterlegen. Snapshots bleiben
