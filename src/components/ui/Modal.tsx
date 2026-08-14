@@ -33,8 +33,44 @@ export function Modal({
   width = "lg",
 }: ModalProps) {
   const [mounted, setMounted] = useState(false);
+  const [sichtfenster, setSichtfenster] = useState<{ height: number; top: number } | null>(null);
 
   useEffect(() => setMounted(true), []);
+
+  /**
+   * Der Dialog richtet sich nach dem *sichtbaren* Fenster, nicht nach dem
+   * Layoutfenster.
+   *
+   * Auf dem Telefon schiebt sich die Tastatur ueber die untere Haelfte,
+   * ohne dass sich daran etwas fuer die Seite aendert: "position: fixed"
+   * und "100vh" beziehen sich weiter auf das volle Fenster. Ein zentrierter
+   * Dialog liegt damit zur Haelfte unter der Tastatur – genau dort, wo das
+   * Eingabefeld ist.
+   *
+   * Die VisualViewport-API meldet, was wirklich zu sehen ist. Hoehe und
+   * oberer Rand daraus zu setzen rueckt den Dialog in den freien Bereich,
+   * und weil der Behaelter scrollbar ist, holt der Browser das fokussierte
+   * Feld von selbst ins Bild.
+   */
+  useEffect(() => {
+    if (!open) return;
+    const fenster = window.visualViewport;
+    if (!fenster) return;
+
+    const nachfuehren = () => {
+      setSichtfenster({ height: fenster.height, top: fenster.offsetTop });
+    };
+    nachfuehren();
+
+    fenster.addEventListener("resize", nachfuehren);
+    // Beim Scrollen mit offener Tastatur wandert der sichtbare Ausschnitt.
+    fenster.addEventListener("scroll", nachfuehren);
+    return () => {
+      fenster.removeEventListener("resize", nachfuehren);
+      fenster.removeEventListener("scroll", nachfuehren);
+      setSichtfenster(null);
+    };
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -53,7 +89,14 @@ export function Modal({
   if (!mounted || !open) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[120] flex items-start justify-center overflow-y-auto p-3 sm:p-8">
+    <div
+      className="fixed inset-x-0 z-[120] flex items-start justify-center overflow-y-auto p-3 sm:p-8"
+      style={
+        sichtfenster
+          ? { top: sichtfenster.top, height: sichtfenster.height }
+          : { top: 0, bottom: 0 }
+      }
+    >
       <button
         type="button"
         aria-label="Dialog schliessen"

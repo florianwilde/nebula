@@ -42,6 +42,7 @@ export default async function TasksPage() {
     dueDate: task.dueDate ? task.dueDate.toISOString() : null,
     labels: task.labels,
     recurrence: task.recurrence,
+    sourceIssue: task.sourceIssue,
     sourceUrl: task.sourceUrl,
     bucket: dueBucket(task.dueDate, jetzt),
     project: task.project,

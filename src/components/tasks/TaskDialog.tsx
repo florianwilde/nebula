@@ -2,11 +2,32 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Trash2 } from "lucide-react";
-import type { Recurrence, Task, TaskStatus } from "@prisma/client";
+import { ExternalLink, GitPullRequestArrow, Loader2, Trash2 } from "lucide-react";
+import type { Recurrence, TaskStatus } from "@prisma/client";
 import { Modal } from "@/components/ui/Modal";
 import { RECURRENCE_META, TASK_STATUS_META, TASK_STATUS_ORDER } from "@/lib/tasks";
 import { cn, parseTags } from "@/lib/utils";
+
+/**
+ * Was der Dialog von einer Aufgabe tatsaechlich liest.
+ *
+ * Bewusst nicht der vollstaendige Prisma-Datensatz: die Aufgabenuebersicht
+ * ueber alle Projekte reicht eine schlankere Fassung durch, in der das Datum
+ * als Zeichenkette ankommt – ein Date ueberlebt den Weg vom Server zum
+ * Browser nicht. Ein echtes Task erfuellt diese Form ebenfalls.
+ */
+export interface EditableTask {
+  id: string;
+  title: string;
+  description: string | null;
+  status: TaskStatus;
+  dueDate: Date | string | null;
+  labels: string[];
+  recurrence: Recurrence | null;
+  /** Gesetzt, sobald die Aufgabe an einem Git-Issue haengt. */
+  sourceIssue?: number | null;
+  sourceUrl?: string | null;
+}
 
 /** Datum fuer <input type="date"> – ortszeitbezogen, nicht UTC. */
 function toDateInput(value: Date | string | null): string {
@@ -26,7 +47,7 @@ export function TaskDialog({
 }: {
   open: boolean;
   projectId: string;
-  task: Task | null;
+  task: EditableTask | null;
   initialStatus: TaskStatus;
   onClose: () => void;
 }) {
@@ -38,9 +59,37 @@ export function TaskDialog({
   const [labels, setLabels] = useState("");
   const [recurrence, setRecurrence] = useState<string>("");
   const [busy, setBusy] = useState(false);
+  const [issueBusy, setIssueBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const isEdit = Boolean(task);
+
+  /**
+   * Legt zur Aufgabe ein Issue im verknuepften Repository an.
+   *
+   * Ausdruecklich per Knopf und nicht beim Speichern: was in ein fremdes
+   * System geschrieben wird, soll jemand gewollt haben.
+   */
+  async function createIssue() {
+    if (!task) return;
+    setIssueBusy(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/tasks/${task.id}/issue`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error ?? "Issue konnte nicht angelegt werden.");
+      onClose();
+      router.refresh();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : String(caught));
+    } finally {
+      setIssueBusy(false);
+    }
+  }
 
   useEffect(() => {
     if (!open) return;
@@ -229,6 +278,54 @@ export function TaskDialog({
           <p className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">
             {error}
           </p>
+        ) : null}
+
+        {/* Verknuepfung mit einem Git-Issue. Nur beim Bearbeiten – zu einer
+            Aufgabe, die es noch nicht gibt, laesst sich keins anlegen. */}
+        {isEdit ? (
+          <div className="rounded-lg border border-white/8 bg-white/2 px-3 py-2.5">
+            {task?.sourceUrl || task?.sourceIssue ? (
+              <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-400">
+                <GitPullRequestArrow className="h-3.5 w-3.5 shrink-0 text-violet-300" />
+                Verknuepft mit
+                {task.sourceUrl ? (
+                  <a
+                    href={task.sourceUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-violet-300 underline-offset-2 hover:underline"
+                  >
+                    Issue #{task.sourceIssue}
+                    <ExternalLink className="h-3 w-3" />
+                  </a>
+                ) : (
+                  <span className="text-slate-300">Issue #{task.sourceIssue}</span>
+                )}
+                <span className="w-full text-[11px] text-slate-500">
+                  Erledigt schliesst das Issue, ein Zurueckziehen oeffnet es wieder.
+                </span>
+              </p>
+            ) : (
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-xs text-slate-500">
+                  Noch nicht mit einem Issue verknuepft.
+                </span>
+                <button
+                  type="button"
+                  className="btn btn-ghost px-2.5 py-1.5 text-xs"
+                  onClick={createIssue}
+                  disabled={busy || issueBusy}
+                >
+                  {issueBusy ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <GitPullRequestArrow className="h-3.5 w-3.5" />
+                  )}
+                  Als Issue anlegen
+                </button>
+              </div>
+            )}
+          </div>
         ) : null}
 
         <div className="flex items-center justify-between gap-2 pt-1">

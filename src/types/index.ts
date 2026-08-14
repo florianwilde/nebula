@@ -40,8 +40,14 @@ export interface ConnectionWithCount extends ConnectionSafe {
   _count?: { repositories: number };
 }
 
-/** Ein Repository samt Verbindung und zuletzt geholtem Stand. */
-export interface RepositoryWithSnapshot extends Repository {
+/**
+ * Ein Repository samt Verbindung und zuletzt geholtem Stand.
+ *
+ * Ohne webhookSecret: das Geheimnis verlaesst den Server nicht – siehe
+ * repositorySafeSelect. Ob einer eingerichtet ist, reicht die Projektseite
+ * getrennt durch.
+ */
+export interface RepositoryWithSnapshot extends Omit<Repository, "webhookSecret"> {
   connection: ConnectionSafe | null;
   snapshot: RepoSnapshot | null;
 }
@@ -87,7 +93,8 @@ export interface TaskOverviewItem {
   dueDate: string | null;
   labels: string[];
   recurrence: Recurrence | null;
-  /** Gesetzt, wenn die Aufgabe aus einem Git-Issue stammt. */
+  /** Gesetzt, wenn die Aufgabe an einem Git-Issue haengt. */
+  sourceIssue: number | null;
   sourceUrl: string | null;
   bucket: DueBucket;
   project: { id: string; name: string; accent: string; status: ProjectStatus };

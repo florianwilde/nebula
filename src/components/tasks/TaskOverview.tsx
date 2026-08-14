@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import type { TaskStatus } from "@prisma/client";
 import { QuickCapture } from "@/components/QuickCapture";
+import { TaskDialog } from "@/components/tasks/TaskDialog";
 import {
   DUE_BUCKET_META,
   DUE_BUCKET_ORDER,
@@ -44,6 +45,8 @@ export function TaskOverview({ tasks }: { tasks: TaskOverviewItem[] }) {
   const [zeigeErledigte, setZeigeErledigte] = useState(false);
   const [erfassenOffen, setErfassenOffen] = useState(false);
   const [laufend, setLaufend] = useState<Set<string>>(new Set());
+  /** Welche Aufgabe gerade im Dialog liegt. null heisst: keiner offen. */
+  const [bearbeiten, setBearbeiten] = useState<TaskOverviewItem | null>(null);
 
   const projekte = useMemo(() => {
     const map = new Map<string, string>();
@@ -253,6 +256,7 @@ export function TaskOverview({ tasks }: { tasks: TaskOverviewItem[] }) {
                       task={task}
                       busy={laufend.has(task.id)}
                       onToggle={() => abhaken(task)}
+                      onEdit={() => setBearbeiten(task)}
                     />
                   ))}
                 </ul>
@@ -267,6 +271,18 @@ export function TaskOverview({ tasks }: { tasks: TaskOverviewItem[] }) {
         onClose={() => setErfassenOffen(false)}
         initialMode="aufgabe"
       />
+
+      {/* Derselbe Dialog wie im Projektbrett – er kennt seine Aufgabe ueber
+          die ID und braucht das Projekt nur zum Anlegen. */}
+      {bearbeiten ? (
+        <TaskDialog
+          open
+          projectId={bearbeiten.project.id}
+          task={bearbeiten}
+          initialStatus={bearbeiten.status}
+          onClose={() => setBearbeiten(null)}
+        />
+      ) : null}
     </div>
   );
 }
@@ -275,10 +291,12 @@ function TaskRow({
   task,
   busy,
   onToggle,
+  onEdit,
 }: {
   task: TaskOverviewItem;
   busy: boolean;
   onToggle: () => void;
+  onEdit: () => void;
 }) {
   const meta = TASK_STATUS_META[task.status];
   const erledigt = task.status === "DONE";
@@ -303,14 +321,21 @@ function TaskRow({
 
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
-          <span
+          {/* Der Titel oeffnet den Bearbeiten-Dialog. Frueher fuehrte von
+              hier nur der Weg ins Projekt – wer eine Faelligkeit aendern
+              wollte, musste erst dorthin springen und die Aufgabe im Brett
+              wiederfinden. */}
+          <button
+            type="button"
+            onClick={onEdit}
             className={cn(
-              "truncate text-sm",
+              "truncate text-left text-sm transition-colors hover:text-violet-200",
               erledigt ? "text-slate-500 line-through" : "text-slate-100",
             )}
+            title="Aufgabe bearbeiten"
           >
             {task.title}
-          </span>
+          </button>
           {task.recurrence ? (
             <Repeat
               className="h-3 w-3 shrink-0 text-slate-500"

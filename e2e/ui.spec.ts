@@ -163,6 +163,46 @@ test("Schnellerfassung legt Idee und Aufgabe mit einem Feld an", async ({ page }
   await expect(page.getByText("Aus der Bahn notiert")).toBeVisible();
 });
 
+test("Dialoge weichen der Bildschirmtastatur aus", async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 667 });
+  await page.getByRole("button", { name: "Schnell erfassen" }).click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+
+  const TASTATUR = 336;
+
+  /**
+   * Eine echte Tastatur laesst sich nicht einblenden. Stattdessen meldet
+   * visualViewport eine kleinere Hoehe – genau die Schnittstelle, an der
+   * der Dialog haengt. Ueberschrieben wird am echten Objekt: der Dialog
+   * merkt sich beim Oeffnen eine Referenz darauf.
+   */
+  await page.evaluate((tastatur) => {
+    const fenster = window.visualViewport;
+    if (!fenster) throw new Error("visualViewport fehlt");
+    const hoehe = window.innerHeight - tastatur;
+    Object.defineProperty(fenster, "height", { get: () => hoehe, configurable: true });
+    Object.defineProperty(fenster, "offsetTop", { get: () => 0, configurable: true });
+    fenster.dispatchEvent(new Event("resize"));
+  }, TASTATUR);
+
+  await page.waitForTimeout(300);
+
+  // Eingabefeld und Absendeknopf muessen oberhalb der Tastatur liegen.
+  // Vorher stand der Dialog mittig im vollen Fenster – und damit zur
+  // Haelfte darunter.
+  const frei = 667 - TASTATUR;
+  for (const ziel of [
+    page.locator("#quick-title"),
+    page.getByRole("dialog").getByRole("button", { name: "Anlegen" }),
+  ]) {
+    const kasten = await ziel.boundingBox();
+    expect(kasten).not.toBeNull();
+    expect(kasten!.y + kasten!.height).toBeLessThanOrEqual(frei);
+  }
+
+  await page.keyboard.press("Escape");
+});
+
 test("Aufgabenuebersicht sammelt ueber alle Projekte und hakt ab", async ({ page }) => {
   await page.getByRole("link", { name: "Aufgaben", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Aufgaben", level: 1 })).toBeVisible();
