@@ -98,6 +98,83 @@ export async function getJson<T>(
   }
 }
 
+/**
+ * Schreibender Aufruf – POST, PATCH oder PUT.
+ *
+ * Bewusst dieselbe Schleuse wie getJson: die Basis-URL stammt aus einem
+ * Formular, und ohne die Pruefung waere ein schreibender Aufruf der weitaus
+ * unangenehmere Weg nach innen. Redirects werden hier **nicht** verfolgt.
+ * Ein 307 auf eine interne Adresse wuerde den Rumpf mitnehmen, und der
+ * enthaelt bei uns immer den Token im Header – lieber ein Fehler als eine
+ * Anfrage, die woanders landet.
+ */
+export async function sendJson<T>(
+  url: string,
+  method: "POST" | "PATCH" | "PUT",
+  body: unknown,
+  options: FetchOptions = {},
+): Promise<T> {
+  const controller = new AbortController();
+  const timeout = setTimeout(
+    () => controller.abort(),
+    options.timeoutMs ?? DEFAULT_TIMEOUT,
+  );
+
+  try {
+    await assertAllowedUrl(url);
+
+    const response = await fetch(url, {
+      method,
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        "User-Agent": "Nebula-Dashboard",
+        ...options.headers,
+      },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+      cache: "no-store",
+      redirect: "manual",
+    });
+
+    // Bei redirect: "manual" kommt der Umleitungsstatus durch, statt dass
+    // fetch ihm folgt. Das ist hier gewollt und ein Fehlerfall.
+    if (response.status >= 300 && response.status < 400) {
+      throw new GitApiError(
+        "Das Git-System hat umgeleitet. Schreibende Aufrufe folgen dem nicht – " +
+          "bitte die Basis-URL der Verbindung auf die endgueltige Adresse setzen.",
+        response.status,
+        url,
+      );
+    }
+
+    if (!response.ok) {
+      const text = await response.text().catch(() => "");
+      throw new GitApiError(friendlyMessage(response.status, url, text), response.status, url);
+    }
+
+    const text = await response.text();
+    if (!text) return null as T;
+    return JSON.parse(text) as T;
+  } catch (error) {
+    if (error instanceof GitApiError) throw error;
+    if (error instanceof BlockedHostError) {
+      throw new GitApiError(error.message, 403, url);
+    }
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new GitApiError(
+        `Zeitueberschreitung nach ${options.timeoutMs ?? DEFAULT_TIMEOUT} ms`,
+        408,
+        url,
+      );
+    }
+    const reason = error instanceof Error ? error.message : String(error);
+    throw new GitApiError(`Verbindung fehlgeschlagen: ${reason}`, 0, url);
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 /** Wie getJson, gibt aber bei jedem Fehler den Fallback zurueck. */
 export async function getJsonSafe<T>(
   url: string,

@@ -1,4 +1,4 @@
-import { getJson, getJsonSafe, normalizeBaseUrl, shortSha, toIso } from "./http";
+import { getJson, getJsonSafe, normalizeBaseUrl, sendJson, shortSha, toIso } from "./http";
 import {
   CALENDAR_PAGE_SIZE,
   calendarByPaging,
@@ -12,6 +12,7 @@ import type {
   CiState,
   CommitInfo,
   ConnectionCheck,
+  CreatedIssue,
   GitClient,
   ProviderConfig,
   ReleaseInfo,
@@ -43,6 +44,30 @@ export class GitLabClient implements GitClient {
     const headers: Record<string, string> = {};
     if (this.token) headers["PRIVATE-TOKEN"] = this.token;
     return headers;
+  }
+
+  async createIssue(
+    ref: RepoRef,
+    issue: { title: string; body?: string | null },
+  ): Promise<CreatedIssue> {
+    // GitLab nennt es "iid" – die projektinterne Nummer, die auch in der
+    // Oberflaeche steht. "id" waere die instanzweite und damit die falsche.
+    const angelegt = await sendJson<{ iid: number; web_url?: string }>(
+      `${this.apiBase}/projects/${this.projectPath(ref)}/issues`,
+      "POST",
+      { title: issue.title, description: issue.body ?? "" },
+      { headers: this.headers() },
+    );
+    return { number: angelegt.iid, url: angelegt.web_url ?? null };
+  }
+
+  async setIssueState(ref: RepoRef, number: number, open: boolean): Promise<void> {
+    await sendJson(
+      `${this.apiBase}/projects/${this.projectPath(ref)}/issues/${number}`,
+      "PUT",
+      { state_event: open ? "reopen" : "close" },
+      { headers: this.headers() },
+    );
   }
 
   async check(): Promise<ConnectionCheck> {

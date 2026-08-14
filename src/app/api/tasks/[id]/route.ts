@@ -10,6 +10,7 @@ import {
   refreshDerivedProgress,
   spawnRecurrence,
 } from "@/lib/tasks";
+import { issueShouldBeOpen, mirrorStatusToIssue } from "@/lib/tasks/issues";
 import { formatZodError, taskUpdateSchema } from "@/lib/validation";
 
 export const dynamic = "force-dynamic";
@@ -73,6 +74,23 @@ export async function PATCH(request: Request, { params }: Params) {
       : null;
 
   await refreshDerivedProgress(existing.projectId);
+
+  /**
+   * Haengt die Aufgabe an einem Issue, wandert der Zustand mit: erledigt
+   * schliesst es, ein Zurueckziehen oeffnet es wieder. Nur die Grenze um
+   * ERLEDIGT geht nach draussen – mehr kennt ein Issue nicht.
+   *
+   * Fehlertolerant und ohne den Aufrufer warten zu lassen, was schiefgehen
+   * kann: ein nicht erreichbares Git-System darf das Abhaken nicht
+   * verhindern. Beim naechsten Wechsel wird es erneut versucht.
+   */
+  if (update.status !== undefined) {
+    const vorher = issueShouldBeOpen(existing.status);
+    const nachher = issueShouldBeOpen(update.status as TaskStatus);
+    if (vorher !== nachher) {
+      await mirrorStatusToIssue(id, update.status as TaskStatus);
+    }
+  }
 
   // Nur der Spaltenwechsel kommt in den Verlauf. Ein umbenannter Titel oder
   // ein neues Label sind zu kleinteilig, um die Geschichte des Projekts zu

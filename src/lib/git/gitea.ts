@@ -1,4 +1,4 @@
-import { getJson, getJsonSafe, normalizeBaseUrl, shortSha, toIso } from "./http";
+import { getJson, getJsonSafe, normalizeBaseUrl, sendJson, shortSha, toIso } from "./http";
 import {
   CALENDAR_PAGE_SIZE,
   calendarByPaging,
@@ -12,6 +12,7 @@ import type {
   CiState,
   CommitInfo,
   ConnectionCheck,
+  CreatedIssue,
   GitClient,
   ProviderConfig,
   ReleaseInfo,
@@ -42,6 +43,32 @@ export class GiteaClient implements GitClient {
     const headers: Record<string, string> = {};
     if (this.token) headers.Authorization = `token ${this.token}`;
     return headers;
+  }
+
+  private repoBase(ref: RepoRef): string {
+    return `${this.apiBase}/repos/${encodeURIComponent(ref.owner)}/${encodeURIComponent(ref.name)}`;
+  }
+
+  async createIssue(
+    ref: RepoRef,
+    issue: { title: string; body?: string | null },
+  ): Promise<CreatedIssue> {
+    const angelegt = await sendJson<{ number: number; html_url?: string }>(
+      `${this.repoBase(ref)}/issues`,
+      "POST",
+      { title: issue.title, body: issue.body ?? "" },
+      { headers: this.headers() },
+    );
+    return { number: angelegt.number, url: angelegt.html_url ?? null };
+  }
+
+  async setIssueState(ref: RepoRef, number: number, open: boolean): Promise<void> {
+    await sendJson(
+      `${this.repoBase(ref)}/issues/${number}`,
+      "PATCH",
+      { state: open ? "open" : "closed" },
+      { headers: this.headers() },
+    );
   }
 
   async check(): Promise<ConnectionCheck> {

@@ -167,10 +167,29 @@ export interface ProviderConfig {
   token: string | null;
 }
 
+/** Ein neu angelegtes Issue, so weit wir es zurueckschreiben. */
+export interface CreatedIssue {
+  number: number;
+  url: string | null;
+}
+
 export interface GitClient {
   readonly provider: ProviderKind;
   /** Prueft Erreichbarkeit und Token-Gueltigkeit. */
   check(): Promise<ConnectionCheck>;
+  /**
+   * Legt ein Issue an und liefert Nummer und Adresse zurueck.
+   *
+   * Der einzige schreibende Aufruf in dieser Schnittstelle. Er wird nie
+   * nebenbei ausgeloest, sondern immer von Hand angestossen – was nach
+   * aussen geht, soll jemand gewollt haben.
+   */
+  createIssue(ref: RepoRef, issue: { title: string; body?: string | null }): Promise<CreatedIssue>;
+  /**
+   * Schliesst ein Issue. Beim Zurueckziehen einer Aufgabe wird es wieder
+   * geoeffnet – daher der Schalter statt zweier Methoden.
+   */
+  setIssueState(ref: RepoRef, number: number, open: boolean): Promise<void>;
   /** Repos, auf die der Token Zugriff hat (fuer die Auswahl beim Verknuepfen). */
   listRepos(query?: string): Promise<RepoListItem[]>;
   /** Vollstaendiger Stand eines Repositories. */

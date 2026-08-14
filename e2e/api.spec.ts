@@ -279,6 +279,109 @@ test("Mehrere Repositories je Projekt", async ({ request, playwright }) => {
   expect(zumSchluss.repositories[0].repoName).toBe("swr");
 });
 
+test("Webhook: Signatur entscheidet, sonst passiert nichts", async ({ request, playwright }) => {
+  await login(request, ADMIN);
+
+  const projekt = (
+    await (
+      await request.post("/api/projects", {
+        data: { name: "Hakenprojekt", repoUrl: "https://github.com/vercel/swr" },
+      })
+    ).json()
+  ).project;
+  const repoId = projekt.repositories[0].id;
+
+  // Ohne eingerichteten Webhook ist der Endpunkt stumm – und zwar mit 404,
+  // damit die ID nicht bestaetigt wird.
+  const ohne = await request.post(`/api/webhooks/${repoId}`, {
+    headers: { "Content-Type": "application/json" },
+    data: { action: "closed", issue: { number: 1 } },
+  });
+  expect(ohne.status()).toBe(404);
+
+  // Einrichten liefert das Geheimnis genau einmal zurueck.
+  const eingerichtet = await request.post(`/api/repositories/${repoId}/webhook`);
+  expect(eingerichtet.status()).toBe(200);
+  const { secret, url } = await eingerichtet.json();
+  expect(typeof secret).toBe("string");
+  expect(secret.length).toBeGreaterThanOrEqual(64);
+  expect(url).toContain(`/api/webhooks/${repoId}`);
+
+  // Und danach nirgends mehr: weder im Projekt noch am Repository.
+  const geladen = await (await request.get(`/api/projects/${projekt.id}`)).json();
+  expect(JSON.stringify(geladen)).not.toContain(secret);
+  expect(geladen.project.repositories[0].webhookSecret).toBeUndefined();
+
+  // Eine Aufgabe, die an einem Issue haengt – von Hand gesetzt gibt es
+  // nicht, also ueber die Uebernahme aus dem Snapshot. Stattdessen prueft
+  // dieser Test die Grenze selbst: ohne gueltige Signatur passiert nichts.
+  const rumpf = JSON.stringify({ action: "closed", issue: { number: 4242 } });
+
+  const falsch = await request.post(`/api/webhooks/${repoId}`, {
+    headers: {
+      "Content-Type": "application/json",
+      "X-GitHub-Event": "issues",
+      "X-Hub-Signature-256": "sha256=00",
+    },
+    data: rumpf,
+  });
+  expect(falsch.status()).toBe(401);
+
+  const gar_keine = await request.post(`/api/webhooks/${repoId}`, {
+    headers: { "Content-Type": "application/json", "X-GitHub-Event": "issues" },
+    data: rumpf,
+  });
+  expect(gar_keine.status()).toBe(401);
+
+  // Mit richtiger Signatur wird der Aufruf angenommen. Zu Issue 4242 gibt
+  // es keine Aufgabe – erwartet ist also "angenommen, nichts zugeordnet".
+  const { createHmac } = await import("node:crypto");
+  const signatur = createHmac("sha256", secret).update(rumpf, "utf8").digest("hex");
+  const richtig = await request.post(`/api/webhooks/${repoId}`, {
+    headers: {
+      "Content-Type": "application/json",
+      "X-GitHub-Event": "issues",
+      "X-Hub-Signature-256": `sha256=${signatur}`,
+    },
+    data: rumpf,
+  });
+  expect(richtig.status()).toBe(200);
+  const antwort = await richtig.json();
+  expect(antwort).toMatchObject({ ok: true, handled: "issue", matched: false });
+
+  // Dieselbe Signatur zu einem anderen Rumpf gilt nicht.
+  const veraendert = await request.post(`/api/webhooks/${repoId}`, {
+    headers: {
+      "Content-Type": "application/json",
+      "X-GitHub-Event": "issues",
+      "X-Hub-Signature-256": `sha256=${signatur}`,
+    },
+    data: JSON.stringify({ action: "closed", issue: { number: 9999 } }),
+  });
+  expect(veraendert.status()).toBe(401);
+
+  // Fremde Konten koennen den Haken weder einrichten noch zuruecknehmen.
+  const fremd = await playwright.request.newContext({
+    baseURL: test.info().project.use.baseURL,
+  });
+  await login(fremd, ZWEITER);
+  expect((await fremd.post(`/api/repositories/${repoId}/webhook`)).status()).toBe(404);
+  expect((await fremd.delete(`/api/repositories/${repoId}/webhook`)).status()).toBe(404);
+  await fremd.dispose();
+
+  // Zuruecknehmen schliesst den Endpunkt wieder.
+  expect((await request.delete(`/api/repositories/${repoId}/webhook`)).ok()).toBeTruthy();
+  const danach = await request.post(`/api/webhooks/${repoId}`, {
+    headers: {
+      "Content-Type": "application/json",
+      "X-GitHub-Event": "issues",
+      "X-Hub-Signature-256": `sha256=${signatur}`,
+    },
+    data: rumpf,
+  });
+  expect(danach.status()).toBe(404);
+});
+
 test("Brett: Reihenfolge und Mehrfachauswahl", async ({ request, playwright }) => {
   await login(request, ADMIN);
 
