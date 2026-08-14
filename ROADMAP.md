@@ -11,28 +11,19 @@ Was bereits steht, listet [FEATURES.md](FEATURES.md).
 
 ## 1 · Als Nächstes empfohlen
 
-### 1.0 v1.6.0 „unterwegs erfassen" `M`
+### 1.0 Rest aus v1.6.0: persönliche API-Token `M`
 
-Drei Dinge, die zusammengehören: erfassen am Telefon, überblicken an einer
-Stelle, ansprechen per Shortcut.
+Schnellerfassung und die projektübergreifende Aufgabenseite sind mit v1.6.0
+ausgeliefert. Offen bleibt der dritte Teil — siehe 1.3. Er gehört sachlich
+dazu: erfassen am Telefon, überblicken an einer Stelle, ansprechen per
+Shortcut.
 
-**Schnellerfassung.** „Ideen festhalten" steht als Erstes auf dem Dashboard,
-aber eine Idee anzulegen heißt bisher: Dialog mit sieben Feldern. Ein Feld,
-Name, Enter, Status `IDEA` — der Rest wird später am Rechner nachgezogen.
-Dasselbe für Aufgaben, dort mit Projektwähler.
-
-**Zentrales Aufgaben-Dashboard.** Eine Seite über alle Projekte hinweg.
-Zwei Dinge aus dem Schema sind dabei zu beachten:
-
-- `Task` hat kein `ownerId` — die Datentrennung läuft über
-  `project: { ownerId }`. Der Index `[projectId, status, position]` greift
-  für eine projektübergreifende Abfrage nicht; es braucht einen passenden.
-- `position` ist spaltenweise **je Projekt** vergeben und global damit
-  bedeutungslos. Die Seite sortiert deshalb nach Fälligkeit und ist bewusst
-  **nicht** per Ziehen sortierbar — sonst verspricht sie eine Ordnung, die
-  es nicht gibt.
-
-**Persönliche API-Token** — siehe 1.3, gehört sachlich hierher.
+Bewusst nicht mitgeliefert wurde ein **Index für die übergreifende
+Aufgabenabfrage**. `Task` hat kein `ownerId`, die Trennung läuft über
+`project: { ownerId }`, und `[projectId, status, position]` greift dafür
+nicht. Bei einigen hundert Aufgaben fällt das nicht auf; wird die Seite
+träge, ist ein Index auf `dueDate` der erste Griff — und dann eine
+Migration wert.
 
 ---
 
@@ -180,6 +171,7 @@ Damit klar ist, was **nicht** kommt und warum:
 | **v1.3.0** Wiederkehrende Aufgaben, Barrierefreiheit nach WCAG 2.1 AA | ✓ |
 | **v1.4.0** README-Vorschau auf der Projektseite | ✓ |
 | **v1.5.0** Sicherheitsdurchsicht, Server-Anleitung und Update-Skript | ✓ |
+| **v1.6.0** Mobile Ansicht, Listenansicht, Schnellerfassung, Aufgaben über alle Projekte | ✓ |
 
 Zur Entscheidung beim Export: Git-Tokens gehen **nicht** mit. Die Verbindung wird nur
 beschrieben, das Token ist nach dem Import neu zu hinterlegen. Snapshots bleiben

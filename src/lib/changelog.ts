@@ -42,6 +42,62 @@ export const KIND_META: Record<ChangeKind, { label: string; className: string }>
 
 export const CHANGELOG: Release[] = [
   {
+    version: "1.6.0",
+    date: "2026-08-14",
+    headline: "Unterwegs erfassen — und eine Oberfläche, die aufs Telefon passt.",
+    changes: [
+      {
+        kind: "behoben",
+        text:
+          "Auf dem Telefon war das Dashboard breiter als der Bildschirm: die Steuerleiste " +
+          "konnte nicht umbrechen und schob den Knopf „Neues Projekt“ aus dem Bild. " +
+          "Dasselbe im Projektkopf, wo „Löschen“ außerhalb lag. Beide Zeilen brechen " +
+          "jetzt um.",
+      },
+      {
+        kind: "neu",
+        text:
+          "Schnellerfassung: ein Blitzsymbol in der Kopfleiste, auf jeder Seite " +
+          "erreichbar. Ein Feld, Enter, fertig — als Idee entsteht ein Projekt, als " +
+          "Aufgabe eine Aufgabe im gewählten Projekt. Der Dialog bleibt danach offen, " +
+          "weil auf eine Idee meist gleich die nächste folgt.",
+      },
+      {
+        kind: "neu",
+        text:
+          "Eine Aufgabenseite über alle Projekte hinweg, geordnet nach Fälligkeit: " +
+          "überfällig, heute, diese Woche, später, ohne Termin. Abhaken geht direkt " +
+          "aus der Liste.",
+      },
+      {
+        kind: "neu",
+        text:
+          "Vierte Ansicht im Dashboard: eine kompakte Liste. Auf dem Telefon passen " +
+          "damit fünf Projekte auf einen Bildschirm statt auf vier.",
+      },
+      {
+        kind: "besser",
+        text:
+          "Eingabefelder sind auf Berührungsgeräten 16 Pixel groß — darunter zoomt " +
+          "iOS Safari beim Hineintippen die Seite heran und kehrt nicht von selbst " +
+          "zurück. Knöpfe und der Fortschrittsregler sind mit dem Finger zu treffen.",
+      },
+      {
+        kind: "behoben",
+        text:
+          "Die Verweise in der Kopfleiste und „Neues Projekt“ sind auf schmalen " +
+          "Anzeigen reine Symbole und hießen für einen Screenreader gar nichts. " +
+          "Jetzt tragen sie eine Beschriftung.",
+      },
+      {
+        kind: "behoben",
+        text:
+          "Das Tag-Formular der Auswahlleiste war breiter als sein Menü und wurde " +
+          "beschnitten — auf jeder Bildschirmbreite.",
+      },
+    ],
+  },
+  {
     version: "1.5.0",
     date: "2026-07-27",
     headline: "Sicherheitsdurchsicht und eine Anleitung für den Server.",
