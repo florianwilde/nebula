@@ -161,6 +161,68 @@ export async function spawnRecurrence(taskId: string) {
   });
 }
 
+// ── Faelligkeit in der Gesamtuebersicht ──────────────────────
+
+/**
+ * Faecher der Aufgabenuebersicht. Anders als im Projektbrett ordnet dort
+ * nicht die Spalte, sondern der Termin: projektuebergreifend ist "was ist
+ * ueberfaellig" die Frage, nicht "was steht in welcher Spalte".
+ */
+export const DUE_BUCKET_ORDER = ["overdue", "today", "week", "later", "someday"] as const;
+
+export type DueBucket = (typeof DUE_BUCKET_ORDER)[number];
+
+export const DUE_BUCKET_META: Record<DueBucket, { label: string; color: string }> = {
+  overdue: { label: "Überfällig", color: "#fb7185" },
+  today: { label: "Heute", color: "#fbbf24" },
+  week: { label: "Diese Woche", color: "#a78bfa" },
+  later: { label: "Später", color: "#38bdf8" },
+  someday: { label: "Ohne Termin", color: "#8a98b0" },
+};
+
+/**
+ * Kalendertag in fester Zeitzone, als fortlaufende Tagesnummer.
+ *
+ * Die Serverzeit taugt dafuer nicht: im Container laeuft die Anwendung nach
+ * UTC. Um 23:30 Berliner Zeit ist dort noch der Vortag, und eine heute
+ * faellige Aufgabe stuende unter "Ueberfaellig". Dieselbe Zeitzone benutzt
+ * auch die Datumsausgabe in lib/utils.
+ */
+const TAG_FORMAT = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Europe/Berlin",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+function tagesnummer(wert: Date): number {
+  // en-CA liefert "2026-08-14" – und damit etwas, das sich ohne weiteres
+  // Zerlegen sortieren und rechnen laesst.
+  const [jahr, monat, tag] = TAG_FORMAT.format(wert).split("-").map(Number);
+  return Date.UTC(jahr, monat - 1, tag) / 86_400_000;
+}
+
+/**
+ * In welches Fach eine Aufgabe faellt.
+ *
+ * Gerechnet wird auf Kalendertage, nicht auf Stunden: eine Aufgabe, die
+ * heute um 9 Uhr faellig war, ist um 17 Uhr nicht "ueberfaellig", sondern
+ * immer noch "heute". Sonst wanderte die halbe Liste im Lauf des Tages
+ * nach oben.
+ *
+ * Bewusst als reine Funktion mit uebergebenem "jetzt" – das macht sie
+ * pruefbar.
+ */
+export function dueBucket(dueDate: Date | null, now: Date = new Date()): DueBucket {
+  if (!dueDate) return "someday";
+
+  const abstand = tagesnummer(dueDate) - tagesnummer(now);
+  if (abstand < 0) return "overdue";
+  if (abstand === 0) return "today";
+  if (abstand <= 7) return "week";
+  return "later";
+}
+
 /** Naechste freie Position am Ende einer Spalte. */
 export async function nextPosition(
   projectId: string,

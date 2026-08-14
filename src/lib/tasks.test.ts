@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  DUE_BUCKET_META,
+  DUE_BUCKET_ORDER,
   TASK_STATUS_META,
   TASK_STATUS_ORDER,
+  dueBucket,
   nextDueDate,
   progressFromTasks,
 } from "./tasks";
@@ -86,5 +89,50 @@ describe("nextDueDate", () => {
     const next = nextDueDate("DAILY", new Date("1970-01-01T00:00:00Z"), abhaken("2026-07-26T09:00:00Z"));
     expect(next instanceof Date).toBe(true);
     expect(Number.isNaN(next.getTime())).toBe(false);
+  });
+});
+
+describe("dueBucket", () => {
+  /** 14.08.2026, 17:30 Berliner Zeit – bewusst spaeter Nachmittag. */
+  const JETZT = new Date("2026-08-14T15:30:00Z");
+
+  it("ordnet eine Aufgabe ohne Termin nach hinten", () => {
+    expect(dueBucket(null, JETZT)).toBe("someday");
+  });
+
+  it("zaehlt den heutigen Tag als heute, auch wenn die Uhrzeit vorbei ist", () => {
+    // Der Punkt der Funktion: gerechnet wird auf Kalendertage. Um 9 Uhr
+    // faellig und jetzt ist es halb sechs – die Aufgabe steht trotzdem
+    // unter "Heute" und nicht unter "Ueberfaellig".
+    expect(dueBucket(new Date("2026-08-14T07:00:00Z"), JETZT)).toBe("today");
+  });
+
+  it("erkennt den Vortag als ueberfaellig", () => {
+    expect(dueBucket(new Date("2026-08-13T21:00:00Z"), JETZT)).toBe("overdue");
+  });
+
+  it("fasst die kommenden sieben Tage als diese Woche", () => {
+    expect(dueBucket(new Date("2026-08-15T06:00:00Z"), JETZT)).toBe("week");
+    expect(dueBucket(new Date("2026-08-21T06:00:00Z"), JETZT)).toBe("week");
+  });
+
+  it("schiebt alles danach nach spaeter", () => {
+    expect(dueBucket(new Date("2026-08-22T06:00:00Z"), JETZT)).toBe("later");
+  });
+
+  it("richtet sich nach Berliner Kalendertagen, nicht nach UTC", () => {
+    // 21:30 UTC ist in Berlin schon 23:30 desselben Tages – im Container
+    // laeuft die Anwendung aber nach UTC. Ohne feste Zeitzone kippte die
+    // Einteilung hier um einen Tag.
+    const spaetAbends = new Date("2026-08-15T21:30:00Z");
+    expect(dueBucket(new Date("2026-08-15T10:00:00Z"), spaetAbends)).toBe("today");
+    expect(dueBucket(new Date("2026-08-16T10:00:00Z"), spaetAbends)).toBe("week");
+  });
+
+  it("hat zu jedem Fach eine Beschriftung und eine Farbe", () => {
+    for (const bucket of DUE_BUCKET_ORDER) {
+      expect(DUE_BUCKET_META[bucket].label).toBeTruthy();
+      expect(DUE_BUCKET_META[bucket].color).toMatch(/^#[0-9a-f]{6}$/i);
+    }
   });
 });

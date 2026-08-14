@@ -131,6 +131,58 @@ test("Listenansicht auf Telefonbreite ohne seitliches Scrollen", async ({ page }
   expect(kasten!.x + kasten!.width).toBeLessThanOrEqual(masse.clientWidth);
 });
 
+test("Schnellerfassung legt Idee und Aufgabe mit einem Feld an", async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 667 });
+
+  await page.getByRole("button", { name: "Schnell erfassen" }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toBeVisible();
+
+  // Idee: nur der Name, alles andere kommt aus den Vorgaben des Schemas.
+  await page.fill("#quick-title", "Aus der Bahn notiert");
+  await dialog.getByRole("button", { name: "Anlegen" }).click();
+
+  // Der Dialog bleibt offen und bestaetigt – das ist der Punkt der
+  // Schnellerfassung: die naechste Idee soll ohne Umweg hineingehen.
+  await expect(dialog.getByText("Angelegt")).toBeVisible();
+  await expect(dialog.getByRole("link", { name: "Aus der Bahn notiert" })).toBeVisible();
+  await expect(page.locator("#quick-title")).toHaveValue("");
+
+  // Aufgabe: derselbe Dialog, ein Feld mehr.
+  await dialog.getByRole("button", { name: "Aufgabe", exact: true }).click();
+  await page.fill("#quick-title", "Unterwegs eingefallen");
+  await expect(page.locator("#quick-project")).toBeVisible();
+  await dialog.getByRole("button", { name: "Anlegen" }).click();
+  await expect(dialog.getByRole("link", { name: "Unterwegs eingefallen" })).toBeVisible();
+
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+
+  // Die Idee steht als Projekt im Dashboard.
+  await page.goto("/");
+  await expect(page.getByText("Aus der Bahn notiert")).toBeVisible();
+});
+
+test("Aufgabenuebersicht sammelt ueber alle Projekte und hakt ab", async ({ page }) => {
+  await page.getByRole("link", { name: "Aufgaben", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Aufgaben", level: 1 })).toBeVisible();
+
+  // Die zuvor per Schnellerfassung angelegte Aufgabe taucht hier auf,
+  // obwohl sie in einem anderen Projekt haengt.
+  const zeile = page.getByRole("listitem").filter({ hasText: "Unterwegs eingefallen" });
+  await expect(zeile).toBeVisible();
+
+  // Abhaken aus der Uebersicht heraus.
+  await zeile.getByRole("button", { name: /abhaken/ }).click();
+  // Ohne "Erledigte einblenden" verschwindet sie damit aus der Liste.
+  await expect(zeile).toBeHidden();
+
+  await page.getByLabel("Erledigte einblenden").check();
+  await expect(
+    page.getByRole("listitem").filter({ hasText: "Unterwegs eingefallen" }),
+  ).toBeVisible();
+});
+
 test("Schnellsuche findet Projekt und Notiz", async ({ page }) => {
   await page.keyboard.press("Control+k");
   await expect(page.getByRole("dialog", { name: "Schnellsuche" })).toBeVisible();

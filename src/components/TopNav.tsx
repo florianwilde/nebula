@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
+  CheckSquare,
   GitBranch,
   LayoutDashboard,
   LogOut,
@@ -11,13 +12,16 @@ import {
   ShieldCheck,
   Sparkles,
   UserRound,
+  Zap,
 } from "lucide-react";
+import { QuickCapture } from "@/components/QuickCapture";
 import { Popover } from "@/components/ui/Popover";
 import type { SessionUser } from "@/lib/auth/session";
 import { cn } from "@/lib/utils";
 
 const LINKS = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/tasks", label: "Aufgaben", icon: CheckSquare },
   { href: "/connections", label: "Git-Verbindungen", icon: GitBranch },
 ];
 
@@ -43,9 +47,11 @@ export function TopNav({
             <span className="text-gradient truncate text-lg font-semibold tracking-tight">
               {appName}
             </span>
-            {/* Der weite Zeichenabstand kostet auf 375px mehr Platz, als die
-                Zeile wert ist – dort bleibt nur der Name stehen. */}
-            <span className="mt-0.5 hidden truncate text-[10px] uppercase tracking-[0.2em] text-slate-500 xs:block">
+            {/* Der weite Zeichenabstand kostet mehr Platz, als die Zeile wert
+                ist. Seit die Aufgaben als dritter Punkt danebenstehen, brach
+                sie auf 375px mitten im Wort ab – unterhalb von sm bleibt
+                deshalb nur der Name. */}
+            <span className="mt-0.5 hidden truncate text-[10px] uppercase tracking-[0.2em] text-slate-500 sm:block">
               {tagline}
             </span>
           </span>
@@ -81,13 +87,43 @@ export function TopNav({
               })}
             </nav>
 
-            <div className="ml-auto">
+            <div className="ml-auto flex items-center gap-2">
+              <QuickCaptureButton />
               <UserMenu user={user} />
             </div>
           </>
         ) : null}
       </div>
     </header>
+  );
+}
+
+/**
+ * Der Einstieg in die Schnellerfassung sitzt in der Kopfleiste, nicht als
+ * schwebender Knopf unten rechts: dort waere er auf schmalen Anzeigen mit
+ * der Auswahlleiste kollidiert, die beim Markieren von Projekten einfaehrt.
+ * In der Kopfleiste ist er auf jeder Seite erreichbar.
+ */
+function QuickCaptureButton() {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="btn btn-ghost px-2.5 py-1.5 sm:px-3"
+        // Unterhalb von sm bleibt nur das Symbol – ohne Beschriftung waere
+        // der Knopf fuer einen Screenreader namenlos.
+        aria-label="Schnell erfassen"
+        title="Schnell erfassen – Idee oder Aufgabe"
+      >
+        <Zap className="h-4 w-4" />
+        <span className="hidden lg:inline">Erfassen</span>
+      </button>
+
+      <QuickCapture open={open} onClose={() => setOpen(false)} />
+    </>
   );
 }
 

@@ -109,8 +109,25 @@ Der Status ist **direkt auf der Projektkarte** umschaltbar, ohne den Detailberei
 
 ## 2. Dashboard
 
+### Schnellerfassung
+
+Ein Blitzsymbol in der Kopfleiste, auf jeder Seite erreichbar. Ein Feld, Enter, fertig —
+als **Idee** entsteht ein Projekt im Status `IDEA`, als **Aufgabe** eine Aufgabe im
+gewählten Projekt (`TODO`). Alles Weitere setzen die Vorgaben des Schemas.
+
+Der Dialog **bleibt nach dem Anlegen offen** und leert nur das Feld. Wer eine Idee
+notiert, hat meistens gleich die nächste; ihn jedes Mal neu zu öffnen wäre genau die
+Hürde, die hier wegsoll. Angelegtes wird darunter mit Link bestätigt. Das zuletzt
+gewählte Projekt wird gemerkt.
+
+Der Einstieg sitzt in der Kopfleiste und nicht als schwebender Knopf unten rechts —
+dort wäre er auf schmalen Anzeigen mit der Auswahlleiste kollidiert.
+
+### Überblick
+
 - **Kennzahlen** oben: Anzahl Projekte mit Ø-Fortschritt, offene Ideen, aktive
-  Entwicklungen, fertige Projekte, verknüpfte Repositories.
+  Entwicklungen, fertige Projekte, verknüpfte Repositories. Auf dem Telefon zweispaltig,
+  damit die Projekte nicht erst nach dem zweiten Wischen beginnen.
 - **Volltextsuche** über Name, Kurzbeschreibung, Beschreibung, Tags und Repo-Pfad.
 - **Statusfilter** als Chips mit Trefferzähler, mehrere gleichzeitig kombinierbar.
 - **Sortierung** nach zuletzt geändert, Anlagedatum, Name, Fortschritt oder Priorität —
@@ -270,6 +287,46 @@ ihrer neuen Reihenfolge; der Server vergibt daraus Position und Status. Das ist
 wiederholbar, kommt ohne Positionsrechnerei im Browser aus, und ein verlorener Aufruf
 lässt sich einfach erneut senden. IDs, die nicht zum Projekt gehören, werden ignoriert
 statt verschoben.
+
+---
+
+## 2b. Aufgaben über alle Projekte
+
+Die Seite `/tasks` sammelt jede Aufgabe aus jedem Projekt an einer Stelle. Erreichbar
+über die Kopfleiste und die Schnellsuche.
+
+**Geordnet wird nach Fälligkeit, nicht nach Spalte.** Projektübergreifend lautet die
+Frage „was ist überfällig", nicht „was steht wo im Brett". Die Fächer:
+
+| Fach | Inhalt |
+| --- | --- |
+| **Überfällig** | Termin liegt vor heute |
+| **Heute** | Termin ist der heutige Kalendertag |
+| **Diese Woche** | in den nächsten sieben Tagen |
+| **Später** | alles danach |
+| **Ohne Termin** | kein Fälligkeitsdatum gesetzt |
+
+Gerechnet wird auf **Kalendertage in fester Zeitzone** (Europe/Berlin), nicht auf
+Stunden und nicht nach Serverzeit. Eine heute um 9 Uhr fällige Aufgabe ist um 17 Uhr
+nicht überfällig, sondern immer noch „heute" — sonst wanderte die halbe Liste im Lauf
+des Tages nach oben. Und im Container läuft die Anwendung nach UTC; ohne feste Zeitzone
+kippte die Einteilung abends um einen Tag. Das Fach bestimmt der **Server**, damit
+Server-Render und Hydration nicht auseinanderlaufen.
+
+- **Filter** nach Status (mit Zähler) und Projekt; Erledigtes ist ausgeblendet und
+  einzeln zuschaltbar.
+- **Abhaken direkt aus der Liste.** Der Endpunkt erledigt dabei den Rest: Zeitpunkt,
+  abgeleiteter Projektfortschritt und — bei wiederkehrenden Aufgaben — die nächste
+  Fassung.
+- Jede Zeile nennt ihr **Projekt** und verlinkt es; ohne das ist eine übergreifende
+  Liste nicht zu lesen. Stammt die Aufgabe aus einem Git-Issue, führt ein Symbol dorthin.
+
+**Bewusst nicht sortierbar per Ziehen.** Die Position einer Aufgabe gilt innerhalb ihrer
+Spalte in ihrem Projekt; hier wäre sie ohne Bedeutung. Eine Reihenfolge anzubieten, die
+nirgends ankommt, wäre ein Versprechen, das die Seite nicht halten kann.
+
+Die Aufgabe kennt keinen Besitzer — die Trennung läuft über das Projekt
+(`project: { ownerId }` als einzige und erste Bedingung).
 
 ---
 

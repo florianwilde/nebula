@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import {
   Bell,
+  CheckSquare,
   CornerDownLeft,
   GitBranch,
   LayoutDashboard,
@@ -55,6 +56,13 @@ interface Action {
 
 const ACTIONS: Action[] = [
   { id: "dashboard", label: "Dashboard", hint: "Alle Projekte", icon: LayoutDashboard, href: "/" },
+  {
+    id: "tasks",
+    label: "Aufgaben",
+    hint: "Über alle Projekte, nach Fälligkeit",
+    icon: CheckSquare,
+    href: "/tasks",
+  },
   {
     id: "connections",
     label: "Git-Verbindungen",

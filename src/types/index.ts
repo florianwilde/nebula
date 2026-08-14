@@ -4,12 +4,14 @@ import type {
   Note,
   Project,
   ProjectStatus,
+  Recurrence,
   RepoSnapshot,
   Repository,
   Task,
   TaskStatus,
 } from "@prisma/client";
 import type { CommitCalendar } from "@/lib/git/calendar";
+import type { DueBucket } from "@/lib/tasks";
 import type {
   BranchInfo,
   CiInfo,
@@ -68,6 +70,27 @@ export interface ProjectDetail extends Project {
   tasks: Task[];
   activities: ActivityEntry[];
   _count: { notes: number; tasks: number };
+}
+
+/**
+ * Eine Aufgabe in der projektuebergreifenden Uebersicht.
+ *
+ * Bewusst kein `extends Task`: die Seite braucht das Projekt dazu, das Fach
+ * fuer die Faelligkeit kommt vom Server, und Datumsangaben gehen als
+ * Zeichenkette an den Browser – ein Date ueberlebt die Serialisierung nicht.
+ */
+export interface TaskOverviewItem {
+  id: string;
+  title: string;
+  description: string | null;
+  status: TaskStatus;
+  dueDate: string | null;
+  labels: string[];
+  recurrence: Recurrence | null;
+  /** Gesetzt, wenn die Aufgabe aus einem Git-Issue stammt. */
+  sourceUrl: string | null;
+  bucket: DueBucket;
+  project: { id: string; name: string; accent: string; status: ProjectStatus };
 }
 
 export interface RepoListEntry {
