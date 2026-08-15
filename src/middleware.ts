@@ -15,7 +15,17 @@ import { NextResponse, type NextRequest } from "next/server";
  */
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
-const SESSION_COOKIE = "nebula_session";
+
+/**
+ * Beide moeglichen Namen des Sitzungscookies.
+ *
+ * Bei https traegt er den Praefix "__Host-", sonst nicht (der Praefix
+ * verlangt zwingend Secure). Welcher gilt, entscheidet lib/config anhand
+ * der APP_URL – hier im Edge-Runtime wird schlicht auf beide geschaut. Es
+ * geht ohnehin nur um die grobe Vorpruefung; verbindlich entscheidet
+ * requireUserPage bzw. requireUserApi.
+ */
+const SESSION_COOKIES = ["__Host-nebula_session", "nebula_session"];
 
 /** Ohne Anmeldung erreichbar. */
 const PUBLIC_PATHS = ["/login", "/setup", "/register"];
@@ -110,7 +120,7 @@ export function middleware(request: NextRequest) {
   }
 
   // ── 2. Zugangsschranke ─────────────────────────────────────
-  const hasSession = Boolean(request.cookies.get(SESSION_COOKIE)?.value);
+  const hasSession = SESSION_COOKIES.some((name) => Boolean(request.cookies.get(name)?.value));
   if (!hasSession && !isPublicPath(pathname)) {
     if (pathname.startsWith("/api/")) {
       return NextResponse.json({ error: "Nicht angemeldet." }, { status: 401 });

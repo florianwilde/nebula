@@ -22,8 +22,19 @@ sonst würden Konten ausgesperrt. Nach der Einrichtung ist `/setup` dauerhaft ge
 
 ### 0.2 Anmeldung
 
-- **Benutzername und Passwort.** Mindestens 10 Zeichen, offensichtliche Passwörter werden
-  abgelehnt. Hashing mit scrypt.
+- **Benutzername und Passwort.** Mindestens 10 Zeichen. Abgelehnt werden naheliegende
+  Passwörter, reine Ziffernfolgen, zu wenig verschiedene Zeichen (`abababab`),
+  durchlaufende Folgen (`abcdefgh`) und alles, was den eigenen Benutzernamen enthält.
+  **Keine Zusammensetzungsregeln** — ASVS 2.1.9 rät ausdrücklich davon ab, weil sie zu
+  `Passwort1!` führen statt zu Entropie.
+- **Hashing mit scrypt**, `N = 2^17, r = 8, p = 1` nach dem OWASP Password Storage Cheat
+  Sheet (rund 0,5 s und 128 MiB je Prüfung). Die Parameter stehen im Hash, ältere bleiben
+  also lesbar — und werden bei der nächsten Anmeldung still auf den aktuellen Stand
+  gehoben. Das ist der einzige Moment, in dem das Klartextpasswort vorliegt.
+- **Gleiche Antwort für alles Fehlgeschlagene.** Ob ein Konto existiert, gesperrt,
+  deaktiviert oder reines Passkey-Konto ist, sagt die Anmeldung erst, wenn das Passwort
+  stimmt. Davor gibt es genau einen Text und eine vergleichbare Antwortzeit
+  (`fakeVerifyDelay`), damit sich Benutzernamen nicht durchprobieren lassen.
 - **Passkey (WebAuthn).** Fingerabdruck, Gesichtserkennung oder Sicherheitsschlüssel. Die
   Anmeldung läuft über auffindbare Credentials, ein Benutzername ist also nicht nötig.
   Mehrere Passkeys pro Konto, benennbar und einzeln entfernbar.
@@ -760,6 +771,16 @@ nicht verloren gehen. Indizes auf Status, Verbindung und Änderungsdatum.
   `GIT_BLOCK_PRIVATE` und `GIT_ALLOWED_HOSTS`.
 - **Rate-Limiting** für Anmeldung (je IP und je Konto), ausgehende Git-Aufrufe und
   WebAuthn-Optionen.
+- **Sitzungen**: Zufallstoken mit 256 Bit, in der Datenbank nur als SHA-256-Hash — wer die
+  Datenbank liest, kann keine Sitzung übernehmen. Geprüft wird bei jeder Anfrage, Abmelden
+  und Sperren wirken also sofort. Zwei Fristen nach ASVS 3.3.2: **absolut** 30 Tage ab
+  Anmeldung (`SESSION_TTL_DAYS`) und **im Leerlauf** 8 Stunden (`SESSION_IDLE_HOURS`).
+  Ein Passwortwechsel entwertet alle Sitzungen und stellt für das eigene Gerät eine neue
+  aus.
+- **Cookies**: `HttpOnly`, `SameSite=Strict`, `Secure` sobald die App über HTTPS läuft, und
+  dann zusätzlich mit dem Präfix `__Host-`. Der Präfix lässt den Browser selbst erzwingen,
+  dass kein `Domain` gesetzt ist — eine andere Subdomain kann den Cookie damit nicht
+  überschreiben und keine Sitzung unterschieben.
 - Access Tokens verschlüsselt mit **AES-256-GCM**, Schlüssel per **scrypt** aus
   `APP_SECRET` abgeleitet, Chiffrat versioniert (`v1.<iv>.<tag>.<data>`).
 - Tokens werden nie an den Browser gesendet — alle API-Antworten nutzen eine Feldauswahl

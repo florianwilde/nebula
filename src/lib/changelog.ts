@@ -42,6 +42,45 @@ export const KIND_META: Record<ChangeKind, { label: string; className: string }>
 
 export const CHANGELOG: Release[] = [
   {
+    version: "1.8.0",
+    date: "2026-08-15",
+    headline: "Durchgang durch Anmeldung und Sitzungen nach OWASP.",
+    changes: [
+      {
+        kind: "besser",
+        text:
+          "Passwörter werden deutlich aufwendiger gehasht (scrypt mit N=2^17 statt 2^15) — " +
+          "das entspricht der Empfehlung des OWASP Password Storage Cheat Sheet. Bestehende " +
+          "Passwörter werden bei der nächsten Anmeldung still auf den neuen Stand gebracht.",
+      },
+      {
+        kind: "behoben",
+        text:
+          "Die Anmeldung verriet, welche Benutzernamen existieren: gesperrte, deaktivierte " +
+          "und reine Passkey-Konten antworteten anders als unbekannte — und das schon vor " +
+          "der Passwortprüfung. Jetzt gibt es die Auskunft erst, wenn das Passwort stimmt.",
+      },
+      {
+        kind: "neu",
+        text:
+          "Sitzungen laufen nach acht Stunden ohne Nutzung ab, zusätzlich zur bestehenden " +
+          "Frist von 30 Tagen. Einstellbar über SESSION_IDLE_HOURS; 0 schaltet es ab.",
+      },
+      {
+        kind: "besser",
+        text:
+          "Das Sitzungscookie trägt bei HTTPS den Präfix „__Host-“ und gilt nur noch " +
+          "SameSite=Strict. Beides muss einmalig neu angemeldet werden.",
+      },
+      {
+        kind: "besser",
+        text:
+          "Die Passwortprüfung erkennt jetzt Wiederholungen, Zeichenfolgen und Passwörter, " +
+          "die den eigenen Benutzernamen enthalten.",
+      },
+    ],
+  },
+  {
     version: "1.7.0",
     date: "2026-08-15",
     headline: "Aufgaben und Git-Issues finden zusammen.",

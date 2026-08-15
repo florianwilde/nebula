@@ -279,6 +279,52 @@ test("Mehrere Repositories je Projekt", async ({ request, playwright }) => {
   expect(zumSchluss.repositories[0].repoName).toBe("swr");
 });
 
+test("Die Anmeldung verraet nicht, welche Konten es gibt", async ({ request, playwright }) => {
+  await login(request, ADMIN);
+
+  // Ein Konto anlegen und stilllegen.
+  const angelegt = await request.post("/api/admin/users", {
+    data: {
+      username: "stillgelegt",
+      password: "ein-ausreichend-langes-passwort",
+      role: "USER",
+    },
+  });
+  expect(angelegt.status()).toBe(201);
+  const id = (await angelegt.json()).user.id;
+  expect((await request.patch(`/api/admin/users/${id}`, { data: { isActive: false } })).ok())
+    .toBeTruthy();
+
+  const anonym = await playwright.request.newContext({
+    baseURL: test.info().project.use.baseURL,
+  });
+
+  // Falsches Passwort auf dem stillgelegten Konto ...
+  const stillgelegt = await anonym.post("/api/auth/login", {
+    data: { username: "stillgelegt", password: "falsches-passwort-hier" },
+  });
+  // ... und auf einem Konto, das es gar nicht gibt.
+  const erfunden = await anonym.post("/api/auth/login", {
+    data: { username: "gibtesnicht", password: "falsches-passwort-hier" },
+  });
+
+  // Beides muss ununterscheidbar sein – sonst laesst sich durchprobieren,
+  // welche Benutzernamen vergeben sind. Frueher kam hier 403 gegen 401.
+  expect(stillgelegt.status()).toBe(erfunden.status());
+  expect(stillgelegt.status()).toBe(401);
+  expect(await stillgelegt.json()).toEqual(await erfunden.json());
+
+  // Mit dem richtigen Passwort darf die Anwendung dann Klartext reden.
+  const mitPasswort = await anonym.post("/api/auth/login", {
+    data: { username: "stillgelegt", password: "ein-ausreichend-langes-passwort" },
+  });
+  expect(mitPasswort.status()).toBe(403);
+  expect((await mitPasswort.json()).error).toMatch(/deaktiviert/);
+
+  await anonym.dispose();
+  await request.delete(`/api/admin/users/${id}`);
+});
+
 test("Webhook: Signatur entscheidet, sonst passiert nichts", async ({ request, playwright }) => {
   await login(request, ADMIN);
 

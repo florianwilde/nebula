@@ -118,7 +118,8 @@ Alle Variablen sind in [`.env.example`](.env.example) dokumentiert.
 | `APP_URL` | Öffentliche Adresse — bestimmt die WebAuthn-RP-ID | `http://localhost:3000` |
 | `DATABASE_URL` | PostgreSQL-Verbindung (Prisma) | `postgresql://nebula:nebula@localhost:5432/nebula` |
 | `APP_SECRET` | Schlüssel für die Token-Verschlüsselung (AES-256-GCM) | — **unbedingt setzen** |
-| `SESSION_TTL_DAYS` | Lebensdauer einer Anmeldung in Tagen | `30` |
+| `SESSION_TTL_DAYS` | Absolute Lebensdauer einer Anmeldung in Tagen | `30` |
+| `SESSION_IDLE_HOURS` | Nach so vielen Stunden ohne Nutzung läuft die Sitzung ab (`0` = aus) | `8` |
 | `PORT` | Port der Anwendung | `3000` |
 | `APP_PORT` | Host-Port-Mapping des App-Containers | `127.0.0.1:3000` |
 | `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | Zugangsdaten des DB-Containers | `nebula` |

@@ -2,7 +2,12 @@ import { createHash, randomBytes } from "node:crypto";
 import { cookies } from "next/headers";
 import type { NextResponse } from "next/server";
 import type { User } from "@prisma/client";
-import { COOKIES_SECURE, SESSION_COOKIE, SESSION_TTL_MS } from "@/lib/config";
+import {
+  COOKIES_SECURE,
+  SESSION_COOKIE,
+  SESSION_IDLE_MS,
+  SESSION_TTL_MS,
+} from "@/lib/config";
 import { prisma } from "@/lib/db";
 
 /**
@@ -68,7 +73,10 @@ export function setSessionCookie(response: NextResponse, token: string, expiresA
     name: SESSION_COOKIE,
     value: token,
     httpOnly: true,
-    sameSite: "lax",
+    // Strict statt Lax: Nebula hat keinen Einstieg von aussen, den eine
+    // fremde Seite anstossen duerfte. Der Preis ist, dass ein Klick von
+    // einer anderen Seite auf die Anmeldung fuehrt – ein Neuladen genuegt.
+    sameSite: "strict",
     secure: COOKIES_SECURE,
     path: "/",
     expires: expiresAt,
@@ -80,7 +88,10 @@ export function clearSessionCookie(response: NextResponse) {
     name: SESSION_COOKIE,
     value: "",
     httpOnly: true,
-    sameSite: "lax",
+    // Strict statt Lax: Nebula hat keinen Einstieg von aussen, den eine
+    // fremde Seite anstossen duerfte. Der Preis ist, dass ein Klick von
+    // einer anderen Seite auf die Anmeldung fuehrt – ein Neuladen genuegt.
+    sameSite: "strict",
     secure: COOKIES_SECURE,
     path: "/",
     maxAge: 0,
@@ -109,11 +120,27 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     return null;
   }
 
+  // Leerlaufgrenze. Vorher wurde lastSeenAt zwar gefuehrt, aber nie
+  // ausgewertet – ein abgegriffener Cookie galt damit bis zum absoluten
+  // Ablauf, auch wenn das Konto wochenlang unberuehrt war.
+  const untaetig = Date.now() - session.lastSeenAt.getTime();
+  if (SESSION_IDLE_MS > 0 && untaetig > SESSION_IDLE_MS) {
+    await prisma.session.delete({ where: { id: session.id } }).catch(() => undefined);
+    return null;
+  }
+
   if (!session.user.isActive) return null;
 
-  // Hoechstens einmal pro Stunde schreiben, damit nicht jede Anfrage die
-  // Datenbank anfasst.
-  if (Date.now() - session.lastSeenAt.getTime() > 60 * 60 * 1000) {
+  /**
+   * lastSeenAt nachfuehren, aber nicht bei jeder Anfrage schreiben.
+   *
+   * Das Intervall muss deutlich unter der Leerlaufgrenze liegen, sonst
+   * verkuerzt die Schreibbremse sie: bei stuendlichem Schreiben und einer
+   * Grenze von einer Stunde waere die Sitzung schon nach Sekunden faellig.
+   * Ein Zwanzigstel der Frist, hoechstens fuenf Minuten.
+   */
+  const intervall = SESSION_IDLE_MS > 0 ? Math.min(SESSION_IDLE_MS / 20, 5 * 60 * 1000) : 60 * 60 * 1000;
+  if (untaetig > intervall) {
     void prisma.session
       .update({ where: { id: session.id }, data: { lastSeenAt: new Date() } })
       .catch(() => undefined);

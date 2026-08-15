@@ -73,18 +73,47 @@ export const WEBAUTHN_AVAILABLE =
 /** Cookies nur ueber TLS ausliefern, wenn die App per https laeuft. */
 export const COOKIES_SECURE = APP_URL_PARSED.protocol === "https:";
 
-/** Lebensdauer einer Sitzung. */
+/**
+ * Absolute Lebensdauer einer Sitzung – ab Anmeldung, nicht verlaengerbar.
+ * Nach dieser Frist ist Schluss, egal wie aktiv jemand war.
+ */
 export const SESSION_TTL_DAYS = Number(process.env.SESSION_TTL_DAYS ?? 30);
 export const SESSION_TTL_MS = SESSION_TTL_DAYS * 24 * 60 * 60 * 1000;
 
-export const SESSION_COOKIE = "nebula_session";
+/**
+ * Leerlauffrist: so lange darf eine Sitzung unbenutzt bleiben.
+ *
+ * ASVS 3.3.2 verlangt beides – eine absolute *und* eine Leerlaufgrenze.
+ * Vorher gab es nur die absolute, ein abgegriffener Cookie galt also bis zu
+ * 30 Tage, unabhaengig davon, ob das Konto benutzt wurde.
+ *
+ * Acht Stunden sind der Kompromiss: ein Arbeitstag am Stueck bleibt
+ * angemeldet, ueber Nacht laeuft die Sitzung ab. Wem das zu streng ist,
+ * setzt SESSION_IDLE_HOURS hoch; 0 schaltet die Leerlaufgrenze ab.
+ */
+export const SESSION_IDLE_HOURS = Number(process.env.SESSION_IDLE_HOURS ?? 8);
+export const SESSION_IDLE_MS =
+  SESSION_IDLE_HOURS > 0 ? SESSION_IDLE_HOURS * 60 * 60 * 1000 : 0;
+
+/**
+ * Name des Sitzungscookies.
+ *
+ * Mit dem Praefix "__Host-" erzwingt der Browser selbst, was wir ohnehin
+ * setzen: Secure, Pfad "/" und kein Domain-Attribut. Letzteres ist der
+ * eigentliche Gewinn – eine andere Subdomain kann den Cookie dann nicht
+ * ueberschreiben und damit keine Sitzung unterschieben.
+ *
+ * Nur bei https, denn der Praefix verlangt zwingend Secure; ohne TLS wuerde
+ * der Browser den Cookie schlicht verwerfen.
+ */
+export const SESSION_COOKIE = COOKIES_SECURE ? "__Host-nebula_session" : "nebula_session";
 
 /**
  * Cookie fuer die halbfertige Anmeldung zwischen Passwort und zweitem Faktor.
  * Kurzlebig – wer den Code nicht binnen fuenf Minuten eingibt, faengt von
  * vorne an.
  */
-export const MFA_COOKIE = "nebula_mfa";
+export const MFA_COOKIE = COOKIES_SECURE ? "__Host-nebula_mfa" : "nebula_mfa";
 export const MFA_TTL_MS = 5 * 60 * 1000;
 
 /** Wird beim Start einmal geloggt, damit Fehlkonfiguration frueh auffaellt. */

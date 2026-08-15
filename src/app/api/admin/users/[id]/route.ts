@@ -69,7 +69,7 @@ export async function PATCH(request: Request, { params }: Params) {
   }
 
   if (password) {
-    const weak = validatePasswordStrength(password);
+    const weak = validatePasswordStrength(password, target.username);
     if (weak) {
       return NextResponse.json({ error: weak, fields: { password: weak } }, { status: 422 });
     }

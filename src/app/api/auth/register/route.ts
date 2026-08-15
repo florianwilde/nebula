@@ -39,7 +39,7 @@ export async function POST(request: Request) {
 
   const { username, displayName, email, password } = parsed.data;
 
-  const weak = validatePasswordStrength(password);
+  const weak = validatePasswordStrength(password, username);
   if (weak) {
     return NextResponse.json({ error: weak, fields: { password: weak } }, { status: 422 });
   }

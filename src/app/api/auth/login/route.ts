@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createPendingLogin, setMfaCookie } from "@/lib/auth/mfa";
-import { fakeVerifyDelay, verifyPassword } from "@/lib/auth/password";
+import { fakeVerifyDelay, hashPassword, needsRehash, verifyPassword } from "@/lib/auth/password";
 import { createSession, setSessionCookie } from "@/lib/auth/session";
 import { lockRemainingSeconds, noteFailedLogin, noteSuccessfulLogin } from "@/lib/auth/users";
 import { prisma } from "@/lib/db";
@@ -42,6 +42,30 @@ export async function POST(request: Request) {
     return jsonError(GENERIC, 401);
   }
 
+  /**
+   * Erst das Passwort pruefen, dann ueber den Kontozustand reden.
+   *
+   * Frueher standen die Abfragen auf gesperrt, deaktiviert und
+   * "kein Passwort hinterlegt" **vor** der Pruefung und beantworteten sich
+   * damit ohne jede Kenntnis des Passworts. Wer einen Benutzernamen riet,
+   * bekam an der Antwort gesagt, ob es ihn gibt – genau die Aufzaehlbarkeit,
+   * die der einheitliche Text GENERIC sonst verhindert.
+   *
+   * Jetzt gilt: falsches Passwort → immer dieselbe Antwort. Die
+   * hilfreichere Auskunft bekommt nur, wer das Passwort kennt.
+   */
+  const valid = user.passwordHash
+    ? await verifyPassword(password, user.passwordHash)
+    : // Kein Passwort hinterlegt (reines Passkey-Konto): trotzdem Zeit
+      // verbrennen, damit sich der Fall nicht an der Antwortdauer zeigt.
+      await fakeVerifyDelay().then(() => false);
+
+  if (!valid) {
+    // Fehlversuche nur zaehlen, wo es ein Passwort zu erraten gibt.
+    if (user.passwordHash) await noteFailedLogin(user.id);
+    return jsonError(GENERIC, 401);
+  }
+
   const locked = lockRemainingSeconds(user.lockedUntil);
   if (locked > 0) {
     return jsonError(
@@ -51,22 +75,20 @@ export async function POST(request: Request) {
   }
 
   if (!user.isActive) {
-    await fakeVerifyDelay();
     return jsonError("Dieses Konto ist deaktiviert.", 403);
   }
 
-  if (!user.passwordHash) {
-    await fakeVerifyDelay();
-    return jsonError(
-      "Fuer dieses Konto ist kein Passwort hinterlegt – bitte mit Passkey anmelden.",
-      401,
-    );
-  }
-
-  const valid = await verifyPassword(password, user.passwordHash);
-  if (!valid) {
-    await noteFailedLogin(user.id);
-    return jsonError(GENERIC, 401);
+  /**
+   * Der Aufwand beim Hashen ist gestiegen. Wer sich mit einem Passwort
+   * anmeldet, dessen Hash noch nach den alten Vorgaben erzeugt wurde,
+   * bekommt hier still einen neuen – es ist der einzige Moment, in dem das
+   * Klartextpasswort vorliegt. Nebenlaeufig, damit die Anmeldung nicht auf
+   * die halbe Sekunde wartet.
+   */
+  if (needsRehash(user.passwordHash)) {
+    void hashPassword(password)
+      .then((neu) => prisma.user.update({ where: { id: user.id }, data: { passwordHash: neu } }))
+      .catch(() => undefined);
   }
 
   // Das Passwort stimmt. Ist ein zweiter Faktor eingerichtet, entsteht hier
