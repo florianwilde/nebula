@@ -85,8 +85,16 @@ export default async function ProjectPage({ params }: PageProps) {
         progressFromTasks={detail.progressFromTasks}
       />
 
+      {/*
+        min-w-0 an beiden Spalten ist hier nicht Kosmetik, sondern der Kern:
+        ein Rasterkind hat "min-width: auto" und weigert sich damit, unter
+        die Inhaltsbreite seines breitesten Kindes zu schrumpfen. Die
+        Heatmap ist ueber 700px breit – auf dem Telefon zog sie damit die
+        ganze Spalte und mit ihr die Seite auseinander. Erst mit min-w-0
+        greift das overflow-x-auto darin ueberhaupt.
+      */}
       <div className="grid gap-6 lg:grid-cols-12">
-        <div className="space-y-6 lg:col-span-5">
+        <div className="min-w-0 space-y-6 lg:col-span-5">
           <section className="glass p-5">
             <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-slate-300">
               <FileText className="h-4 w-4 text-cyan-300" />
@@ -115,7 +123,7 @@ export default async function ProjectPage({ params }: PageProps) {
           <NotesPanel projectId={detail.id} notes={detail.notes} />
         </div>
 
-        <div className="space-y-6 lg:col-span-7">
+        <div className="min-w-0 space-y-6 lg:col-span-7">
           <GitPanel
             project={detail}
             connections={connections as unknown as ConnectionSafe[]}
