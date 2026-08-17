@@ -116,7 +116,15 @@ export async function completeTaskFromIssue(
       `Issue #${task.sourceIssue} geschlossen → „${shorten(task.title, 40)}“ erledigt` +
       (herkunft === "abgleich" ? " (beim Abgleich bemerkt)" : "") +
       (folge ? ", nächste angelegt" : ""),
-    meta: { taskId: task.id, issue: task.sourceIssue, source: herkunft },
+    // "from"/"to" wie beim Verschieben von Hand – der Wochenrueckblick
+    // zaehlt daran ab, was erledigt wurde, statt den Text zu durchsuchen.
+    meta: {
+      taskId: task.id,
+      issue: task.sourceIssue,
+      source: herkunft,
+      from: task.status,
+      to: "DONE",
+    },
   });
 
   return true;

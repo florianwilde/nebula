@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import {
   Bell,
+  CalendarRange,
   CheckSquare,
   CornerDownLeft,
   GitBranch,
@@ -56,6 +57,13 @@ interface Action {
 
 const ACTIONS: Action[] = [
   { id: "dashboard", label: "Dashboard", hint: "Alle Projekte", icon: LayoutDashboard, href: "/" },
+  {
+    id: "rueckblick",
+    label: "Wochenrückblick",
+    hint: "Was diese Woche passiert ist",
+    icon: CalendarRange,
+    href: "/rueckblick",
+  },
   {
     id: "tasks",
     label: "Aufgaben",

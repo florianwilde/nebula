@@ -223,6 +223,32 @@ test("Aufgabenuebersicht sammelt ueber alle Projekte und hakt ab", async ({ page
   ).toBeVisible();
 });
 
+test("Wochenrueckblick zeigt, was diese Woche passiert ist", async ({ page }) => {
+  // Erreichbar vom Dashboard aus, ohne vierten Punkt in der Kopfleiste.
+  await page.getByRole("link", { name: /Wochenrückblick/ }).click();
+  await expect(page).toHaveURL(/\/rueckblick$/);
+  await expect(page.getByRole("heading", { name: "Diese Woche", level: 1 })).toBeVisible();
+
+  // Die Vorgaenge der bisherigen Tests liegen in dieser Woche, es muss also
+  // etwas dastehen – und das Projekt gehoert an jede Zeile.
+  await expect(page.getByRole("link", { name: "Oberflaechentest" }).first()).toBeVisible();
+
+  // Blättern: zurück und wieder her.
+  await page.getByRole("link", { name: "Eine Woche zurück" }).click();
+  await expect(page).toHaveURL(/woche=-1/);
+  await expect(page.getByRole("heading", { name: "Vorige Woche", level: 1 })).toBeVisible();
+
+  await page.getByRole("link", { name: "Diese Woche", exact: true }).click();
+  await expect(page).toHaveURL(/\/rueckblick$/);
+
+  // Auch ueber die Schnellsuche erreichbar.
+  await page.goto("/");
+  await page.keyboard.press("Control+k");
+  await page.getByPlaceholder(/Projekt, Notiz oder Bereich/).fill("Rückblick");
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(/\/rueckblick/);
+});
+
 test("Schnellsuche findet Projekt und Notiz", async ({ page }) => {
   await page.keyboard.press("Control+k");
   await expect(page.getByRole("dialog", { name: "Schnellsuche" })).toBeVisible();

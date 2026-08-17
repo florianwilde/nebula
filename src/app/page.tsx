@@ -1,4 +1,5 @@
-import { CircleDot, GitBranch, Lightbulb, Rocket, Trophy } from "lucide-react";
+import Link from "next/link";
+import { CalendarRange, CircleDot, GitBranch, Lightbulb, Rocket, Trophy } from "lucide-react";
 import { ProjectBoard } from "@/components/ProjectBoard";
 import { StatCard } from "@/components/StatCard";
 import { requireUserPage } from "@/lib/auth/guard";
@@ -50,6 +51,15 @@ export default async function DashboardPage() {
           Ideen festhalten, Status pflegen, Notizen sammeln – und live sehen, was in den
           verknuepften Repositories bei GitHub, GitLab und Gitea passiert.
         </p>
+        {/* Kein weiterer Punkt in der Kopfleiste – die ist auf dem Telefon
+            schon eng. Der Rueckblick haengt dort, wo man ohnehin hinsieht. */}
+        <Link
+          href="/rueckblick"
+          className="mt-3 inline-flex items-center gap-1.5 text-sm text-violet-300 underline-offset-2 hover:underline"
+        >
+          <CalendarRange className="h-4 w-4" />
+          Wochenrückblick ansehen
+        </Link>
       </header>
 
       {/* Zwei Spalten schon auf dem Telefon: einspaltig fuellten die fuenf
