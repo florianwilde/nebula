@@ -763,6 +763,60 @@ test("Projektvorlagen: aus Projekt sichern und anwenden", async ({ request, play
   expect((await request.delete(`/api/templates/${vorlage.id}`)).ok()).toBeTruthy();
 });
 
+test("Verlauf blaettert per Cursor, ohne Zeilen zu verlieren", async ({ request, playwright }) => {
+  await login(request, ADMIN);
+
+  // Die bisherigen Tests haben reichlich Verlauf erzeugt. Erst alles auf
+  // einmal holen, dann in kleinen Seiten – beides muss dieselbe Menge sein.
+  const alles = await (await request.get("/api/activity?limit=100")).json();
+  expect(alles.activities.length).toBeGreaterThan(5);
+
+  const ids: string[] = [];
+  let cursor: { vor: string; id: string } | null = null;
+  for (let seite = 0; seite < 60; seite += 1) {
+    const query = cursor
+      ? `?limit=3&vor=${encodeURIComponent(cursor.vor)}&id=${encodeURIComponent(cursor.id)}`
+      : "?limit=3";
+    const antwort = await request.get(`/api/activity${query}`);
+    expect(antwort.ok()).toBeTruthy();
+    const seiteBody = await antwort.json();
+    ids.push(...seiteBody.activities.map((eintrag: { id: string }) => eintrag.id));
+    if (!seiteBody.weitere) break;
+    cursor = seiteBody.naechster;
+    expect(cursor).not.toBeNull();
+  }
+
+  // Der eigentliche Punkt: keine Dubletten und keine Luecken, auch wenn
+  // mehrere Eintraege denselben Zeitstempel tragen.
+  expect(new Set(ids).size).toBe(ids.length);
+  expect(ids.length).toBe(alles.activities.length);
+
+  // Absteigend sortiert.
+  const zeiten: number[] = alles.activities.map((eintrag: { createdAt: string }) =>
+    Date.parse(eintrag.createdAt),
+  );
+  for (let i = 1; i < zeiten.length; i += 1) {
+    expect(zeiten[i]).toBeLessThanOrEqual(zeiten[i - 1]);
+  }
+
+  // Unbrauchbare Cursor fangen von vorn an, statt zu scheitern.
+  const kaputt = await request.get("/api/activity?vor=keindatum&id=x");
+  expect(kaputt.ok()).toBeTruthy();
+  expect((await kaputt.json()).activities.length).toBeGreaterThan(0);
+
+  // Und ein fremdes Konto sieht ausschliesslich seinen eigenen Verlauf.
+  const fremd = await playwright.request.newContext({
+    baseURL: test.info().project.use.baseURL,
+  });
+  await login(fremd, ZWEITER);
+  const fremderVerlauf = await (await fremd.get("/api/activity")).json();
+  const eigeneIds = new Set(ids);
+  for (const eintrag of fremderVerlauf.activities) {
+    expect(eigeneIds.has(eintrag.id)).toBe(false);
+  }
+  await fremd.dispose();
+});
+
 test("Der Bildoptimierer ist zu", async ({ playwright }) => {
   // /_next/image reicht jedes Bild durch sharp und damit durch libvips, fuer
   // das es regelmaessig Schwachstellen gibt. Nebula benutzt next/image
