@@ -529,7 +529,32 @@ soll jemand gewollt haben. Danach wandert der Zustand allerdings mit — erledig
 das Issue, ein Zurückziehen öffnet es wieder. Schlägt der Aufruf fehl, zieht die Aufgabe
 trotzdem um; ein nicht erreichbares Git-System darf das Abhaken nicht verhindern.
 
-**Git → Nebula** über Webhooks, siehe unten.
+**Git → Nebula** auf zwei Wegen, die sich ergänzen:
+
+- **Webhook** — sofort, sobald das Issue geschlossen wird. Setzt voraus, dass die Instanz
+  von außen erreichbar ist und der Haken eingetragen wurde (siehe 4.7).
+- **Beim Abgleich** — verzögert, aber verlässlich. Der Abgleich fragt den Zustand
+  verknüpfter Issues nach und hakt ab, was in Git geschlossen ist. Damit funktioniert der
+  Rückweg auch ohne Webhook, ohne öffentliche Erreichbarkeit und selbst dann, wenn ein
+  Haken einmal ausfällt.
+
+  Gespart wird, wo es geht: Nummern, die der gerade geholte Snapshot als offen führt,
+  werden nicht einzeln nachgefragt. Umgekehrt gilt das nicht — die Liste der offenen
+  Issues ist gedeckelt, aus dem Fehlen einer Nummer folgt also nichts. Pro Durchgang
+  fragt der Abgleich höchstens 25 Issues nach.
+
+  **Der Abgleich hakt nur ab, er nimmt nie zurück.** Er sieht Zustände, keine Ereignisse:
+  ein offenes Issue kann auch bedeuten, dass das Schließen von Nebula aus fehlgeschlagen
+  ist. Ein symmetrischer Abgleich würde dann eine bewusst erledigte Aufgabe wieder
+  aufmachen. Das Zurücknehmen bleibt dem Webhook vorbehalten, der ein echtes „reopened“
+  sieht.
+
+  Ein gelöschtes Issue ist kein erledigtes — die Aufgabe bleibt stehen.
+
+In beiden Fällen bewirkt ein geschlossenes Issue dasselbe wie ein Haken in der
+Oberfläche: bei einer wiederkehrenden Aufgabe entsteht die nächste Fassung, und der
+Vorgang landet im Projektverlauf (ohne Benutzer — das hat nicht jemand in Nebula getan,
+sondern das Git-System gemeldet).
 
 **Die Zustände passen nicht aufeinander, und das bleibt so.** Nebula kennt
 `Offen · In Arbeit · Blockiert · Erledigt`, ein Issue nur offen oder geschlossen. Nach

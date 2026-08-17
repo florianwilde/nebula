@@ -5,6 +5,7 @@ import { clientForConnection, createClient, parseRepoUrl } from "@/lib/git";
 import type { GitClient } from "@/lib/git/types";
 import { notifyAfterSync } from "@/lib/notify";
 import { repoTitle } from "@/lib/repositories";
+import { reconcileLinkedIssues } from "@/lib/tasks/issues";
 import type { RepoSnapshotData } from "@/lib/git/types";
 
 export interface SyncResult {
@@ -62,11 +63,31 @@ export async function syncRepository(repositoryId: string): Promise<SyncResult> 
     // README hineingeschrieben werden koennen.
     await maybeRefreshCalendar(repository.id, client, ref);
     await maybeRefreshReadme(repository.id, client, ref);
+
+    /**
+     * Verknuepfte Aufgaben nachziehen: was in Git geschlossen wurde, wird
+     * hier abgehakt. Der Webhook macht das sofort – ist keiner eingerichtet
+     * oder faellt er aus, greift der Abgleich.
+     *
+     * Die offenen Issues aus dem gerade geholten Snapshot gehen mit hinein:
+     * fuer jede Nummer, die dort steht, ist die Nachfrage gespart.
+     */
+    const abgehakt = await reconcileLinkedIssues(
+      repository.id,
+      client,
+      ref,
+      data.issues.map((issue) => issue.number),
+    );
+
     // Nach dem Speichern, damit die Meldung den neuen Stand sieht.
     await notifyAfterSync(repository.id);
     return {
       ok: true,
-      message: `Snapshot aktualisiert: ${data.branches.length} Branches, ${data.tags.length} Tags.`,
+      message:
+        `Snapshot aktualisiert: ${data.branches.length} Branches, ${data.tags.length} Tags.` +
+        (abgehakt > 0
+          ? ` ${abgehakt} Aufgabe(n) abgehakt, weil das Issue geschlossen wurde.`
+          : ""),
       fetchedAt: new Date().toISOString(),
     };
   } catch (error) {

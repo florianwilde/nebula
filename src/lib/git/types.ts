@@ -190,6 +190,17 @@ export interface GitClient {
    * geoeffnet – daher der Schalter statt zweier Methoden.
    */
   setIssueState(ref: RepoRef, number: number, open: boolean): Promise<void>;
+  /**
+   * Liest den Zustand eines einzelnen Issues.
+   *
+   * Gebraucht fuer den Abgleich: der Snapshot fuehrt nur die *offenen*
+   * Issues und ist ausserdem gedeckelt – aus dem Fehlen einer Nummer laesst
+   * sich deshalb nicht schliessen, dass sie geschlossen wurde. Sie koennte
+   * ebenso geloescht oder einfach jenseits des Deckels sein.
+   *
+   * null heisst: gibt es nicht (mehr).
+   */
+  getIssueState(ref: RepoRef, number: number): Promise<"open" | "closed" | null>;
   /** Repos, auf die der Token Zugriff hat (fuer die Auswahl beim Verknuepfen). */
   listRepos(query?: string): Promise<RepoListItem[]>;
   /** Vollstaendiger Stand eines Repositories. */

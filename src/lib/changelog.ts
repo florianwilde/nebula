@@ -42,6 +42,27 @@ export const KIND_META: Record<ChangeKind, { label: string; className: string }>
 
 export const CHANGELOG: Release[] = [
   {
+    version: "1.9.0",
+    date: "2026-08-17",
+    headline: "Geschlossene Issues haken ihre Aufgabe auch ohne Webhook ab.",
+    changes: [
+      {
+        kind: "neu",
+        text:
+          "Der Abgleich prüft jetzt den Zustand verknüpfter Issues: was in Git geschlossen " +
+          "wurde, wird in Nebula abgehakt. Bisher konnte das nur der Webhook — war keiner " +
+          "eingerichtet, blieb der Rückweg ganz aus.",
+      },
+      {
+        kind: "besser",
+        text:
+          "Ein über Git geschlossenes Issue bewirkt jetzt dasselbe wie ein Haken in der " +
+          "Oberfläche: bei wiederkehrenden Aufgaben entsteht die nächste Fassung, und der " +
+          "Vorgang steht im Projektverlauf.",
+      },
+    ],
+  },
+  {
     version: "1.8.0",
     date: "2026-08-15",
     headline: "Durchgang durch Anmeldung und Sitzungen nach OWASP.",

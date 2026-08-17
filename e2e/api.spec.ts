@@ -1,4 +1,13 @@
 import { expect, test, type APIRequestContext } from "@playwright/test";
+import { PrismaClient } from "@prisma/client";
+
+/**
+ * Dieselbe Datenbank wie global-setup.ts. Gebraucht fuer den einen Fall, in
+ * dem ein Zustand herzustellen ist, den die API bewusst nicht anbietet.
+ */
+const DATABASE_URL =
+  process.env.E2E_DATABASE_URL ??
+  "postgresql://nebula:nebula@localhost:5432/nebula_e2e_test?schema=public";
 
 /**
  * Tests ueber HTTP gegen die laufende Anwendung – also durch Middleware,
@@ -323,6 +332,79 @@ test("Die Anmeldung verraet nicht, welche Konten es gibt", async ({ request, pla
 
   await anonym.dispose();
   await request.delete(`/api/admin/users/${id}`);
+});
+
+test("Abgleich hakt Aufgaben ab, deren Issue geschlossen wurde", async ({ request }) => {
+  await login(request, ADMIN);
+
+  // Ein oeffentliches Repository mit sicher geschlossenen Issues. Der
+  // Abgleich laeuft anonym gegen die GitHub-API – kein Token noetig.
+  const projekt = (
+    await (
+      await request.post("/api/projects", {
+        data: { name: "Rueckweg", repoUrl: "https://github.com/vercel/swr" },
+      })
+    ).json()
+  ).project;
+  const repoId = projekt.repositories[0].id;
+
+  const angelegt = await request.post(`/api/projects/${projekt.id}/tasks`, {
+    data: { title: "Haengt an einem geschlossenen Issue" },
+  });
+  const taskId = (await angelegt.json()).task.id;
+
+  /**
+   * Die Verknuepfung direkt in der Datenbank setzen.
+   *
+   * Ueber die API gibt es dafuer keinen Weg, und das ist richtig so: "als
+   * Issue anlegen" wuerde ein neues Issue in einem fremden Repository
+   * erzeugen. Ein Endpunkt nur fuer Tests waere eine Hintertuer im
+   * Produktionscode – dafuer greift der Test lieber selbst zur Datenbank.
+   *
+   * Issue 1 von vercel/swr ist seit Jahren geschlossen.
+   */
+  const prisma = new PrismaClient({
+    datasources: { db: { url: DATABASE_URL } },
+  });
+  try {
+    await prisma.task.update({
+      where: { id: taskId },
+      data: { sourceRepositoryId: repoId, sourceIssue: 1 },
+    });
+  } finally {
+    await prisma.$disconnect();
+  }
+
+  const vorher = await (await request.get(`/api/projects/${projekt.id}`)).json();
+  const alsAngelegt = vorher.project.tasks.find(
+    (t: { id: string }) => t.id === taskId,
+  );
+  expect(alsAngelegt.sourceIssue).toBe(1);
+  expect(alsAngelegt.status).toBe("TODO");
+
+  // Abgleich anstossen – er fragt den Zustand des Issues nach.
+  const sync = await request.post(`/api/repositories/${repoId}/sync`);
+  const syncBody = await sync.json();
+
+  /**
+   * Dieser Test greift als einziger wirklich nach draussen. Ist GitHub nicht
+   * erreichbar oder das anonyme Rate-Limit ausgeschoepft, sagt er das statt
+   * rot zu werden – ein fremder Dienst darf die Testreihe nicht bestimmen.
+   */
+  if (!sync.ok()) {
+    test.skip(true, `GitHub nicht erreichbar: ${syncBody.message ?? sync.status()}`);
+    return;
+  }
+
+  const nachher = await (await request.get(`/api/projects/${projekt.id}`)).json();
+  const abgehakt = nachher.project.tasks.find((t: { id: string }) => t.id === taskId);
+  expect(abgehakt.status).toBe("DONE");
+  expect(abgehakt.doneAt).not.toBeNull();
+
+  // Und ein zweiter Lauf aendert nichts mehr – abgehakt bleibt abgehakt,
+  // ohne dass erneut nachgefragt wird.
+  const nochmal = await request.post(`/api/repositories/${repoId}/sync`);
+  expect((await nochmal.json()).message ?? "").not.toMatch(/abgehakt/);
 });
 
 test("Webhook: Signatur entscheidet, sonst passiert nichts", async ({ request, playwright }) => {

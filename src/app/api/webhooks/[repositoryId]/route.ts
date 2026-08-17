@@ -3,7 +3,7 @@ import { tryDecryptSecret } from "@/lib/crypto";
 import { prisma } from "@/lib/db";
 import { rateLimit } from "@/lib/security/rateLimit";
 import { syncRepository } from "@/lib/sync";
-import { statusForIssueState } from "@/lib/tasks/issues";
+import { completeTaskFromIssue, statusForIssueState } from "@/lib/tasks/issues";
 import { refreshDerivedProgress } from "@/lib/tasks";
 import { parseEvent, verifySignature } from "@/lib/webhooks/verify";
 
@@ -118,13 +118,19 @@ export async function POST(request: Request, { params }: Params) {
     }
 
     const ziel = statusForIssueState(ereignis.open, task.status);
-    if (ziel !== task.status) {
+
+    if (ziel === "DONE" && task.status !== "DONE") {
+      // Ueber die gemeinsame Funktion, damit ein geschlossenes Issue
+      // dasselbe bewirkt wie ein Haken in der Oberflaeche: naechste Fassung
+      // einer wiederkehrenden Aufgabe und ein Eintrag im Verlauf.
+      await completeTaskFromIssue(task.id, "webhook");
+    } else if (ziel !== task.status) {
+      // Wieder geoeffnet. Das darf nur der Webhook, weil hier ein echtes
+      // "reopened" vorliegt – der Abgleich sieht nur Zustaende und wuerde
+      // sonst eine bewusst erledigte Aufgabe aufmachen.
       await prisma.task.update({
         where: { id: task.id },
-        data: {
-          status: ziel,
-          doneAt: ziel === "DONE" ? new Date() : null,
-        },
+        data: { status: ziel, doneAt: null },
       });
       await refreshDerivedProgress(task.projectId);
     }

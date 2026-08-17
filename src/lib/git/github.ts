@@ -70,6 +70,15 @@ export class GitHubClient implements GitClient {
     );
   }
 
+  async getIssueState(ref: RepoRef, number: number): Promise<"open" | "closed" | null> {
+    const issue = await getJson<{ state?: string } | null>(
+      `${this.repoBase(ref)}/issues/${number}`,
+      { headers: this.headers(), allow404: true },
+    );
+    if (!issue?.state) return null;
+    return issue.state === "closed" ? "closed" : "open";
+  }
+
   async check(): Promise<ConnectionCheck> {
     try {
       if (!this.token) {
