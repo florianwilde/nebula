@@ -1,23 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import {
-  AlertTriangle,
-  ArrowRight,
-  Bot,
-  Download,
-  GitCommitHorizontal,
-  History,
-  Link2,
-  Loader2,
-  NotebookPen,
-  Pencil,
-  Plus,
-  Signpost,
-  Sparkles,
-  Trash2,
-} from "lucide-react";
-import type { ActivityEntry, ActivityKind } from "@/types";
+import { Bot, History, Loader2 } from "lucide-react";
+import { ACTIVITY_KINDS } from "@/components/activityKinds";
+import type { ActivityEntry } from "@/types";
 import { formatDateTime, formatRelative } from "@/lib/utils";
 
 /**
@@ -29,21 +15,6 @@ import { formatDateTime, formatRelative } from "@/lib/utils";
  * obersten fuenf liest.
  */
 
-const KINDS: Record<ActivityKind, { icon: typeof Sparkles; color: string }> = {
-  PROJECT_CREATED: { icon: Sparkles, color: "text-violet-300" },
-  PROJECT_UPDATED: { icon: Pencil, color: "text-slate-400" },
-  STATUS_CHANGED: { icon: Signpost, color: "text-cyan-300" },
-  NOTE_ADDED: { icon: NotebookPen, color: "text-blue-300" },
-  NOTE_UPDATED: { icon: Pencil, color: "text-blue-300" },
-  NOTE_DELETED: { icon: Trash2, color: "text-rose-300" },
-  TASK_ADDED: { icon: Plus, color: "text-emerald-300" },
-  TASK_MOVED: { icon: ArrowRight, color: "text-violet-300" },
-  TASK_DELETED: { icon: Trash2, color: "text-rose-300" },
-  TASKS_IMPORTED: { icon: Download, color: "text-amber-300" },
-  REPO_LINKED: { icon: Link2, color: "text-cyan-300" },
-  REPO_COMMITS: { icon: GitCommitHorizontal, color: "text-emerald-300" },
-  SYNC_FAILED: { icon: AlertTriangle, color: "text-rose-300" },
-};
 
 export function ActivityFeed({
   projectId,
@@ -88,7 +59,7 @@ export function ActivityFeed({
       ) : (
         <ol className="mt-4 space-y-0">
           {entries.map((entry, index) => {
-            const meta = KINDS[entry.kind] ?? KINDS.PROJECT_UPDATED;
+            const meta = ACTIVITY_KINDS[entry.kind] ?? ACTIVITY_KINDS.PROJECT_UPDATED;
             const Icon = meta.icon;
             const letzter = index === entries.length - 1;
 

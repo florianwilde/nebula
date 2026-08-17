@@ -100,6 +100,24 @@ export interface TaskOverviewItem {
   project: { id: string; name: string; accent: string; status: ProjectStatus };
 }
 
+/** Ein Verlaufseintrag im Wochenrueckblick – mit Projekt, ueber Projekte hinweg. */
+export interface ReviewEntry {
+  id: string;
+  kind: ActivityKind;
+  summary: string;
+  /** ISO – ein Date ueberlebt den Weg zum Browser nicht. */
+  createdAt: string;
+  project: { id: string; name: string; accent: string };
+  user: { username: string; displayName: string | null } | null;
+}
+
+/** Ein Kalendertag der Woche samt seiner Eintraege. */
+export interface ReviewDay {
+  /** "2026-08-17", in Berliner Zeit bestimmt. */
+  tag: string;
+  eintraege: ReviewEntry[];
+}
+
 export interface RepoListEntry {
   fullPath: string;
   owner: string;
