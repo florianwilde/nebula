@@ -244,7 +244,7 @@ test("Wochenrueckblick zeigt, was diese Woche passiert ist", async ({ page }) =>
   // Auch ueber die Schnellsuche erreichbar.
   await page.goto("/");
   await page.keyboard.press("Control+k");
-  await page.getByPlaceholder(/Projekt, Notiz oder Bereich/).fill("Rückblick");
+  await page.getByPlaceholder(/^Projekt, /).fill("Rückblick");
   await page.keyboard.press("Enter");
   await expect(page).toHaveURL(/\/rueckblick/);
 });
@@ -264,9 +264,32 @@ test("Globale Zeitleiste zeigt den Verlauf ueber alle Projekte", async ({ page }
   // Auch ueber die Schnellsuche erreichbar.
   await page.goto("/");
   await page.keyboard.press("Control+k");
-  await page.getByPlaceholder(/Projekt, Notiz oder Bereich/).fill("Verlauf");
+  await page.getByPlaceholder(/^Projekt, /).fill("Verlauf");
   await page.keyboard.press("Enter");
   await expect(page).toHaveURL(/\/verlauf/);
+});
+
+test("Aufgabendashboard laesst sich durchsuchen", async ({ page }) => {
+  await page.getByRole("link", { name: "Aufgaben", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Aufgaben", level: 1 })).toBeVisible();
+
+  const suchfeld = page.getByLabel("Aufgaben durchsuchen");
+  await expect(suchfeld).toBeVisible();
+
+  // Aus den frueheren Tests gibt es "Erste Aufgabe" und "Zweite Aufgabe".
+  await suchfeld.fill("Erste");
+  await expect(page.getByRole("listitem").filter({ hasText: "Erste Aufgabe" })).toBeVisible();
+  await expect(page.getByRole("listitem").filter({ hasText: "Zweite Aufgabe" })).toBeHidden();
+
+  // Ohne Treffer erklaert der Leerzustand, worin gesucht wurde.
+  await suchfeld.fill("gibtesnichtxyz");
+  await expect(page.getByText("Keine Treffer")).toBeVisible();
+  await expect(page.getByText(/Titel, Beschreibung, Labels und Projektname/)).toBeVisible();
+
+  // Zuruecksetzen bringt alles wieder.
+  await page.getByRole("button", { name: "Suche zuruecksetzen" }).click();
+  await expect(suchfeld).toHaveValue("");
+  await expect(page.getByRole("listitem").filter({ hasText: "Erste Aufgabe" })).toBeVisible();
 });
 
 test("Schnellsuche findet Projekt und Notiz", async ({ page }) => {
@@ -276,7 +299,7 @@ test("Schnellsuche findet Projekt und Notiz", async ({ page }) => {
   // Ohne Eingabe stehen Projekte und Bereiche bereit.
   await expect(page.getByRole("dialog").getByText("Oberflaechentest")).toBeVisible();
 
-  await page.getByPlaceholder(/Projekt, Notiz oder Bereich/).fill("Zaunkoenig");
+  await page.getByPlaceholder(/^Projekt, /).fill("Zaunkoenig");
   await expect(page.getByRole("dialog").getByText(/in Oberflaechentest/)).toBeVisible();
 
   // Enter springt zum ersten Treffer.

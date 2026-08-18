@@ -18,8 +18,9 @@ import {
   Settings,
   UserRound,
 } from "lucide-react";
-import type { ProjectStatus } from "@prisma/client";
+import type { ProjectStatus, TaskStatus } from "@prisma/client";
 import { statusOf } from "@/lib/status";
+import { TASK_STATUS_META } from "@/lib/tasks";
 import { cn } from "@/lib/utils";
 
 /**
@@ -38,6 +39,14 @@ interface ProjectHit {
   summary: string | null;
   status: ProjectStatus;
   tags: string[];
+}
+
+interface TaskHit {
+  projectId: string;
+  taskId: string;
+  title: string;
+  status: string;
+  snippet: string;
 }
 
 interface NoteHit {
@@ -107,7 +116,8 @@ const ACTIONS: Action[] = [
 type Entry =
   | { kind: "action"; key: string; action: Action }
   | { kind: "project"; key: string; project: ProjectHit }
-  | { kind: "note"; key: string; note: NoteHit; projectName: string };
+  | { kind: "note"; key: string; note: NoteHit; projectName: string }
+  | { kind: "task"; key: string; task: TaskHit; projectName: string };
 
 export function CommandPalette({ isAdmin }: { isAdmin: boolean }) {
   const router = useRouter();
@@ -116,6 +126,7 @@ export function CommandPalette({ isAdmin }: { isAdmin: boolean }) {
   const [query, setQuery] = useState("");
   const [projects, setProjects] = useState<ProjectHit[] | null>(null);
   const [notes, setNotes] = useState<NoteHit[]>([]);
+  const [aufgaben, setAufgaben] = useState<TaskHit[]>([]);
   const [active, setActive] = useState(0);
   const [loading, setLoading] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
@@ -154,6 +165,7 @@ export function CommandPalette({ isAdmin }: { isAdmin: boolean }) {
     const needle = query.trim();
     if (needle.length < 2) {
       setNotes([]);
+      setAufgaben([]);
       return;
     }
     const controller = new AbortController();
@@ -163,8 +175,9 @@ export function CommandPalette({ isAdmin }: { isAdmin: boolean }) {
           signal: controller.signal,
         });
         if (!response.ok) return;
-        const body = (await response.json()) as { hits: NoteHit[] };
+        const body = (await response.json()) as { hits: NoteHit[]; tasks: TaskHit[] };
         setNotes(body.hits ?? []);
+        setAufgaben(body.tasks ?? []);
       } catch {
         // Abbruch beim Weitertippen ist der Normalfall.
       }
@@ -179,6 +192,7 @@ export function CommandPalette({ isAdmin }: { isAdmin: boolean }) {
     if (!open) {
       setQuery("");
       setNotes([]);
+      setAufgaben([]);
       setActive(0);
     }
   }, [open]);
@@ -218,6 +232,17 @@ export function CommandPalette({ isAdmin }: { isAdmin: boolean }) {
     for (const project of passendeProjekte.slice(0, 8)) {
       result.push({ kind: "project", key: `p-${project.id}`, project });
     }
+    // Aufgaben vor Notizen: wer tippt, sucht haeufiger etwas zu Tun als
+    // etwas Notiertes.
+    for (const treffer of aufgaben.slice(0, 5)) {
+      result.push({
+        kind: "task",
+        key: `t-${treffer.taskId}`,
+        task: treffer,
+        projectName:
+          (projects ?? []).find((project) => project.id === treffer.projectId)?.name ?? "Projekt",
+      });
+    }
     for (const hit of notes.slice(0, 5)) {
       result.push({
         kind: "note",
@@ -231,7 +256,7 @@ export function CommandPalette({ isAdmin }: { isAdmin: boolean }) {
       result.push({ kind: "action", key: `a-${action.id}`, action });
     }
     return result;
-  }, [query, projects, notes, isAdmin]);
+  }, [query, projects, notes, aufgaben, isAdmin]);
 
   useEffect(() => {
     setActive((current) => Math.min(current, Math.max(0, entries.length - 1)));
@@ -242,6 +267,7 @@ export function CommandPalette({ isAdmin }: { isAdmin: boolean }) {
       setOpen(false);
       if (entry.kind === "action") router.push(entry.action.href);
       else if (entry.kind === "project") router.push(`/projects/${entry.project.id}`);
+      else if (entry.kind === "task") router.push(`/projects/${entry.task.projectId}`);
       else router.push(`/projects/${entry.note.projectId}`);
     },
     [router],
@@ -292,7 +318,7 @@ export function CommandPalette({ isAdmin }: { isAdmin: boolean }) {
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             onKeyDown={onInputKey}
-            placeholder="Projekt, Notiz oder Bereich…"
+            placeholder="Projekt, Aufgabe, Notiz oder Bereich…"
             className="w-full bg-transparent text-sm text-slate-100 outline-none placeholder:text-slate-600"
           />
           {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-600" /> : null}
@@ -344,6 +370,23 @@ export function CommandPalette({ isAdmin }: { isAdmin: boolean }) {
                     </span>
                     <span className="mt-0.5 shrink-0 text-[10px] uppercase tracking-wider text-slate-600">
                       {statusOf(entry.project.status).short}
+                    </span>
+                  </>
+                ) : entry.kind === "task" ? (
+                  <>
+                    <CheckSquare className="mt-0.5 h-4 w-4 shrink-0 text-emerald-300/70" />
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm text-slate-200">
+                        {entry.task.title}
+                        <span className="ml-1.5 text-[11px] text-slate-500">
+                          in {entry.projectName}
+                        </span>
+                      </span>
+                      <span className="block truncate text-[11px] text-slate-500">
+                        {entry.task.snippet.replace(/\[\[|\]\]/g, "").trim() ||
+                          TASK_STATUS_META[entry.task.status as TaskStatus]?.label ||
+                          "Aufgabe"}
+                      </span>
                     </span>
                   </>
                 ) : (

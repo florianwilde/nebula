@@ -817,6 +817,58 @@ test("Verlauf blaettert per Cursor, ohne Zeilen zu verlieren", async ({ request,
   await fremd.dispose();
 });
 
+test("Volltextsuche findet auch Aufgaben", async ({ request, playwright }) => {
+  await login(request, ADMIN);
+
+  const projekt = (
+    await (await request.post("/api/projects", { data: { name: "Suchprojekt" } })).json()
+  ).project;
+
+  for (const task of [
+    {
+      title: "Dockerfile aufraeumen",
+      description: "Die Schichten im Container neu ordnen, damit der Bau schneller wird.",
+    },
+    { title: "Rechnungen exportieren", description: "Monatlicher Export als CSV." },
+    { title: "Erledigtes mit Container", description: "Auch das soll gefunden werden.", status: "DONE" },
+    { title: "Ohne Bezug", description: "Voellig anderer Inhalt." },
+  ]) {
+    expect((await request.post(`/api/projects/${projekt.id}/tasks`, { data: task })).status()).toBe(
+      201,
+    );
+  }
+
+  // Titel und Beschreibung werden durchsucht.
+  const container = await (await request.get("/api/search?q=Container")).json();
+  const titel = container.tasks.map((treffer: { title: string }) => treffer.title);
+  expect(titel).toContain("Dockerfile aufraeumen");
+  // Erledigtes bleibt drin – wer sucht, sucht oft gerade das Abgehakte.
+  expect(titel).toContain("Erledigtes mit Container");
+  expect(titel).not.toContain("Ohne Bezug");
+
+  // Deutsche Stammformen: "Rechnung" findet "Rechnungen".
+  const rechnung = await (await request.get("/api/search?q=Rechnung")).json();
+  expect(rechnung.tasks.map((t: { title: string }) => t.title)).toContain(
+    "Rechnungen exportieren",
+  );
+
+  // Das Projekt taucht in projectIds auf, damit das Brett es einblendet.
+  expect(container.projectIds).toContain(projekt.id);
+
+  // Zu kurze Eingaben liefern leere Listen statt Unsinn.
+  const kurz = await (await request.get("/api/search?q=a")).json();
+  expect(kurz.tasks).toEqual([]);
+  expect(kurz.hits).toEqual([]);
+
+  // Und ein fremdes Konto findet nichts davon.
+  const fremd = await playwright.request.newContext({
+    baseURL: test.info().project.use.baseURL,
+  });
+  await login(fremd, ZWEITER);
+  expect((await (await fremd.get("/api/search?q=Container")).json()).tasks).toHaveLength(0);
+  await fremd.dispose();
+});
+
 test("Der Bildoptimierer ist zu", async ({ playwright }) => {
   // /_next/image reicht jedes Bild durch sharp und damit durch libvips, fuer
   // das es regelmaessig Schwachstellen gibt. Nebula benutzt next/image
