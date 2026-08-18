@@ -7,25 +7,21 @@ Stück für Stück abarbeiten. Reihenfolge ist ein Vorschlag, keine Festlegung.
 
 Was bereits steht, listet [FEATURES.md](FEATURES.md).
 
+**Stand:** v1.10.0. Alle Issues aus dem Dashboard sind abgearbeitet.
+
 ---
 
 ## 1 · Als Nächstes empfohlen
 
-### 1.0 Rest aus v1.6.0: persönliche API-Token `M`
+### 1.1 Persönliche API-Token `M`
 
-Schnellerfassung und die projektübergreifende Aufgabenseite sind mit v1.6.0
-ausgeliefert. Offen bleibt der dritte Teil — siehe 1.3. Er gehört sachlich
-dazu: erfassen am Telefon, überblicken an einer Stelle, ansprechen per
-Shortcut.
+Der letzte offene Teil aus v1.6.0 („unterwegs erfassen"). Derzeit geht die
+API nur mit Sitzungscookie. Ein Token je Konto würde `curl`-Aufrufe und
+Handy-Shortcuts erlauben — eine Idee aus dem Terminal anlegen, ohne den
+Browser zu öffnen. Nur der Hash in der Datenbank, wie bei den Sitzungen.
 
-Bewusst nicht mitgeliefert wurde ein **Index für die übergreifende
-Aufgabenabfrage**. `Task` hat kein `ownerId`, die Trennung läuft über
-`project: { ownerId }`, und `[projectId, status, position]` greift dafür
-nicht. Bei einigen hundert Aufgaben fällt das nicht auf; wird die Seite
-träge, ist ein Index auf `dueDate` der erste Griff — und dann eine
-Migration wert.
-
----
+Bewusst noch nicht angefasst, weil sicherheitsrelevant: Geltungsbereich,
+Widerruf und Ablauf wollen entschieden sein, nicht nebenbei gebaut.
 
 ### 1.2 Läuft es noch? `M`
 
@@ -34,24 +30,17 @@ Nebula wüsste dann, ob ein Projekt nicht nur existiert, sondern auch läuft.
 Nutzt Zeitgeber und Benachrichtigungen, die es schon gibt. Der SSRF-Schutz
 greift dabei wie bei den Git-Aufrufen.
 
-### 1.3 Persönliche API-Token `M`
+### 1.3 Aufgaben ↔ Issues: der Rest `S`
 
-Derzeit geht die API nur mit Sitzungscookie. Ein Token je Konto würde
-`curl`-Aufrufe und Handy-Shortcuts erlauben — Idee aus dem Terminal anlegen,
-ohne den Browser zu öffnen. Nur der Hash in der Datenbank, wie bei den
-Sitzungen.
-
----
-
-### 1.4 Aufgaben ↔ Issues: was noch fehlt `S`
-
-Mit v1.7.0 stehen beide Richtungen: „als Issue anlegen“ und der Rückweg über
-Webhooks. Offen geblieben ist Kleinkram:
+Beide Richtungen stehen — „als Issue anlegen" seit v1.7.0, der Rückweg über
+Webhook (v1.7.0) und zusätzlich über den Abgleich (v1.9.0). Offen ist
+Kleinkram:
 
 - **Mehrere Repositories.** Der Knopf nimmt immer das führende. Bei einem
   Projekt aus Frontend und Backend fehlt die Wahl.
-- **Beim Übernehmen aus Issues** wird der Rückweg nicht automatisch
-  eingerichtet — der Webhook ist getrennt zu setzen.
+- **Webhook beim Verknüpfen anbieten.** Er ist getrennt einzurichten, und
+  wer das nicht tut, merkt nur an der Verzögerung, dass etwas fehlt. Ein
+  Hinweis an der richtigen Stelle würde reichen.
 
 Was **nicht** kommt, bleibt wie besprochen: eine echte beidseitige
 Synchronisation mit Konfliktauflösung. Die Zustände passen ohnehin nicht
@@ -75,15 +64,60 @@ Voraussetzung, falls du das Projekt veröffentlichen willst.
 
 ---
 
-## 3 · Kleinigkeiten
+## 3 · Aufgefallen beim Bauen
+
+Beobachtungen aus der Arbeit an v1.6.0 bis v1.10.0 — festgehalten, damit sie
+nicht verloren gehen. Nichts davon ist dringend.
+
+### 3.1 Anwendungsname bricht in der Kopfleiste ab `S`
+
+Zwischen 320 und 375 px wird aus „Nebula" ein „Neb…". Gemessen über fünf
+Breiten und zwei Seiten: betrifft alle Seiten gleichermaßen. Seit die
+Aufgaben als dritter Punkt danebenstehen, ist es enger geworden.
+
+### 3.2 Indizes für die projektübergreifenden Seiten `S`
+
+Weder `Task` noch `Activity` haben einen Besitzer — die Trennung läuft über
+`project: { ownerId }`. Die vorhandenen Indizes
+(`[projectId, status, position]` bzw. `[projectId, createdAt]`) greifen für
+Abfragen über alle Projekte deshalb nicht.
+
+Betroffen sind inzwischen vier Seiten: Aufgabenübersicht, Wochenrückblick,
+Zeitleiste und die Volltextsuche. Bei einigen hundert Datensätzen fällt das
+nicht auf. Wird eine der Seiten träge, sind Indizes auf `Task.dueDate` und
+`Activity.createdAt` der erste Griff — und dann eine Migration wert.
+
+### 3.3 Projektfilter auf der Zeitleiste `S`
+
+Über alle Projekte wird die Liste schnell lang. Der Wochenrückblick hat
+Wochengrenzen als natürliche Bremse, die Zeitleiste nicht. Bewusst
+weggelassen, weil das Issue nur „derselbe Verlauf, projektübergreifend"
+verlangte.
+
+### 3.4 Abgleich gegen geleakte Passwörter `M`
+
+ASVS 2.1.7 verlangt es; umgesetzt ist bisher nur eine lokale Sperrliste plus
+Mustererkennung (Wiederholungen, Zeichenfolgen, Benutzername im Passwort).
+Have-I-Been-Pwned scheidet aus — Nebula ruft grundsätzlich nichts von außen,
+und ein Passwort-Präfix nach draußen zu geben widerspräche dem erst recht.
+Eine lokale Top-10000-Liste als Datei wäre der Kompromiss.
+
+### 3.5 v0.2.0 und v0.3.0 ohne Release `S`
+
+Beide stehen im Änderungsverlauf, existierten aber nie in der
+`package.json` — dort springt die Historie von 0.1.0 auf 0.4.0. Nachgetragen
+wurden sie in dem Commit, der den Verlauf einführte, und der liegt *nach*
+0.4.0. Es gibt also keinen ehrlichen Commit, an dem ein Tag hängen könnte.
+Die übrigen 18 Fassungen haben seit dem 18.08.2026 ein Release in Gitea.
+
+---
+
+## 4 · Kleinigkeiten
 
 | Idee | Aufwand | Nutzen |
 | --- | --- | --- |
-| Wochenrückblick | `S` | „Was ist diese Woche passiert" über alle Projekte, aus dem Aktivitätsverlauf |
-| Globale Zeitleiste | `S` | Derselbe Verlauf, aber projektübergreifend als eigene Seite |
-| Suche über Aufgaben | `S` | Die Volltextsuche deckt bisher nur Notizen ab |
 | Suchtreffer in Notizen hervorheben | `S` | In der Notiz selbst, nicht nur in der Trefferliste |
-| Aufgabe ↔ Commit verknüpfen | `M` | Enthält ein Commit `#5`, wird die übernommene Aufgabe verlinkt — fällt weitgehend mit 1.4 ab |
+| Aufgabe ↔ Commit verknüpfen | `M` | Enthält ein Commit `#5`, wird die übernommene Aufgabe verlinkt — fällt weitgehend mit 1.3 ab |
 | Tastaturkürzel-Übersicht mit `?` | `S` | Es gibt inzwischen genug davon |
 | Hell/Dunkel umschaltbar | `M` | Aktuell nur dunkel |
 | Eigenes Logo und Farbe | `S` | Ergänzt `APP_NAME` |
@@ -91,7 +125,7 @@ Voraussetzung, falls du das Projekt veröffentlichen willst.
 
 ---
 
-## 4 · Bewusst nicht
+## 5 · Bewusst nicht
 
 Damit klar ist, was **nicht** kommt und warum:
 
@@ -104,7 +138,10 @@ Damit klar ist, was **nicht** kommt und warum:
 - **Anhänge an Notizen.** Bräuchte Dateispeicher und damit eine zweite Sorge
   bei jeder Sicherung. Ein Link ins Git tut es auch.
 - **Eigene Git-Operationen** (klonen, committen, pushen). Nebula ist eine
-  Übersicht, keine Entwicklungsumgebung.
+  Übersicht, keine Entwicklungsumgebung. Issues über die HTTP-API der
+  Provider sind davon nicht berührt — die gibt es seit v1.7.0.
+- **Beidseitige Synchronisation von Aufgaben und Issues** mit
+  Konfliktauflösung — siehe 1.3.
 - **Zeiterfassung, Rechnungen, Kundenverwaltung.** Andere Baustelle.
 - **Cloud-Synchronisation.** Die Daten bleiben in deiner Datenbank; das ist
   der Punkt.
@@ -138,6 +175,9 @@ Damit klar ist, was **nicht** kommt und warum:
 | **v1.5.0** Sicherheitsdurchsicht, Server-Anleitung und Update-Skript | ✓ |
 | **v1.6.0** Mobile Ansicht, Listenansicht, Schnellerfassung, Aufgaben über alle Projekte | ✓ |
 | **v1.7.0** Aufgabe als Git-Issue anlegen, Webhooks für Push und Issues | ✓ |
+| **v1.8.0** Anmeldung und Sitzungen nach OWASP: scrypt-Aufwand, Aufzählbarkeit, Leerlauffrist, Cookie-Härtung | ✓ |
+| **v1.9.0** Geschlossene Issues haken ihre Aufgabe auch ohne Webhook ab | ✓ |
+| **v1.10.0** Wochenrückblick, globale Zeitleiste, Suche über Aufgaben | ✓ |
 
 Zur Entscheidung beim Export: Git-Tokens gehen **nicht** mit. Die Verbindung wird nur
 beschrieben, das Token ist nach dem Import neu zu hinterlegen. Snapshots bleiben
