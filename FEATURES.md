@@ -255,6 +255,10 @@ Blockiert · Erledigt**.
   Fälligkeitsdatum und Labels.
 - **Fälligkeiten** färben sich mit: überfällig rot, heute gelb, in den nächsten Tagen
   gedämpft.
+- **Hängt ein Git-Issue daran**, trägt die Karte dessen Nummer — vorn in der Fußzeile,
+  vor Beschreibung, Wiederholung, Frist und Labels, damit sich eine Spalte danach
+  überfliegen lässt. Bewusst kein Link: der Weg zum Issue führt über den Dialog (4.6),
+  weil ein `<a>` innerhalb der anklickbaren Karte ungültiges Markup wäre.
 - Erledigtes wird durchgestrichen; der Zeitpunkt wird festgehalten und beim Zurückziehen
   wieder gelöscht.
 
