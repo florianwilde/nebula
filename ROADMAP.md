@@ -7,7 +7,7 @@ Stück für Stück abarbeiten. Reihenfolge ist ein Vorschlag, keine Festlegung.
 
 Was bereits steht, listet [FEATURES.md](FEATURES.md).
 
-**Stand:** v1.10.0. Alle Issues aus dem Dashboard sind abgearbeitet.
+**Stand:** v1.10.1. Alle Issues aus dem Dashboard sind abgearbeitet.
 
 ---
 
@@ -66,7 +66,7 @@ Voraussetzung, falls du das Projekt veröffentlichen willst.
 
 ## 3 · Aufgefallen beim Bauen
 
-Beobachtungen aus der Arbeit an v1.6.0 bis v1.10.0 — festgehalten, damit sie
+Beobachtungen aus der Arbeit an v1.6.0 bis v1.10.1 — festgehalten, damit sie
 nicht verloren gehen. Nichts davon ist dringend.
 
 ### 3.1 Anwendungsname bricht in der Kopfleiste ab `S`
@@ -178,6 +178,7 @@ Damit klar ist, was **nicht** kommt und warum:
 | **v1.8.0** Anmeldung und Sitzungen nach OWASP: scrypt-Aufwand, Aufzählbarkeit, Leerlauffrist, Cookie-Härtung | ✓ |
 | **v1.9.0** Geschlossene Issues haken ihre Aufgabe auch ohne Webhook ab | ✓ |
 | **v1.10.0** Wochenrückblick, globale Zeitleiste, Suche über Aufgaben | ✓ |
+| **v1.10.1** Issue-Kennzeichen auf der Aufgabenkarte, Token-Rechte Aufruf für Aufruf belegt | ✓ |
 
 Zur Entscheidung beim Export: Git-Tokens gehen **nicht** mit. Die Verbindung wird nur
 beschrieben, das Token ist nach dem Import neu zu hinterlegen. Snapshots bleiben

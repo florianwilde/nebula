@@ -42,6 +42,37 @@ export const KIND_META: Record<ChangeKind, { label: string; className: string }>
 
 export const CHANGELOG: Release[] = [
   {
+    version: "1.10.1",
+    date: "2026-08-18",
+    headline: "Sichtbar, welche Aufgabe ein Issue hat — und nachlesbar, was ein Token dafür braucht.",
+    changes: [
+      {
+        kind: "neu",
+        text:
+          "Auf dem Aufgabenbrett eines Projekts trägt eine Karte die Nummer ihres " +
+          "verknüpften Git-Issues. Bisher stand die Verknüpfung nur im Bearbeiten-Dialog " +
+          "und in der projektübergreifenden Übersicht — welche Aufgabe schon ein Issue " +
+          "hat, war im Vorbeigehen nicht zu sehen.",
+      },
+      {
+        kind: "besser",
+        text:
+          "Die Rechte einer Git-Verbindung stehen jetzt Aufruf für Aufruf in der README: " +
+          "je System eine Tabelle aus Endpunkt, Zweck und benötigtem Recht. Getrennt nach " +
+          "reinem Abgleich und zusätzlicher Issue-Anbindung, damit erkennbar ist, was sich " +
+          "weglassen lässt. Bei GitLab ist belegt, dass es unterhalb von „api“ keinen " +
+          "Schreibzugriff auf Issues gibt.",
+      },
+      {
+        kind: "behoben",
+        text:
+          "Der Hinweis unter dem Token-Feld nannte die Rechte für Actions nicht, obwohl " +
+          "der CI-Zustand bei GitHub genau daran hängt. Wer sich daran hielt, sah keinen " +
+          "Build-Status.",
+      },
+    ],
+  },
+  {
     version: "1.10.0",
     date: "2026-08-18",
     headline: "Rückblick, Zeitleiste und eine Suche, die auch Aufgaben findet.",
