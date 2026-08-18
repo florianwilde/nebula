@@ -485,6 +485,30 @@ Firmen-Gitea nebeneinander.
   Kurzbeschreibung.
 - **Löschen** trennt nur die Verknüpfung; die Projekte selbst bleiben erhalten.
 
+#### Nötige Token-Rechte
+
+Nebula liest fast alles nur. Geschrieben wird ausschließlich beim Anlegen und Schließen
+von Issues (4.6) — wer darauf verzichtet, kommt mit einem rein lesenden Token aus.
+
+| System | Nur Abgleich | Zusätzlich für die Issue-Anbindung |
+| --- | --- | --- |
+| GitHub | *Metadata*, *Contents*, *Issues*, *Pull requests*, *Actions* — je lesend | *Issues: Read and write* |
+| GitLab | `read_api` | `api` |
+| Gitea / Forgejo | `read:repository`, `read:issue`, `read:user` | `write:issue` |
+
+**GitLab kennt keinen schmalen Schreib-Scope.** `api` erlaubt alles, was das Konto darf,
+Code eingeschlossen. Wem das zu weit geht, bleibt bei `read_api`: der Abgleich läuft
+vollständig, geschlossene Issues werden weiterhin erkannt — nur schreibt Nebula dann
+nicht zurück.
+
+**Nicht verlangt** werden Schreibrechte auf Code, Adminrechte und Rechte zum Anlegen von
+Webhooks. Der Haken wird von Hand im Git-System eingetragen (4.7); das erspart dem Token
+genau die Administrationsrechte, die er sonst bräuchte.
+
+Ein fehlendes Recht endet in einem `403` mit „Token hat nicht die noetigen Scopes",
+sichtbar am Repository auf der Projektseite. Klein anfangen und gezielt nachlegen ist
+deshalb ohne Risiko.
+
 ### 4.3 Was beim Sync geholt wird
 
 | Bereich | Details |

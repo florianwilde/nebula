@@ -173,14 +173,8 @@ Nebula auffindbare Credentials nutzt.
 
 ## Git-Verbindung einrichten
 
-1. Im Git-System einen **Personal Access Token** mit Leserechten erzeugen:
-
-   | System | Scopes |
-   | --- | --- |
-   | GitHub | Fine-grained Token: *Contents: Read*, *Metadata: Read*, *Issues: Read*, *Pull requests: Read* |
-   | GitLab | `read_api` (alternativ `read_repository`) |
-   | Gitea / Forgejo | `repository:read`, `issue:read`, `user:read` |
-
+1. Im Git-System einen **Personal Access Token** erzeugen — mit den Rechten aus dem
+   Abschnitt [Welche Rechte der Token braucht](#welche-rechte-der-token-braucht).
 2. In Nebula unter **Git-Verbindungen → Verbindung hinzufügen** eintragen:
    System wählen, Basis-URL (z. B. `https://git.meine-firma.de`, ohne `/api`) und Token.
 3. Mit **Testen** prüfen — Nebula meldet den erkannten Benutzer zurück.
@@ -191,6 +185,47 @@ Nebula auffindbare Credentials nutzt.
 
 Der Snapshot bleibt in der Datenbank, das Dashboard funktioniert also auch offline.
 Ohne Token gehen nur öffentliche Repositories, mit strengem Rate-Limit.
+
+### Welche Rechte der Token braucht
+
+Nebula liest fast alles nur — geschrieben wird ausschließlich, wenn du eine Aufgabe als
+Issue anlegst oder abhakst. Deshalb lohnt es, zwei Fälle zu unterscheiden:
+
+**Fall A — nur Abgleich.** Branches, Tags, Commits, Releases, CI-Zustand, README,
+Heatmap, offene Issues und PRs anzeigen. Rein lesend.
+
+**Fall B — zusätzlich die Issue-Anbindung.** Eine Aufgabe als Issue anlegen; wird das
+Issue geschlossen, hakt Nebula die Aufgabe ab und schließt sie umgekehrt mit.
+
+| System | Fall A (nur lesen) | Fall B zusätzlich |
+| --- | --- | --- |
+| **GitHub** | Fine-grained Token: *Metadata: Read*, *Contents: Read*, *Issues: Read*, *Pull requests: Read*, *Actions: Read* | *Issues: **Read and write*** |
+| **GitLab** | `read_api` | `api` — **es gibt nichts dazwischen** |
+| **Gitea / Forgejo** | `read:repository`, `read:issue`, `read:user` | `write:issue` |
+
+Wozu die einzelnen Rechte gut sind:
+
+| Recht | Wofür |
+| --- | --- |
+| Repository lesen (`Contents`, `read:repository`) | Branches, Tags, Commits, Releases, Sprachen, README, Commit-Heatmap |
+| Issues lesen | Offene Issues auf der Projektseite, „Issues als Aufgaben übernehmen" |
+| Pull Requests lesen | Offene PRs auf der Projektseite |
+| Actions lesen (nur GitHub) | CI-Zustand des Default-Branch. Bei GitLab kommt er aus den Pipelines (`read_api`), bei Gitea aus dem Commit-Status (`read:repository`) |
+| Benutzer lesen | Nur für den Verbindungstest — Nebula meldet zurück, als wer der Token gilt |
+| Issues schreiben | Aufgabe als Issue anlegen, schließen, wieder öffnen |
+
+> **GitLab ist der unangenehme Fall.** Es kennt keinen schmalen Schreib-Scope für Issues:
+> `api` erlaubt alles, was dein Konto darf — auch Code ändern. Wenn dir das zu weit geht,
+> nimm `read_api` und verzichte auf die Issue-Anbindung. Der Abgleich funktioniert
+> vollständig, und geschlossene Issues werden trotzdem erkannt — nur eben nur gelesen.
+
+**Was Nebula *nicht* braucht:** Schreibrechte auf Code, Adminrechte, Rechte zum Anlegen
+von Webhooks. Den Haken für Webhooks trägst du selbst im Git-System ein — genau deshalb
+verlangt Nebula dafür kein zusätzliches Recht.
+
+**Im Zweifel klein anfangen.** Ein fehlendes Recht führt zu einem `403` mit dem Hinweis
+„Token hat nicht die noetigen Scopes"; die Meldung steht am Repository auf der
+Projektseite. Dann gezielt nachlegen, statt vorsorglich alles zu vergeben.
 
 ### Automatisch statt auf Knopfdruck
 
