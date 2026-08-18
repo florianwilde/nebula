@@ -12,19 +12,25 @@ export const PROVIDER_META: Record<
     label: "GitHub",
     defaultBaseUrl: "https://github.com",
     tokenHelp:
-      "Fine-grained Token mit Lesezugriff auf Contents, Metadata, Issues und Pull Requests.",
+      "Fine-grained Token, alle nur lesend: Metadata, Contents, Issues, Pull requests " +
+      "und Actions. Nur wenn Aufgaben als Issue angelegt werden sollen, Issues " +
+      "zusaetzlich schreiben.",
     docsUrl: "https://github.com/settings/tokens",
   },
   GITLAB: {
     label: "GitLab",
     defaultBaseUrl: "https://gitlab.com",
-    tokenHelp: "Personal Access Token mit Scope 'read_api' (bzw. 'read_repository').",
+    tokenHelp:
+      "Scope 'read_api' genuegt fuer den Abgleich. Aufgaben als Issue anzulegen verlangt " +
+      "'api' – GitLab kennt keinen schmaleren Schreibzugriff.",
     docsUrl: "https://gitlab.com/-/user_settings/personal_access_tokens",
   },
   GITEA: {
     label: "Gitea / Forgejo",
     defaultBaseUrl: "https://git.example.com",
-    tokenHelp: "Access Token mit Leserechten auf repository, issue und user.",
+    tokenHelp:
+      "read:repository, read:issue und read:user. Nur wenn Aufgaben als Issue angelegt " +
+      "werden sollen, zusaetzlich write:issue.",
     docsUrl: "https://docs.gitea.com/development/api-usage",
   },
 };
