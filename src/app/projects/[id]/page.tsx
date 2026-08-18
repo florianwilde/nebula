@@ -10,6 +10,7 @@ import { ProjectHeader } from "@/components/ProjectHeader";
 import { TaskBoard } from "@/components/tasks/TaskBoard";
 import { requireUserPage } from "@/lib/auth/guard";
 import { getSessionUser } from "@/lib/auth/session";
+import { getAppSettings } from "@/lib/auth/settings";
 import { prisma } from "@/lib/db";
 import { connectionSafeSelect, projectDetailInclude, webhookRepositoryIds } from "@/lib/projects";
 import type { ConnectionSafe, ProjectDetail } from "@/types";
@@ -37,7 +38,7 @@ export default async function ProjectPage({ params }: PageProps) {
   const user = await requireUserPage();
   const { id } = await params;
 
-  const [project, connections] = await Promise.all([
+  const [project, connections, settings] = await Promise.all([
     // findFirst mit Besitzerbedingung: ein fremdes Projekt fuehrt zu 404,
     // nicht zu einer Fehlermeldung, die seine Existenz bestaetigt.
     prisma.project.findFirst({
@@ -49,6 +50,7 @@ export default async function ProjectPage({ params }: PageProps) {
       select: connectionSafeSelect,
       orderBy: { name: "asc" },
     }),
+    getAppSettings(),
   ]);
 
   if (!project) notFound();
@@ -83,6 +85,7 @@ export default async function ProjectPage({ params }: PageProps) {
         projectId={detail.id}
         tasks={detail.tasks}
         progressFromTasks={detail.progressFromTasks}
+        columnLimit={settings.taskColumnLimit}
       />
 
       {/*

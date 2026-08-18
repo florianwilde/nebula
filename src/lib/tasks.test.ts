@@ -7,6 +7,7 @@ import {
   dueBucket,
   nextDueDate,
   progressFromTasks,
+  spaltenAnzeige,
 } from "./tasks";
 
 describe("progressFromTasks", () => {
@@ -133,6 +134,51 @@ describe("dueBucket", () => {
     for (const bucket of DUE_BUCKET_ORDER) {
       expect(DUE_BUCKET_META[bucket].label).toBeTruthy();
       expect(DUE_BUCKET_META[bucket].color).toMatch(/^#[0-9a-f]{6}$/i);
+    }
+  });
+});
+
+describe("spaltenAnzeige", () => {
+  it("zeigt alles, solange die Spalte unter der Grenze bleibt", () => {
+    expect(spaltenAnzeige(3, 15, false)).toEqual({ sichtbar: 3, verborgen: 0 });
+    // Genau auf der Grenze ist noch nichts zu verbergen – sonst stuende
+    // "0 weitere anzeigen" an der Spalte.
+    expect(spaltenAnzeige(15, 15, false)).toEqual({ sichtbar: 15, verborgen: 0 });
+  });
+
+  it("kappt darueber und sagt, wie viele dahinter warten", () => {
+    expect(spaltenAnzeige(40, 15, false)).toEqual({ sichtbar: 15, verborgen: 25 });
+  });
+
+  it("nimmt 0 als 'ohne Begrenzung'", () => {
+    // Dieselbe Lesart wie SESSION_IDLE_HOURS. Waere 0 woertlich gemeint,
+    // zeigte das Brett gar nichts mehr.
+    expect(spaltenAnzeige(200, 0, false)).toEqual({ sichtbar: 200, verborgen: 0 });
+  });
+
+  it("behandelt eine negative Grenze wie keine", () => {
+    // Die API laesst sie nicht durch; ein alter Datenbankstand oder ein
+    // Handgriff in psql koennte sie aber liefern.
+    expect(spaltenAnzeige(9, -5, false)).toEqual({ sichtbar: 9, verborgen: 0 });
+  });
+
+  it("zeigt entfaltet wieder alles", () => {
+    expect(spaltenAnzeige(40, 15, true)).toEqual({ sichtbar: 40, verborgen: 0 });
+  });
+
+  it("meldet nie mehr Sichtbares als vorhanden", () => {
+    // Sonst liefe das slice() in der Spalte ins Leere und die Zahl am Knopf
+    // waere negativ.
+    for (const anzahl of [0, 1, 7, 15, 16, 99]) {
+      for (const limit of [0, 1, 15, 100]) {
+        for (const entfaltet of [true, false]) {
+          const { sichtbar, verborgen } = spaltenAnzeige(anzahl, limit, entfaltet);
+          expect(sichtbar, `${anzahl}/${limit}/${entfaltet}`).toBeLessThanOrEqual(anzahl);
+          expect(verborgen).toBeGreaterThanOrEqual(0);
+          // Zusammen ergeben sie immer die ganze Spalte – nichts faellt weg.
+          expect(sichtbar + verborgen).toBe(anzahl);
+        }
+      }
     }
   });
 });

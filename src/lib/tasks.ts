@@ -168,6 +168,29 @@ export async function spawnRecurrence(taskId: string) {
  * nicht die Spalte, sondern der Termin: projektuebergreifend ist "was ist
  * ueberfaellig" die Frage, nicht "was steht in welcher Spalte".
  */
+/**
+ * Wie viele Karten eine Spalte des Aufgabenbretts zeigt – und wie viele
+ * dahinter warten.
+ *
+ * Begrenzt wird ausschliesslich die *Anzeige*. Der Zustand im Brett bleibt
+ * vollstaendig, weil das Umsortieren je Spalte die ganze Liste an den Server
+ * schickt: waere sie hier schon gekuerzt, wuerden die verborgenen Aufgaben
+ * beim naechsten Ziehen aus dem Brett fallen.
+ *
+ * `limit` 0 heisst "ohne Begrenzung" – dieselbe Lesart wie bei
+ * SESSION_IDLE_HOURS.
+ */
+export function spaltenAnzeige(
+  anzahl: number,
+  limit: number,
+  entfaltet: boolean,
+): { sichtbar: number; verborgen: number } {
+  if (limit <= 0 || entfaltet || anzahl <= limit) {
+    return { sichtbar: anzahl, verborgen: 0 };
+  }
+  return { sichtbar: limit, verborgen: anzahl - limit };
+}
+
 export const DUE_BUCKET_ORDER = ["overdue", "today", "week", "later", "someday"] as const;
 
 export type DueBucket = (typeof DUE_BUCKET_ORDER)[number];
