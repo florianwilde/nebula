@@ -42,6 +42,41 @@ export const KIND_META: Record<ChangeKind, { label: string; className: string }>
 
 export const CHANGELOG: Release[] = [
   {
+    version: "1.10.0",
+    date: "2026-08-18",
+    headline: "Rückblick, Zeitleiste und eine Suche, die auch Aufgaben findet.",
+    changes: [
+      {
+        kind: "neu",
+        text:
+          "Wochenrückblick über alle Projekte: Kennzahlen der Woche und darunter die " +
+          "Vorgänge nach Tagen gebündelt. Blättern in frühere Wochen inbegriffen. " +
+          "Erreichbar über die Schnellsuche und einen Verweis vom Dashboard.",
+      },
+      {
+        kind: "neu",
+        text:
+          "Globale Zeitleiste: derselbe Verlauf, aber fortlaufend und ohne Wochengrenze, " +
+          "mit Nachladen älterer Einträge. Geblättert wird per Cursor — bei mehreren " +
+          "Einträgen im selben Augenblick verliert oder verdoppelt das keine Zeilen.",
+      },
+      {
+        kind: "neu",
+        text:
+          "Das Aufgabendashboard hat ein Suchfeld über Titel, Beschreibung, Labels und " +
+          "Projektname. Wer sucht, sucht dabei auch in Erledigtem — sonst findet man die " +
+          "Aufgabe von letzter Woche nicht wieder.",
+      },
+      {
+        kind: "besser",
+        text:
+          "Die Volltextsuche kannte bisher nur Notizen und findet jetzt auch Aufgaben — " +
+          "mit denselben deutschen Stammformen: „Rechnung“ findet „Rechnungen“. Treffer " +
+          "erscheinen im Projektbrett und in der Schnellsuche.",
+      },
+    ],
+  },
+  {
     version: "1.9.0",
     date: "2026-08-17",
     headline: "Geschlossene Issues haken ihre Aufgabe auch ohne Webhook ab.",
