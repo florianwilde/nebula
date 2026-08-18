@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, CalendarRange } from "lucide-react";
+import { ArrowLeft, ArrowRight, CalendarRange, History } from "lucide-react";
 import { WeeklyReview } from "@/components/WeeklyReview";
 import { requireUserPage } from "@/lib/auth/guard";
 import { prisma } from "@/lib/db";
@@ -121,6 +121,10 @@ export default async function ReviewPage({
                 Diese Woche
               </Link>
             ) : null}
+            <Link href="/verlauf" className="btn btn-ghost px-2.5 py-1.5 text-xs">
+              <History className="h-3.5 w-3.5" />
+              Ganzer Verlauf
+            </Link>
           </nav>
         </div>
       </header>

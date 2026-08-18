@@ -9,6 +9,7 @@ import {
   CheckSquare,
   CornerDownLeft,
   GitBranch,
+  History,
   LayoutDashboard,
   Loader2,
   NotebookPen,
@@ -63,6 +64,13 @@ const ACTIONS: Action[] = [
     hint: "Was diese Woche passiert ist",
     icon: CalendarRange,
     href: "/rueckblick",
+  },
+  {
+    id: "verlauf",
+    label: "Verlauf",
+    hint: "Alles, was passiert ist – über alle Projekte",
+    icon: History,
+    href: "/verlauf",
   },
   {
     id: "tasks",

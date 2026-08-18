@@ -249,6 +249,26 @@ test("Wochenrueckblick zeigt, was diese Woche passiert ist", async ({ page }) =>
   await expect(page).toHaveURL(/\/rueckblick/);
 });
 
+test("Globale Zeitleiste zeigt den Verlauf ueber alle Projekte", async ({ page }) => {
+  // Vom Wochenrueckblick aus verlinkt.
+  await page.goto("/rueckblick");
+  await page.getByRole("link", { name: /Ganzer Verlauf/ }).click();
+  await expect(page).toHaveURL(/\/verlauf$/);
+  await expect(page.getByRole("heading", { name: "Verlauf", level: 1 })).toBeVisible();
+
+  // Eintraege mit Projektbezug – ohne den ist eine uebergreifende Liste
+  // nicht zu lesen.
+  await expect(page.getByRole("link", { name: "Oberflaechentest" }).first()).toBeVisible();
+  await expect(page.getByText(/Vorgänge geladen|Vorgang geladen/)).toBeVisible();
+
+  // Auch ueber die Schnellsuche erreichbar.
+  await page.goto("/");
+  await page.keyboard.press("Control+k");
+  await page.getByPlaceholder(/Projekt, Notiz oder Bereich/).fill("Verlauf");
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(/\/verlauf/);
+});
+
 test("Schnellsuche findet Projekt und Notiz", async ({ page }) => {
   await page.keyboard.press("Control+k");
   await expect(page.getByRole("dialog", { name: "Schnellsuche" })).toBeVisible();
