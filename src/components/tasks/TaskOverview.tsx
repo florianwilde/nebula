@@ -10,7 +10,9 @@ import {
   Loader2,
   Plus,
   Repeat,
+  Search,
   Square,
+  X,
 } from "lucide-react";
 import type { TaskStatus } from "@prisma/client";
 import { QuickCapture } from "@/components/QuickCapture";
@@ -42,6 +44,7 @@ export function TaskOverview({ tasks }: { tasks: TaskOverviewItem[] }) {
   const router = useRouter();
   const [statusFilter, setStatusFilter] = useState<TaskStatus[]>([]);
   const [projektFilter, setProjektFilter] = useState("");
+  const [suche, setSuche] = useState("");
   const [zeigeErledigte, setZeigeErledigte] = useState(false);
   const [erfassenOffen, setErfassenOffen] = useState(false);
   const [laufend, setLaufend] = useState<Set<string>>(new Set());
@@ -63,16 +66,34 @@ export function TaskOverview({ tasks }: { tasks: TaskOverviewItem[] }) {
   }, [tasks]);
 
   const sichtbar = useMemo(() => {
+    const nadel = suche.toLowerCase().trim();
+
     return tasks.filter((task) => {
       // Erledigtes fuellt die Liste sonst mit dem, was gerade nicht ansteht.
-      if (!zeigeErledigte && task.status === "DONE" && !statusFilter.includes("DONE")) {
+      // Wer allerdings sucht, sucht auch in Erledigtem – sonst findet man
+      // die Aufgabe von letzter Woche nicht wieder.
+      if (
+        !zeigeErledigte &&
+        !nadel &&
+        task.status === "DONE" &&
+        !statusFilter.includes("DONE")
+      ) {
         return false;
       }
       if (statusFilter.length > 0 && !statusFilter.includes(task.status)) return false;
       if (projektFilter && task.project.id !== projektFilter) return false;
-      return true;
+      if (!nadel) return true;
+
+      // Die Aufgaben liegen hier ohnehin alle vor – das filtert ohne
+      // zusaetzliche Abfrage und ohne Verzoegerung beim Tippen.
+      return (
+        task.title.toLowerCase().includes(nadel) ||
+        (task.description ?? "").toLowerCase().includes(nadel) ||
+        task.labels.some((label) => label.toLowerCase().includes(nadel)) ||
+        task.project.name.toLowerCase().includes(nadel)
+      );
     });
-  }, [tasks, statusFilter, projektFilter, zeigeErledigte]);
+  }, [tasks, statusFilter, projektFilter, zeigeErledigte, suche]);
 
   const faecher = useMemo(() => {
     return DUE_BUCKET_ORDER.map((bucket) => ({
@@ -155,6 +176,27 @@ export function TaskOverview({ tasks }: { tasks: TaskOverviewItem[] }) {
 
       {/* Steuerleiste */}
       <div className="glass flex flex-col gap-3 p-3 sm:p-4">
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+          <input
+            className="field pl-9"
+            placeholder="Aufgaben durchsuchen – Titel, Beschreibung, Labels…"
+            value={suche}
+            onChange={(event) => setSuche(event.target.value)}
+            aria-label="Aufgaben durchsuchen"
+          />
+          {suche ? (
+            <button
+              type="button"
+              onClick={() => setSuche("")}
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-slate-500 hover:text-white"
+              aria-label="Suche zuruecksetzen"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          ) : null}
+        </div>
+
         <div className="flex flex-wrap items-center gap-2">
           {TASK_STATUS_ORDER.map((status) => {
             const meta = TASK_STATUS_META[status];
@@ -220,12 +262,18 @@ export function TaskOverview({ tasks }: { tasks: TaskOverviewItem[] }) {
           </span>
           <div>
             <h2 className="text-lg font-semibold text-white">
-              {tasks.length === 0 ? "Noch keine Aufgaben" : "Nichts offen"}
+              {tasks.length === 0
+                ? "Noch keine Aufgaben"
+                : suche.trim()
+                  ? "Keine Treffer"
+                  : "Nichts offen"}
             </h2>
             <p className="mt-1 max-w-md text-sm text-slate-400">
               {tasks.length === 0
                 ? "Aufgaben entstehen im Projekt oder hier über „Neue Aufgabe“."
-                : "Alles abgehakt, was zu den Filtern passt."}
+                : suche.trim()
+                  ? `Keine Aufgabe passt zu „${suche.trim()}“ – gesucht wird in Titel, Beschreibung, Labels und Projektname.`
+                  : "Alles abgehakt, was zu den Filtern passt."}
             </p>
           </div>
         </div>

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
+  CheckSquare,
   Columns3,
   Database,
   Download,
@@ -16,7 +17,7 @@ import {
   Upload,
   X,
 } from "lucide-react";
-import type { ProjectStatus } from "@prisma/client";
+import type { ProjectStatus, TaskStatus } from "@prisma/client";
 import { BulkBar } from "@/components/BulkBar";
 import { ImportDialog } from "@/components/ImportDialog";
 import { KanbanBoard } from "@/components/KanbanBoard";
@@ -25,8 +26,17 @@ import { ProjectDialog } from "@/components/ProjectDialog";
 import { ProjectList } from "@/components/ProjectList";
 import { Popover } from "@/components/ui/Popover";
 import { STATUS_META, STATUS_ORDER } from "@/lib/status";
+import { TASK_STATUS_META } from "@/lib/tasks";
 import { cn } from "@/lib/utils";
 import type { ConnectionSafe, ProjectListItem } from "@/types";
+
+interface TaskHit {
+  projectId: string;
+  taskId: string;
+  title: string;
+  status: string;
+  snippet: string;
+}
 
 interface NoteHit {
   projectId: string;
@@ -135,6 +145,7 @@ export function ProjectBoard({
   const [dataMenuOpen, setDataMenuOpen] = useState(false);
   const dataButtonRef = useRef<HTMLButtonElement>(null);
   const [noteHits, setNoteHits] = useState<NoteHit[]>([]);
+  const [taskHits, setTaskHits] = useState<TaskHit[]>([]);
   const [selection, setSelection] = useState<Set<string>>(new Set());
 
   /**
@@ -147,6 +158,7 @@ export function ProjectBoard({
     const needle = query.trim();
     if (needle.length < 2) {
       setNoteHits([]);
+      setTaskHits([]);
       return;
     }
 
@@ -157,8 +169,9 @@ export function ProjectBoard({
           signal: controller.signal,
         });
         if (!response.ok) return;
-        const body = (await response.json()) as { hits: NoteHit[] };
+        const body = (await response.json()) as { hits: NoteHit[]; tasks: TaskHit[] };
         setNoteHits(body.hits ?? []);
+        setTaskHits(body.tasks ?? []);
       } catch {
         // Abgebrochene Anfragen sind der Normalfall beim Tippen.
       }
@@ -171,8 +184,12 @@ export function ProjectBoard({
   }, [query]);
 
   const noteHitProjectIds = useMemo(
-    () => new Set(noteHits.map((hit) => hit.projectId)),
-    [noteHits],
+    () =>
+      new Set([
+        ...noteHits.map((hit) => hit.projectId),
+        ...taskHits.map((hit) => hit.projectId),
+      ]),
+    [noteHits, taskHits],
   );
 
   const counts = useMemo(() => {
@@ -200,7 +217,7 @@ export function ProjectBoard({
         project.repositories.some((repo) =>
           (repo.snapshot?.fullName ?? "").toLowerCase().includes(needle),
         ) ||
-        // Treffer in Notizen kommen vom Server dazu.
+        // Treffer in Notizen und Aufgaben kommen vom Server dazu.
         noteHitProjectIds.has(project.id)
       );
     });
@@ -433,6 +450,60 @@ export function ProjectBoard({
           ) : null}
         </div>
       </div>
+
+      {/* Treffer in Aufgaben */}
+      {taskHits.length > 0 ? (
+        <div className="glass fade-up p-4">
+          <h2 className="mb-2.5 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+            <CheckSquare className="h-3.5 w-3.5 text-emerald-300" />
+            Treffer in Aufgaben
+            <span className="rounded-full bg-white/6 px-2 py-0.5 tabular-nums text-slate-400">
+              {taskHits.length}
+            </span>
+          </h2>
+          <ul className="space-y-1">
+            {taskHits.slice(0, 8).map((hit) => {
+              const project = projects.find((entry) => entry.id === hit.projectId);
+              const status = TASK_STATUS_META[hit.status as TaskStatus];
+              return (
+                <li key={hit.taskId}>
+                  <Link
+                    href={`/projects/${hit.projectId}`}
+                    className="block rounded-lg px-2.5 py-2 transition-colors hover:bg-white/5"
+                  >
+                    <span className="flex flex-wrap items-baseline gap-x-2">
+                      <span className="text-sm text-slate-200">{hit.title}</span>
+                      <span className="text-[11px] text-slate-500">
+                        · {project?.name ?? "Projekt"}
+                      </span>
+                      {status ? (
+                        <span
+                          className="inline-flex items-center gap-1 text-[11px]"
+                          style={{ color: status.color }}
+                        >
+                          {status.label}
+                        </span>
+                      ) : null}
+                    </span>
+                    {/* Nur wenn die Beschreibung etwas beitraegt – passte
+                        allein der Titel, ist der Ausschnitt leer. */}
+                    {hit.snippet.trim() ? (
+                      <span className="mt-0.5 block text-xs leading-snug text-slate-400">
+                        {highlight(hit.snippet)}
+                      </span>
+                    ) : null}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+          {taskHits.length > 8 ? (
+            <p className="mt-2 px-2.5 text-[11px] text-slate-600">
+              … und {taskHits.length - 8} weitere
+            </p>
+          ) : null}
+        </div>
+      ) : null}
 
       {/* Treffer in Notizen */}
       {noteHits.length > 0 ? (
