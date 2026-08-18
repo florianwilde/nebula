@@ -1,6 +1,12 @@
 "use client";
 
-import { AlignLeft, CalendarClock, GripVertical, Repeat } from "lucide-react";
+import {
+  AlignLeft,
+  CalendarClock,
+  GitPullRequestArrow,
+  GripVertical,
+  Repeat,
+} from "lucide-react";
 import type { Task } from "@prisma/client";
 import { RECURRENCE_META } from "@/lib/tasks";
 import { cn, formatDate } from "@/lib/utils";
@@ -70,8 +76,26 @@ export function TaskCard({
             {task.title}
           </p>
 
-          {(task.description || task.dueDate || task.recurrence || task.labels.length > 0) && (
+          {(task.description ||
+            task.dueDate ||
+            task.recurrence ||
+            task.sourceIssue ||
+            task.labels.length > 0) && (
             <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px]">
+              {/* Steht vorn, damit sich eine Spalte danach ueberfliegen laesst.
+                  Bewusst kein Link: die Karte steckt in einem <button>, und ein
+                  <a> darin waere ungueltig. Der Weg zum Issue fuehrt ueber den
+                  Bearbeiten-Dialog, der ihn ohnehin anbietet. */}
+              {task.sourceIssue ? (
+                <span
+                  className="inline-flex items-center gap-1 text-violet-300"
+                  title={`Verknüpft mit Issue #${task.sourceIssue}`}
+                >
+                  <GitPullRequestArrow className="h-2.5 w-2.5" aria-hidden />
+                  <span className="sr-only">Verknüpft mit </span>#{task.sourceIssue}
+                </span>
+              ) : null}
+
               {task.description ? (
                 <AlignLeft className="h-2.5 w-2.5 text-slate-600" aria-label="hat Beschreibung" />
               ) : null}
