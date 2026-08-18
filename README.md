@@ -22,6 +22,12 @@ Jedes Projekt bekommt einen **Status** (von der rohen Idee bis „Fertig"), beli
 Branches, Tags, Commits, Releases und offene Issues/PRs — egal ob **GitHub**, **GitLab**
 oder eine selbst gehostete **Gitea**-Instanz.
 
+Neben dem Projektbrett gibt es **Aufgaben über alle Projekte hinweg** (nach Fälligkeit
+geordnet), einen **Wochenrückblick** und eine **fortlaufende Zeitleiste** aus dem
+Aktivitätsverlauf. Aufgaben lassen sich als **Git-Issue** anlegen; wird das Issue
+geschlossen, hakt Nebula die Aufgabe ab — sofort per **Webhook** oder verzögert beim
+nächsten Abgleich.
+
 Die Anmeldung läuft über **Benutzername und Passwort oder Passkey** (WebAuthn). Nebula
 kennt zwei Betriebsarten: **Einzelbetrieb** für ein Konto oder **Mehrbenutzerbetrieb**, in
 dem jede Person ihren eigenen, streng getrennten Bereich hat. Umschalten geht jederzeit in
@@ -275,15 +281,25 @@ nebula/
 └── src/
     ├── app/
     │   ├── page.tsx            Dashboard (Board, Filter, Kennzahlen)
-    │   ├── projects/[id]/      Projektdetail: Beschreibung, Notizen, Git
+    │   ├── projects/[id]/      Projektdetail: Beschreibung, Notizen, Aufgaben, Git
+    │   ├── tasks/              Aufgaben über alle Projekte, nach Fälligkeit
+    │   ├── rueckblick/         Wochenrückblick
+    │   ├── verlauf/            Fortlaufende Zeitleiste
     │   ├── connections/        Verwaltung der Git-Verbindungen
-    │   └── api/                REST-Endpunkte (Projekte, Notizen, Verbindungen, Sync)
+    │   ├── account/ admin/     Eigenes Konto · Adminbereich
+    │   └── api/                REST-Endpunkte (siehe Abschnitt „API")
     ├── components/             UI-Komponenten (Board, Karten, Panels, Dialoge)
     ├── lib/
+    │   ├── auth/               Sitzungen, Passwörter, TOTP, WebAuthn, Zugriffsschutz
     │   ├── crypto.ts           AES-256-GCM für Access Tokens
     │   ├── db.ts               Prisma-Client
     │   ├── git/                Provider-Adapter: github.ts · gitlab.ts · gitea.ts
-    │   ├── sync.ts             Repo-Snapshot holen und speichern
+    │   ├── sync/               Repo-Snapshot holen, speichern, Zeitgeber
+    │   ├── tasks/              Aufgabenlogik, Brücke zu Git-Issues
+    │   ├── webhooks/           Signaturprüfung eingehender Webhooks
+    │   ├── review.ts           Wochengrenzen und Kennzahlen
+    │   ├── timeline.ts         Cursor-Blättern für den Verlauf
+    │   ├── security/           SSRF-Schutz, Ratenbegrenzung, Body-Prüfung
     │   └── validation.ts       Zod-Schemas für alle Eingaben
     └── types/                  gemeinsame Typen für Server und Client
 ```
@@ -347,7 +363,8 @@ ausschließlich Daten des angemeldeten Kontos.
 | `PATCH` `DELETE` | `/api/templates/:id` | Vorlage ändern / löschen |
 | `POST` | `/api/templates/from-project` | Aus einem Projekt eine Vorlage machen |
 | `GET` | `/api/admin/backup` | Vollständige Sicherung als JSON (Admin) |
-| `GET` | `/api/search?q=` | Volltextsuche über die eigenen Notizen |
+| `GET` | `/api/search?q=` | Volltextsuche über eigene Notizen **und Aufgaben** |
+| `GET` | `/api/activity` | Verlauf über alle Projekte, per Cursor (`?vor=&id=&limit=`) |
 | `GET` `POST` | `/api/notifications` | Benachrichtigungsziele |
 | `PATCH` `DELETE` | `/api/notifications/:id` | Ziel ändern / entfernen |
 | `POST` | `/api/notifications/:id/test` | Testnachricht senden |
@@ -359,10 +376,13 @@ ausschließlich Daten des angemeldeten Kontos.
 | `GET` `POST` | `/api/projects/:id/repositories` | Repositories des Projekts |
 | `PATCH` `DELETE` | `/api/repositories/:id` | Repository ändern / vom Projekt lösen |
 | `POST` | `/api/repositories/:id/sync` | Ein einzelnes Repository abgleichen |
+| `POST` `DELETE` | `/api/repositories/:id/webhook` | Webhook einrichten / zurücknehmen |
+| `POST` | `/api/webhooks/:repositoryId` | **Eingehend** von GitHub/GitLab/Gitea, per Signatur geprüft |
 | `GET` `POST` | `/api/projects/:id/tasks` | Aufgaben des Projekts |
 | `PATCH` | `/api/projects/:id/tasks/reorder` | Neue Reihenfolge nach dem Ziehen |
 | `POST` | `/api/projects/:id/tasks/from-issues` | Offene Issues als Aufgaben übernehmen |
 | `PATCH` `DELETE` | `/api/tasks/:id` | Aufgabe ändern / löschen |
+| `POST` | `/api/tasks/:id/issue` | Aufgabe als Issue im verknüpften Repository anlegen |
 | `GET` `POST` | `/api/projects/:id/notes` | Notizen des Projekts |
 | `PATCH` `DELETE` | `/api/notes/:id` | Notiz ändern / löschen |
 | `GET` `POST` | `/api/connections` | Git-Verbindungen |
@@ -434,17 +454,21 @@ Grenzen, die du kennen solltest:
 
 ## Getestet mit
 
-Stand 25.07.2026 gegen echte Systeme verifiziert — beide Betriebsarten, alle drei
-Git-Adapter (GitHub, GitLab und Gitea jeweils gegen die öffentliche Instanz).
+Am 25.07.2026 gegen echte Systeme verifiziert — beide Betriebsarten, alle drei
+Git-Adapter (GitHub, GitLab und Gitea jeweils gegen die öffentliche Instanz). Seitdem
+laufen die Ende-zu-Ende-Tests bei jeder Änderung mit; live nach draußen geht davon nur
+ein Test gegen die GitHub-API.
+
+Werkzeugstand vom 18.08.2026:
 
 | | Version |
 | --- | --- |
-| Node.js | 26.5.0 |
+| Node.js | 24.19.0 |
 | npm | 11.17.0 |
 | Next.js | 15.5.21 |
 | Prisma | 6.19.3 |
-| PostgreSQL | 17 (Alpine) |
-| Docker / Compose | 29.6.2 / v5.3.1 |
+| PostgreSQL | 17.11 (Alpine) |
+| Docker | 29.7.2 |
 
 ---
 
