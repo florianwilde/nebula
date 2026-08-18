@@ -487,14 +487,19 @@ Firmen-Gitea nebeneinander.
 
 #### Nötige Token-Rechte
 
-Nebula liest fast alles nur. Geschrieben wird ausschließlich beim Anlegen und Schließen
-von Issues (4.6) — wer darauf verzichtet, kommt mit einem rein lesenden Token aus.
+Nebula liest fast alles nur. Geschrieben wird an **genau zwei Stellen**: `POST …/issues`
+beim Anlegen und `PATCH`/`PUT …/issues/{nr}` beim Schließen oder Wiederöffnen (4.6). Wer
+darauf verzichtet, kommt mit einem rein lesenden Token aus.
 
 | System | Nur Abgleich | Zusätzlich für die Issue-Anbindung |
 | --- | --- | --- |
 | GitHub | *Metadata*, *Contents*, *Issues*, *Pull requests*, *Actions* — je lesend | *Issues: Read and write* |
 | GitLab | `read_api` | `api` |
 | Gitea / Forgejo | `read:repository`, `read:issue`, `read:user` | `write:issue` |
+
+Welcher Aufruf welches Recht verlangt, steht Zeile für Zeile in der
+[README](README.md#welche-rechte-der-token-braucht) — dort ist jeder ausgehende Aufruf
+der drei Clients aufgeführt.
 
 **GitLab kennt keinen schmalen Schreib-Scope.** `api` erlaubt alles, was das Konto darf,
 Code eingeschlossen. Wem das zu weit geht, bleibt bei `read_api`: der Abgleich läuft
@@ -504,6 +509,11 @@ nicht zurück.
 **Nicht verlangt** werden Schreibrechte auf Code, Adminrechte und Rechte zum Anlegen von
 Webhooks. Der Haken wird von Hand im Git-System eingetragen (4.7); das erspart dem Token
 genau die Administrationsrechte, die er sonst bräuchte.
+
+**Kommentare schreibt Nebula nie** — weder beim Anlegen noch beim Schließen. In den
+Rumpf des angelegten Issues wandert die Aufgabenbeschreibung plus eine Zeile Rückverweis
+auf das Projekt; danach bleibt der Text unangetastet. Was sonst an Kommentaren und
+Labels an einem Issue hängt, kommt aus der Weboberfläche oder von einem anderen Werkzeug.
 
 Ein fehlendes Recht endet in einem `403` mit „Token hat nicht die noetigen Scopes",
 sichtbar am Repository auf der Projektseite. Klein anfangen und gezielt nachlegen ist

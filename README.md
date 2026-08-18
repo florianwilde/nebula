@@ -188,8 +188,10 @@ Ohne Token gehen nur öffentliche Repositories, mit strengem Rate-Limit.
 
 ### Welche Rechte der Token braucht
 
-Nebula liest fast alles nur — geschrieben wird ausschließlich, wenn du eine Aufgabe als
-Issue anlegst oder abhakst. Deshalb lohnt es, zwei Fälle zu unterscheiden:
+Nebula liest fast alles nur. Geschrieben wird an **genau zwei Stellen**: wenn du eine
+Aufgabe als Issue anlegst, und wenn eine Aufgabe auf `DONE` wandert und Nebula das
+verknüpfte Issue schließt. Alles andere sind `GET`-Aufrufe. Deshalb lohnt es, zwei Fälle
+zu unterscheiden:
 
 **Fall A — nur Abgleich.** Branches, Tags, Commits, Releases, CI-Zustand, README,
 Heatmap, offene Issues und PRs anzeigen. Rein lesend.
@@ -203,29 +205,112 @@ Issue geschlossen, hakt Nebula die Aufgabe ab und schließt sie umgekehrt mit.
 | **GitLab** | `read_api` | `api` — **es gibt nichts dazwischen** |
 | **Gitea / Forgejo** | `read:repository`, `read:issue`, `read:user` | `write:issue` |
 
-Wozu die einzelnen Rechte gut sind:
+#### Jeder Aufruf einzeln
 
-| Recht | Wofür |
-| --- | --- |
-| Repository lesen (`Contents`, `read:repository`) | Branches, Tags, Commits, Releases, Sprachen, README, Commit-Heatmap |
-| Issues lesen | Offene Issues auf der Projektseite, „Issues als Aufgaben übernehmen" |
-| Pull Requests lesen | Offene PRs auf der Projektseite |
-| Actions lesen (nur GitHub) | CI-Zustand des Default-Branch. Bei GitLab kommt er aus den Pipelines (`read_api`), bei Gitea aus dem Commit-Status (`read:repository`) |
-| Benutzer lesen | Nur für den Verbindungstest — Nebula meldet zurück, als wer der Token gilt |
-| Issues schreiben | Aufgabe als Issue anlegen, schließen, wieder öffnen |
+Die folgenden Tabellen sind vollständig: mehr als das ruft Nebula nicht nach draußen.
+Sie sind aus `src/lib/git/github.ts`, `gitlab.ts` und `gitea.ts` erhoben — wer prüfen
+will, ob hier etwas fehlt, greppt dort nach `getJson`, `getJsonSafe` und `sendJson`.
 
-> **GitLab ist der unangenehme Fall.** Es kennt keinen schmalen Schreib-Scope für Issues:
-> `api` erlaubt alles, was dein Konto darf — auch Code ändern. Wenn dir das zu weit geht,
-> nimm `read_api` und verzichte auf die Issue-Anbindung. Der Abgleich funktioniert
-> vollständig, und geschlossene Issues werden trotzdem erkannt — nur eben nur gelesen.
+**GitHub** — `https://api.github.com`, Header `Authorization: Bearer …`
 
-**Was Nebula *nicht* braucht:** Schreibrechte auf Code, Adminrechte, Rechte zum Anlegen
-von Webhooks. Den Haken für Webhooks trägst du selbst im Git-System ein — genau deshalb
-verlangt Nebula dafür kein zusätzliches Recht.
+| Aufruf | Wofür | Benötigtes Recht |
+| --- | --- | --- |
+| `GET /rate_limit` | Verbindungstest | keins |
+| `GET /user` | Kontoname beim Testen zurückmelden | keins |
+| `GET /user/repos` | Auswahlliste hinter **Repos laden** | Metadata: Read |
+| `GET /repos/{o}/{r}` | Stammdaten, Default-Branch, Sichtbarkeit | Metadata: Read |
+| `GET …/languages` | Sprachverteilung | Metadata: Read |
+| `GET …/tags` | Tags | Metadata: Read |
+| `GET …/stats/commit_activity` | Commit-Heatmap über ein Jahr | Metadata: Read |
+| `GET …/branches` | Branch-Liste | Contents: Read |
+| `GET …/commits` | die letzten 100 Commits | Contents: Read |
+| `GET …/releases` | Releases | Contents: Read |
+| `GET …/readme` | README-Vorschau | Contents: Read |
+| `GET …/pulls?state=open` | offene Pull Requests | Pull requests: Read |
+| `GET …/issues?state=open` | offene Issues | Issues: Read |
+| `GET …/issues/{nr}` | Abgleich: ist das verknüpfte Issue noch offen? | Issues: Read |
+| `GET …/actions/runs` | CI-Zustand des Default-Branch | Actions: Read |
+| `POST …/issues` | **Aufgabe als Issue anlegen** | Issues: Read and write |
+| `PATCH …/issues/{nr}` | **Issue schließen oder wieder öffnen** | Issues: Read and write |
 
-**Im Zweifel klein anfangen.** Ein fehlendes Recht führt zu einem `403` mit dem Hinweis
-„Token hat nicht die noetigen Scopes"; die Meldung steht am Repository auf der
-Projektseite. Dann gezielt nachlegen, statt vorsorglich alles zu vergeben.
+Dass `/tags` und `/stats/commit_activity` unter *Metadata* fallen und nicht unter
+*Contents*, ist nicht zu erraten — es steht so in
+[GitHubs Berechtigungsübersicht](https://docs.github.com/en/rest/authentication/permissions-required-for-fine-grained-personal-access-tokens).
+
+**GitLab** — `{Basis-URL}/api/v4`, Header `PRIVATE-TOKEN: …`
+
+| Aufruf | Wofür | Benötigtes Recht |
+| --- | --- | --- |
+| `GET /projects?per_page=1` | Verbindungstest | `read_api` |
+| `GET /user` | Kontoname beim Testen zurückmelden | `read_user` (in `read_api` enthalten) |
+| `GET /projects?membership=true` | Auswahlliste hinter **Repos laden** | `read_api` |
+| `GET /projects/{id}?statistics=true` | Stammdaten, Default-Branch, Sichtbarkeit | `read_api` |
+| `GET …/repository/branches` · `/tags` · `/commits` | Snapshot und Heatmap | `read_api` |
+| `GET …/repository/tree` · `/repository/files/{datei}` | README (zwei Aufrufe, GitLab hat keinen README-Endpunkt) | `read_api` |
+| `GET …/releases` · `/languages` | Releases, Sprachverteilung | `read_api` |
+| `GET …/merge_requests?state=opened` | offene Merge Requests | `read_api` |
+| `GET …/issues?state=opened` | offene Issues | `read_api` |
+| `GET …/issues/{nr}` | Abgleich: ist das verknüpfte Issue noch offen? | `read_api` |
+| `GET …/pipelines` | CI-Zustand des Default-Branch | `read_api` |
+| `POST …/issues` | **Aufgabe als Issue anlegen** | `api` |
+| `PUT …/issues/{nr}` (`state_event`) | **Issue schließen oder wieder öffnen** | `api` |
+
+**Gitea / Forgejo** — `{Basis-URL}/api/v1`, Header `Authorization: token …`
+
+| Aufruf | Wofür | Benötigtes Recht |
+| --- | --- | --- |
+| `GET /version` | Verbindungstest | keins — der Aufruf darf fehlschlagen, Nebula wertet ihn nur ergänzend aus |
+| `GET /user` | Kontoname beim Testen zurückmelden | `read:user` |
+| `GET /user/repos` bzw. `GET /repos/search` | Auswahlliste hinter **Repos laden** | `read:repository` |
+| `GET /repos/{o}/{r}` | Stammdaten, Default-Branch, Sichtbarkeit | `read:repository` |
+| `GET …/branches` · `/tags` · `/commits` · `/releases` · `/languages` | Snapshot und Heatmap | `read:repository` |
+| `GET …/contents` · `/contents/{datei}` | README (zwei Aufrufe, wie bei GitLab) | `read:repository` |
+| `GET …/commits/{branch}/status` | CI-Zustand des Default-Branch | `read:repository` |
+| `GET …/pulls?state=open` | offene Pull Requests | `read:repository` — Gitea zählt PRs zum Repository-Scope, nicht zu den Issues |
+| `GET …/issues?state=open&type=issues` | offene Issues | `read:issue` |
+| `GET …/issues/{nr}` | Abgleich: ist das verknüpfte Issue noch offen? | `read:issue` |
+| `POST …/issues` | **Aufgabe als Issue anlegen** | `write:issue` |
+| `PATCH …/issues/{nr}` | **Issue schließen oder wieder öffnen** | `write:issue` |
+
+`write:issue` schließt `read:issue` mit ein — Gitea versteht `write:` als „lesen und
+schreiben". Beide anzuhaken schadet nicht, nötig ist es nicht.
+
+#### Was Nebula nicht tut
+
+- **Keine Kommentare.** Nebula schreibt nie einen Issue-Kommentar, weder beim Anlegen
+  noch beim Schließen. Was im Rumpf des angelegten Issues steht, ist die
+  Aufgabenbeschreibung plus eine Zeile Rückverweis — danach fasst Nebula den Text
+  nicht mehr an.
+- **Kein Code.** Nichts wird committet, gepusht, gemergt oder getaggt. Nebula ist eine
+  Übersicht, keine Entwicklungsumgebung.
+- **Keine Webhooks anlegen.** Den Haken trägst du selbst im Git-System ein — genau
+  deshalb verlangt Nebula dafür keine Administrationsrechte.
+- **Keine Labels, keine Meilensteine, keine Zuweisungen.**
+- **Keine Adminrechte**, keine Organisations- oder Benutzerverwaltung.
+
+Kommentare und Labels, die an einem Issue hängen, stammen also entweder aus der
+Weboberfläche deines Git-Systems oder von einem anderen Werkzeug mit eigenem Token —
+nicht von Nebula.
+
+#### Der GitLab-Sonderfall
+
+GitLab kennt keinen schmalen Schreib-Scope für Issues. Laut
+[Access token scopes](https://docs.gitlab.com/security/tokens/access_token_scopes/)
+gibt es nur `api` — „complete read and write access to the API" — und darunter direkt
+`read_api`. Wer bei GitLab Aufgaben als Issue anlegen will, vergibt damit ein Token, das
+auch Code ändern darf.
+
+Wenn dir das zu weit geht: bleib bei `read_api` und verzichte auf die Issue-Anbindung.
+Der Abgleich läuft vollständig, und geschlossene Issues werden weiterhin erkannt und
+haken ihre Aufgabe ab — nur der Rückweg von Nebula ins Issue fällt weg. Ein eigenes
+Dienstkonto, das nur Zugriff auf die betroffenen Projekte hat, ist der andere Ausweg.
+
+#### Im Zweifel klein anfangen
+
+Ein fehlendes Recht führt zu einem `403` mit dem Hinweis „Token hat nicht die noetigen
+Scopes"; die Meldung steht am Repository auf der Projektseite. Fang mit Fall A an und
+leg gezielt nach, wenn du die Issue-Anbindung wirklich benutzt — statt vorsorglich
+alles zu vergeben.
 
 ### Automatisch statt auf Knopfdruck
 

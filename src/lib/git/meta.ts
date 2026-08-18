@@ -12,8 +12,9 @@ export const PROVIDER_META: Record<
     label: "GitHub",
     defaultBaseUrl: "https://github.com",
     tokenHelp:
-      "Fine-grained Token: Metadata, Contents und Pull requests lesen, Issues lesen. " +
-      "Nur wenn Aufgaben als Issue angelegt werden sollen, Issues zusaetzlich schreiben.",
+      "Fine-grained Token, alle nur lesend: Metadata, Contents, Issues, Pull requests " +
+      "und Actions. Nur wenn Aufgaben als Issue angelegt werden sollen, Issues " +
+      "zusaetzlich schreiben.",
     docsUrl: "https://github.com/settings/tokens",
   },
   GITLAB: {
