@@ -108,7 +108,7 @@ Beide stehen im Änderungsverlauf, existierten aber nie in der
 `package.json` — dort springt die Historie von 0.1.0 auf 0.4.0. Nachgetragen
 wurden sie in dem Commit, der den Verlauf einführte, und der liegt *nach*
 0.4.0. Es gibt also keinen ehrlichen Commit, an dem ein Tag hängen könnte.
-Die übrigen 18 Fassungen haben seit dem 18.08.2026 ein Release in Gitea.
+Die übrigen 19 Fassungen haben seit dem 18.08.2026 ein Release in Gitea.
 
 ---
 
