@@ -64,6 +64,31 @@ SSRF-Schutz (`lib/security/ssrf.ts`).
 - **Datumsangaben** über `lib/utils` formatieren (feste Zeitzone), sonst
   weichen Server-Render und Hydration voneinander ab. Relative Zeiten
   bekommen `suppressHydrationWarning`.
+- **Die feste Zeitzone gilt auch beim *Rechnen*, nicht nur beim Formatieren.**
+  Im Container läuft die Anwendung nach UTC; „welcher Kalendertag" und
+  „welche Woche" kippen dort abends um einen Tag. `lib/tasks` (`dueBucket`)
+  und `lib/review` (`wocheUm`) rechnen deshalb über Berliner Kalendertage.
+  Und eine Woche ist **nicht** „7 × 24 Stunden" — bei einer Zeitumstellung
+  hat sie 167 oder 169.
+- **`min-width: auto` bei Flex- und Grid-Kindern.** Hat hier zweimal
+  zugeschlagen: ein Kind weigert sich, unter die Inhaltsbreite seines
+  breitesten Kindes zu schrumpfen, und drückt stattdessen die Nachbarn aus
+  dem Bild. Einmal war es ein Sortierfeld mit `min-width`, das „Neues
+  Projekt" hinausschob; einmal die Heatmap, die die ganze Projektseite
+  doppelt so breit machte. Heilmittel ist beide Male `min-w-0` am Kind —
+  ohne das greift auch ein `overflow-x-auto` darin nicht.
+- **`body { overflow-x: hidden }` versteckt genau diese Fehler.** Es steht in
+  `globals.css` als Notnagel; was es abschneidet, ist auf dem Telefon
+  schlicht nicht mehr erreichbar. Ursachen gehören in die Komponente.
+- **Dialoge müssen der Bildschirmtastatur ausweichen.** Sie verkleinert nur
+  das *sichtbare* Fenster, nicht das Layoutfenster — `position: fixed` und
+  `100vh` beziehen sich weiter auf das volle. `components/ui/Modal.tsx` hängt
+  dafür an `window.visualViewport`; wer ein eigenes Overlay baut, braucht
+  dasselbe.
+- **Blättern über Cursor, nicht über `skip`.** Der Aktivitätsverlauf schreibt
+  mehrere Zeilen im selben Augenblick; ein Offset über so eine Grenze hinweg
+  überspringt oder verdoppelt lautlos. Muster in `lib/timeline.ts`:
+  `(createdAt, id)` als Cursor, Sortierung identisch zur Bedingung.
 
 ## Migrationen
 
@@ -83,9 +108,24 @@ vergleicht mit der *laufenden* Datenbank. Ist eine eben erzeugte Migration
 dort noch nicht eingespielt, steht ihr Inhalt in der nächsten gleich noch
 einmal.
 
-**Die erzeugte SQL vor dem Anwenden lesen.** Der Volltextindex
-`Note_fulltext_idx` ist ein Ausdrucksindex, den Prisma nicht kennt (er wird
-bislang in Ruhe gelassen, aber das ist nicht garantiert).
+**Das Zielverzeichnis vorher *nicht* anlegen.** Ein leerer Ordner unter
+`prisma/migrations/` lässt `--from-migrations` mit `P3015` abbrechen
+(„Could not find the migration file"). Erst die SQL woandershin erzeugen,
+dann Ordner anlegen und hineinkopieren.
+
+**Die erzeugte SQL vor dem Anwenden lesen.** Die Volltextindizes
+`Note_fulltext_idx` und `Task_fulltext_idx` sind Ausdrucksindizes, die Prisma
+nicht kennt (sie werden bislang in Ruhe gelassen, aber das ist nicht
+garantiert).
+
+**Ein Ausdrucksindex greift nur bei Zeichengleichheit.** Weicht der Ausdruck
+in der Abfrage auch nur in einem `coalesce` vom Index ab, rechnet Postgres
+`to_tsvector` je Zeile neu — ohne Fehlermeldung. Nachsehen statt annehmen:
+
+```bash
+docker exec nebula-db psql -U nebula -d <db> -c "SET enable_seqscan = off;
+EXPLAIN (COSTS OFF) SELECT …"    # muss einen Bitmap Index Scan zeigen
+```
 
 **Datenmigrationen von Hand schreiben.** `migrate diff` kennt nur den
 Zielzustand: Spalten, die woandershin wandern, würde es ersatzlos löschen.
@@ -102,6 +142,18 @@ Vor „fertig": `npx tsc --noEmit`, `npm test`, `npm run build`.
 Bei Änderungen an der Oberfläche **hinsehen**. Chrome ist installiert, ein
 Skript mit `playwright-core` und `channel: "chrome"` genügt für Screenshots.
 Mehrere Anzeigefehler dieses Projekts sind ausschließlich so aufgefallen.
+
+**Seitlichen Überlauf misst man.** `document.documentElement.scrollWidth`
+gegen `clientWidth` auf 375 px — das findet in Sekunden, was beim Ansehen
+durchrutscht. Ein Skript, das dabei nur die *obersten* Verursacher meldet
+(Eltern, die selbst schon überlaufen, herausfiltern), ist deutlich brauchbarer
+als eine Liste aller betroffenen Knoten.
+
+**Die Testdaten müssen die Bausteine enthalten, um die es geht.** Eine
+Messung gegen ein Projekt ohne Repository, ohne Snapshot und ohne README
+bescheinigte hier einmal „alles in Ordnung", während die echte Projektseite
+doppelt so breit war wie der Bildschirm. Erst mit vollständigen Daten
+nachgestellt trat der Fehler zutage.
 
 **Barrierefreiheit misst man, statt sie zu behaupten.** `axe-core` liegt als
 Entwicklungsabhängigkeit bereit; ein Skript hängt es per `addScriptTag` in

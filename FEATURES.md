@@ -145,12 +145,17 @@ dort wäre er auf schmalen Anzeigen mit der Auswahlleiste kollidiert.
   Favoriten bleiben stets oben.
 - **Vier Ansichten**: freies Raster, **kompakte Liste**, nach Status gruppierte Abschnitte
   oder **Kanban**.
-- **Volltextsuche über Notizen.** Die Suche im Board arbeitet auf den geladenen Projekten
-  (Name, Kurzbeschreibung, Tags, Repo-Pfad). Notizen liegen dort nicht vor — sie
-  mitzuladen würde die Seite aufblähen. Stattdessen sucht Postgres serverseitig mit
-  seiner deutschen Textsuche, entprellt ab zwei Zeichen. Treffer erscheinen als eigene
-  Liste mit hervorgehobener Fundstelle, die betroffenen Projekte werden zusätzlich
-  eingeblendet. Deutsche Stammformen greifen: „Webhook" findet auch „Webhooks".
+- **Volltextsuche über Notizen und Aufgaben.** Die Suche im Board arbeitet auf den
+  geladenen Projekten (Name, Kurzbeschreibung, Tags, Repo-Pfad). Notizen und Aufgaben
+  liegen dort nicht vor — sie mitzuladen würde die Seite aufblähen. Stattdessen sucht
+  Postgres serverseitig mit seiner deutschen Textsuche, entprellt ab zwei Zeichen.
+  Treffer erscheinen als zwei eigene Listen mit hervorgehobener Fundstelle, die
+  betroffenen Projekte werden zusätzlich eingeblendet. Deutsche Stammformen greifen:
+  „Webhook" findet auch „Webhooks", „Rechnung" auch „Rechnungen".
+
+  Beide Seiten haben je einen **Ausdrucksindex** (`Note_fulltext_idx`,
+  `Task_fulltext_idx`). Der Ausdruck darin muss Zeichen für Zeichen dem in der Abfrage
+  entsprechen, sonst greift er nicht und Postgres rechnet `to_tsvector` je Zeile neu.
 - **Archiv** ist standardmäßig ausgeblendet und per Schalter einblendbar.
 - **Leerzustände** mit direktem Einstieg statt einer leeren Fläche.
 
@@ -338,6 +343,54 @@ nirgends ankommt, wäre ein Versprechen, das die Seite nicht halten kann.
 
 Die Aufgabe kennt keinen Besitzer — die Trennung läuft über das Projekt
 (`project: { ownerId }` als einzige und erste Bedingung).
+
+---
+
+## 2c. Rückblick und Verlauf
+
+Zwei Sichten auf denselben Aktivitätsverlauf, über alle Projekte hinweg. Beide teilen
+sich Zeilendarstellung und Tagesgruppierung (`components/ActivityRow`) — zwei Kopien
+wären beim nächsten Feinschliff auseinandergelaufen.
+
+Der Verlauf kennt keinen Besitzer; die Trennung läuft über das Projekt
+(`project: { ownerId }` als erste Bedingung).
+
+### Wochenrückblick
+
+`/rueckblick` beantwortet „was ist diese Woche passiert". Oben Kennzahlen — Vorgänge,
+berührte Projekte, erledigte und neue Aufgaben —, darunter die Vorgänge nach
+Kalendertagen gebündelt, neuester Tag zuerst. Über `?woche=-n` geht es bis zu 25 Wochen
+zurück; weiter lohnt nicht, weil der Verlauf ohnehin nur 200 Einträge je Projekt hält.
+
+**Gerechnet wird auf Kalendertage in fester Zeitzone** (Europe/Berlin), nicht auf
+„sieben mal 24 Stunden": liegt eine Zeitumstellung in der Woche, hat sie 167 oder 169
+Stunden. Und im Container läuft die Anwendung nach UTC — ein Eintrag von Sonntagabend
+fiele sonst in die falsche Woche. Das Fach bestimmt der **Server**, damit Server-Render
+und Hydration nicht auseinanderlaufen.
+
+**„Aufgaben erledigt" wird am `meta`-Feld abgelesen** (`to: "DONE"`), nicht am
+Anzeigetext. Der Text ist zum Lesen da und ändert sich mit der Formulierung; eine
+Zählung daran würde beim nächsten umformulierten Einzeiler unbemerkt kippen. Einträge
+ohne `meta` zählen nicht mit — lieber untertreiben als raten.
+
+### Globale Zeitleiste
+
+`/verlauf` zeigt denselben Verlauf **fortlaufend**: ohne Wochengrenze, ohne Fazit, mit
+„Ältere laden". Die erste Seite kommt serverseitig mit, alles Weitere über
+`/api/activity`.
+
+**Geblättert wird per Cursor** über `(createdAt, id)`, nicht per `skip`. Der Verlauf
+schreibt mehrere Einträge im selben Augenblick — beim Übernehmen von Issues entstehen
+zehn Zeilen mit identischem Zeitstempel. Ein Offset über eine solche Grenze hinweg
+überspringt Zeilen oder zeigt sie zweimal, und zwar lautlos. Der zweite Zweig der
+Bedingung (gleicher Zeitpunkt, kleinere ID) fängt genau das ab.
+
+Nachgerechnet gegen 144 Einträge mit absichtlichen Blöcken gleicher Zeitstempel: 15
+Seiten, 144 Zeilen, keine Dublette, streng absteigend.
+
+Beide Seiten sind über die Schnellsuche erreichbar, der Rückblick zusätzlich über einen
+Verweis vom Dashboard. Bewusst **kein** weiterer Punkt in der Kopfleiste — die ist auf
+dem Telefon schon eng.
 
 ---
 

@@ -283,6 +283,23 @@ Zurückspielen:
 
 ## Updates
 
+Es sind zwei getrennte Orte, und das ist der Punkt, an dem es leicht
+durcheinandergeht:
+
+| | Was dort liegt |
+| --- | --- |
+| **Das Git-Repository** | Der Quellcode. Dorthin wird entwickelt. |
+| **Diese Instanz** | Die laufende Anwendung, die du im Browser benutzt. |
+
+Ein Commit im Git ändert am laufenden Nebula **nichts**. Der Server holt sich
+von allein nichts ab; er betreibt weiter die Fassung, die dort zuletzt gebaut
+wurde. Ein Update ist der Schritt dazwischen: holen, bauen, umschalten.
+
+**Woran du siehst, was gerade läuft:** die Versionsnummer unten in der
+Fußzeile. Ein Klick darauf öffnet den Änderungsverlauf. Steht dort eine
+ältere Nummer als im Git, fehlen dir die neueren Funktionen — sie sind
+geschrieben, aber noch nicht auf diesem Server.
+
 Dafür gibt es `scripts/update.sh`. Es macht alles in der richtigen
 Reihenfolge und bricht ab, sobald ein Schritt scheitert:
 
@@ -308,7 +325,7 @@ nennt den Weg zurück.
 
 ```bash
 ./scripts/update.sh --yes            # ohne Rückfrage, für Cron
-./scripts/update.sh --ref v1.4.0     # auf eine bestimmte Fassung
+./scripts/update.sh --ref v1.9.0     # auf eine bestimmte Fassung
 ./scripts/update.sh --no-pull        # nur neu bauen, ohne git pull
 ```
 
@@ -354,6 +371,23 @@ docker system df
 docker image prune -f          # alte Abbilder nach mehreren Updates
 ```
 
+### Webhooks
+
+Der Abgleich holt den Stand in seinem Takt. Wer ihn **sofort** haben will —
+ein Push ist durch, ein Issue wurde geschlossen —, trägt im Git-System einen
+Webhook ein. Nebula erzeugt URL und Geheimnis am Repository (Funksymbol im
+Git-Bereich der Projektseite), eingetragen wird der Haken von Hand.
+
+Voraussetzung ist, dass **dein Git-System diese Instanz erreicht**. Hinter
+dem Reverse Proxy ist das gegeben; in einem abgeschotteten Netz nicht. Der
+Endpunkt liegt unter `/api/webhooks/<repositoryId>` und ist der einzige ohne
+Anmeldung — ausgewiesen wird sich über eine Signatur, die gegen das
+hinterlegte Geheimnis geprüft wird.
+
+**Ohne Webhook geht nichts verloren.** Der Abgleich prüft den Zustand
+verknüpfter Issues ohnehin mit und hakt erledigte Aufgaben nach. Der Webhook
+macht es nur sofort statt beim nächsten Durchlauf.
+
 ### Automatischer Abgleich
 
 Standardmäßig **aus**. Einzuschalten unter *Admin-Einstellungen →
@@ -383,6 +417,13 @@ Damit du weißt, worum du dich **nicht** kümmern musst:
   Zugriffe; Kontosperre nach acht Fehlversuchen.
 - **Git-Tokens** liegen AES-256-GCM-verschlüsselt in der Datenbank und
   verlassen den Server nie — auch nicht im Export.
+- **Sitzungen** laufen nach 8 Stunden ohne Nutzung ab und spätestens nach
+  30 Tagen (`SESSION_IDLE_HOURS`, `SESSION_TTL_DAYS`). In der Datenbank liegt
+  nur der Hash des Tokens; das Cookie ist `HttpOnly`, `SameSite=Strict` und
+  bei HTTPS zusätzlich mit dem Präfix `__Host-`.
+- **Passwörter** werden mit scrypt nach der Empfehlung des OWASP Password
+  Storage Cheat Sheet gehasht (N = 2^17). Rechnet mit rund einer halben
+  Sekunde je Anmeldung — das ist gewollt.
 - Der **Bildoptimierer** von Next ist abgeschaltet: Nebula benutzt ihn nicht,
   und `/_next/image` wäre sonst eine Angriffsfläche ohne Gegenwert.
 
