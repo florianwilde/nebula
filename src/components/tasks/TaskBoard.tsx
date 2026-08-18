@@ -18,11 +18,11 @@ import {
 import { restrictToWindowEdges } from "@dnd-kit/modifiers";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { CheckSquare, Loader2, Plus } from "lucide-react";
+import { CheckSquare, ChevronDown, ChevronUp, Loader2, Plus } from "lucide-react";
 import type { Task, TaskStatus } from "@prisma/client";
 import { TaskCard } from "@/components/tasks/TaskCard";
 import { TaskDialog } from "@/components/tasks/TaskDialog";
-import { TASK_STATUS_META, TASK_STATUS_ORDER } from "@/lib/tasks";
+import { TASK_STATUS_META, TASK_STATUS_ORDER, spaltenAnzeige } from "@/lib/tasks";
 import { cn } from "@/lib/utils";
 
 type Columns = Record<TaskStatus, Task[]>;
@@ -48,10 +48,13 @@ export function TaskBoard({
   projectId,
   tasks,
   progressFromTasks,
+  columnLimit = 0,
 }: {
   projectId: string;
   tasks: Task[];
   progressFromTasks: boolean;
+  /** Karten je Spalte; 0 = ohne Begrenzung. Kommt aus den Admin-Einstellungen. */
+  columnLimit?: number;
 }) {
   const router = useRouter();
   const [columns, setColumns] = useState<Columns>(() => group(tasks));
@@ -224,6 +227,7 @@ export function TaskBoard({
               key={status}
               status={status}
               tasks={columns[status]}
+              limit={columnLimit}
               onAdd={() => setCreatingIn(status)}
               onEdit={setEditing}
             />
@@ -252,16 +256,24 @@ export function TaskBoard({
 function TaskColumn({
   status,
   tasks,
+  limit,
   onAdd,
   onEdit,
 }: {
   status: TaskStatus;
   tasks: Task[];
+  limit: number;
   onAdd: () => void;
   onEdit: (task: Task) => void;
 }) {
   const meta = TASK_STATUS_META[status];
   const { setNodeRef, isOver } = useDroppable({ id: status });
+  const [entfaltet, setEntfaltet] = useState(false);
+
+  // Nur die Anzeige wird gekuerzt – `tasks` bleibt oben vollstaendig, sonst
+  // wuerde das Umsortieren die verborgenen Aufgaben aus dem Brett loeschen.
+  const { sichtbar, verborgen } = spaltenAnzeige(tasks.length, limit, entfaltet);
+  const gezeigt = tasks.slice(0, sichtbar);
 
   return (
     <div
@@ -284,12 +296,14 @@ function TaskColumn({
         <span className="ml-auto text-[10px] tabular-nums text-slate-600">{tasks.length}</span>
       </div>
 
+      {/* Nur die gezeigten Karten stehen im SortableContext – was nicht im
+          DOM ist, kann dnd-kit ohnehin nicht treffen. */}
       <SortableContext
-        items={tasks.map((task) => task.id)}
+        items={gezeigt.map((task) => task.id)}
         strategy={verticalListSortingStrategy}
       >
         <div className="flex flex-1 flex-col gap-1.5">
-          {tasks.map((task) => (
+          {gezeigt.map((task) => (
             <SortableTask key={task.id} task={task} onEdit={onEdit} />
           ))}
           {tasks.length === 0 ? (
@@ -299,6 +313,27 @@ function TaskColumn({
           ) : null}
         </div>
       </SortableContext>
+
+      {verborgen > 0 || entfaltet ? (
+        <button
+          type="button"
+          onClick={() => setEntfaltet((vorher) => !vorher)}
+          aria-expanded={entfaltet}
+          className="mt-1.5 flex items-center justify-center gap-1 rounded-lg border border-dashed border-white/10 px-2 py-1.5 text-[11px] text-slate-500 transition-colors hover:border-white/20 hover:text-slate-300"
+        >
+          {entfaltet ? (
+            <>
+              <ChevronUp className="h-3 w-3" />
+              weniger anzeigen
+            </>
+          ) : (
+            <>
+              <ChevronDown className="h-3 w-3" />
+              {verborgen} weitere anzeigen
+            </>
+          )}
+        </button>
+      ) : null}
 
       <button
         type="button"

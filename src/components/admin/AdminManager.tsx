@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   Ban,
   CheckCircle2,
+  Columns3,
   Database,
   Download,
   Fingerprint,
@@ -73,6 +74,12 @@ export interface AdminData {
     lastCheckAt: string | Date | null;
     /** Wie viele Konten ueberhaupt auf Stillstand hoeren. */
     listeners: number;
+  };
+  tasks: {
+    /** Karten je Spalte im Aufgabenbrett; 0 = ohne Begrenzung. */
+    columnLimit: number;
+    /** Laengste Spalte ueber alle Projekte – ohne die ist die Zahl blind. */
+    laengsteSpalte: number;
   };
 }
 
@@ -195,6 +202,7 @@ export function AdminManager({ data }: { data: AdminData }) {
 
       <AutoSyncSection data={data.autoSync} />
       <StaleSection data={data.stale} />
+      <TaskLimitSection data={data.tasks} />
 
       {/* ── Instanz ─────────────────────────────────────── */}
       <section className="glass p-5">
@@ -1097,5 +1105,130 @@ function UserDialog({
         </div>
       </form>
     </Modal>
+  );
+}
+
+const SPALTEN_OPTIONEN = [0, 5, 10, 15, 20, 30, 50];
+
+/**
+ * Wie viele Karten eine Spalte des Aufgabenbretts hoechstens zeigt.
+ *
+ * Begrenzt wird nur die Anzeige: der Rest steht hinter einem Knopf, und die
+ * Reihenfolge wird weiterhin ueber die vollstaendige Spalte gespeichert.
+ * Eine Aufgabe verschwindet hier also nirgends – sie ist nur einen Klick
+ * weiter weg.
+ */
+function TaskLimitSection({ data }: { data: AdminData["tasks"] }) {
+  const router = useRouter();
+  const [limit, setLimit] = useState(data.columnLimit);
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<Notice>(null);
+
+  async function save(value: number) {
+    setBusy(true);
+    setNotice(null);
+    try {
+      const response = await fetch("/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ taskColumnLimit: value }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error ?? "Speichern fehlgeschlagen.");
+      setNotice({ ok: true, text: "Gespeichert." });
+      router.refresh();
+    } catch (caught) {
+      setLimit(data.columnLimit);
+      setNotice({ ok: false, text: caught instanceof Error ? caught.message : String(caught) });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const greift = limit > 0 && data.laengsteSpalte > limit;
+
+  return (
+    <section className="glass p-5">
+      <div className="mb-4 flex items-start gap-3">
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-violet-500/12 text-violet-300">
+          <Columns3 className="h-4 w-4" />
+        </span>
+        <div>
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-200">
+            Aufgabenbrett
+          </h2>
+          <p className="mt-1 max-w-xl text-sm text-slate-400">
+            Wie viele Karten eine Spalte hoechstens zeigt. Was darueber hinausgeht, kommt
+            hinter einen Knopf – verborgen wird nichts, und die Reihenfolge bleibt
+            vollstaendig gespeichert. Gilt fuer alle Projekte.
+          </p>
+        </div>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <label className="field-label" htmlFor="task-column-limit">
+            Karten je Spalte
+          </label>
+          <select
+            id="task-column-limit"
+            className="field"
+            value={limit}
+            disabled={busy}
+            onChange={(event) => {
+              const value = Number(event.target.value);
+              setLimit(value);
+              void save(value);
+            }}
+          >
+            {SPALTEN_OPTIONEN.map((value) => (
+              <option key={value} value={value}>
+                {value === 0 ? "ohne Begrenzung" : `hoechstens ${value}`}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <dl className="grid grid-cols-2 gap-3">
+          <div className="glass-soft px-3 py-2.5">
+            <dt className="text-[11px] uppercase tracking-wider text-slate-500">
+              Laengste Spalte
+            </dt>
+            <dd className="mt-1 text-sm tabular-nums text-slate-200">
+              {data.laengsteSpalte}
+            </dd>
+          </div>
+          <div className="glass-soft px-3 py-2.5">
+            <dt className="text-[11px] uppercase tracking-wider text-slate-500">
+              Wirkung
+            </dt>
+            <dd className="mt-1 text-sm text-slate-200">
+              {limit === 0 ? "aus" : greift ? "greift" : "noch nicht"}
+            </dd>
+          </div>
+        </dl>
+      </div>
+
+      <p className="mt-3 text-[11px] text-slate-600">
+        {limit === 0
+          ? "Jede Spalte zeigt alles. Bei langen Listen wird das Brett unuebersichtlich."
+          : greift
+            ? "Mindestens eine Spalte ist laenger als die Grenze – dort erscheint der Knopf."
+            : "Derzeit reicht keine Spalte an die Grenze heran; sichtbar wird die Einstellung erst danach."}
+      </p>
+
+      {notice ? (
+        <p
+          className={cn(
+            "mt-3 rounded-lg border px-3 py-2 text-sm",
+            notice.ok
+              ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-200"
+              : "border-rose-500/30 bg-rose-500/10 text-rose-200",
+          )}
+        >
+          {notice.text}
+        </p>
+      ) : null}
+    </section>
   );
 }

@@ -266,6 +266,11 @@ model AppSettings {
   /// Kurzbericht des letzten Durchlaufs: { synced, failed, skipped, ms }
   lastAutoSyncReport Json?
 
+  // ── Aufgabenbrett ──────────────────────────────────────────
+  /// Hoechstzahl Karten je Spalte. Was darueber hinausgeht, kommt hinter
+  /// einen Knopf – verborgen wird nichts. 0 schaltet die Begrenzung ab.
+  taskColumnLimit Int @default(15)
+
   // ── Stillstand ─────────────────────────────────────────────
   /// Ab wie vielen Tagen ohne Commit ein Projekt als stillstehend gilt.
   staleAfterDays   Int       @default(60)

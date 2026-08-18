@@ -264,6 +264,8 @@ export const adminSettingsSchema = z.object({
   autoSyncIntervalMinutes: z.coerce.number().int().min(5).max(10080).optional(),
   autoSyncActiveOnly: z.boolean().optional(),
   autoSyncBatchSize: z.coerce.number().int().min(1).max(200).optional(),
+  /** Karten je Spalte im Aufgabenbrett; 0 schaltet die Begrenzung ab. */
+  taskColumnLimit: z.coerce.number().int().min(0).max(500).optional(),
 });
 
 export const adminUserCreateSchema = z.object({

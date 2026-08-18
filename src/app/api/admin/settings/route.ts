@@ -38,6 +38,7 @@ export async function PATCH(request: Request) {
     autoSyncActiveOnly,
     autoSyncBatchSize,
     staleAfterDays,
+    taskColumnLimit,
   } = parsed.data;
 
   // Der Wechsel in den Einzelbetrieb wuerde weitere Konten aussperren –
@@ -63,6 +64,7 @@ export async function PATCH(request: Request) {
     ...(staleAfterDays !== undefined
       ? { staleAfterDays, lastStaleCheckAt: null }
       : {}),
+    ...(taskColumnLimit !== undefined ? { taskColumnLimit } : {}),
   };
 
   const settings = await prisma.appSettings.upsert({

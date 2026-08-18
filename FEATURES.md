@@ -259,6 +259,19 @@ Blockiert · Erledigt**.
   vor Beschreibung, Wiederholung, Frist und Labels, damit sich eine Spalte danach
   überfliegen lässt. Bewusst kein Link: der Weg zum Issue führt über den Dialog (4.6),
   weil ein `<a>` innerhalb der anklickbaren Karte ungültiges Markup wäre.
+
+#### Wie viele Karten eine Spalte zeigt
+
+Eine Spalte zeigt höchstens so viele Karten, wie unter *Admin-Einstellungen →
+Aufgabenbrett* eingestellt ist (Voreinstellung 15, `0` schaltet die Begrenzung ab). Was
+darüber hinausgeht, steht hinter einem Knopf „*n* weitere anzeigen"; entfaltet wird je
+Spalte einzeln. Die Zahl neben der Spaltenüberschrift nennt weiterhin den **vollen**
+Bestand — sonst wäre nicht zu erkennen, dass etwas fehlt.
+
+**Begrenzt wird nur die Anzeige.** Das Umsortieren schickt je Spalte die vollständige
+Liste an den Server; würde hier schon gekürzt, fielen die verborgenen Aufgaben beim
+nächsten Ziehen aus dem Brett. Die Einstellung ist deshalb bewusst eine Sache der
+Darstellung und keine der Abfrage — geladen wird ohnehin das ganze Projekt.
 - Erledigtes wird durchgestrichen; der Zeitpunkt wird festgehalten und beim Zurückziehen
   wieder gelöscht.
 

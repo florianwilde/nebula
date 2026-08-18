@@ -19,7 +19,7 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function AdminPage() {
   const admin = await requireAdminPage();
 
-  const [settings, users, eligible, staleListeners] = await Promise.all([
+  const [settings, users, eligible, staleListeners, laengsteSpalte] = await Promise.all([
     getAppSettings(),
     prisma.user.findMany({
       select: userSafeSelect,
@@ -40,6 +40,18 @@ export default async function AdminPage() {
     }),
     prisma.notificationTarget.count({
       where: { isActive: true, events: { has: "PROJECT_STALE" } },
+    }),
+    // Laengste Spalte ueber alle Projekte. Ohne diese Zahl steht die
+    // Einstellung im Leeren: eine Grenze von 15 sagt nichts, wenn die
+    // groesste Spalte im Bestand aus drei Karten besteht.
+    //
+    // Wie beim Abgleich bewusst ueber alle Konten – gezaehlt wird nur, es
+    // wird nichts gelesen und nichts zugeordnet.
+    prisma.task.groupBy({
+      by: ["projectId", "status"],
+      _count: { _all: true },
+      orderBy: { _count: { projectId: "desc" } },
+      take: 1,
     }),
   ]);
 
@@ -63,6 +75,10 @@ export default async function AdminPage() {
       afterDays: settings.staleAfterDays,
       lastCheckAt: settings.lastStaleCheckAt,
       listeners: staleListeners,
+    },
+    tasks: {
+      columnLimit: settings.taskColumnLimit,
+      laengsteSpalte: laengsteSpalte[0]?._count._all ?? 0,
     },
   };
 
