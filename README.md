@@ -1,10 +1,10 @@
+![Nebula — Projekt-Kontrollzentrum, self-hosted. Alle deine halbfertigen Projekte, ein Kontrollzentrum: Ideen, Status, Notizen und Live-Daten aus deinen Git-Repos, gebündelt an einem Ort auf deinem eigenen Server. Drei Git-Provider (GitHub, GitLab, Gitea), Aufgaben und Issues in beide Richtungen, Passkeys und Zwei-Faktor, Daten in deiner eigenen PostgreSQL.](docs/banner.png)
+
 <div align="center">
 
 # ✦ Nebula
 
 **Das Kontrollzentrum für deine Vibe-Coding Projekte.**
-
-Ideen festhalten · Status pflegen · Notizen sammeln · Git-Repos live im Blick
 
 <sub>Next.js 15 · TypeScript · Tailwind CSS 4 · Prisma · PostgreSQL · Docker</sub>
 
@@ -390,6 +390,7 @@ Container aus — auf dem Rechner selbst muss nichts installiert sein.
 
 ```
 nebula/
+├── docs/banner.png             Titelbild dieser Datei
 ├── docker/entrypoint.sh        Migrationen + Serverstart im Container
 ├── docker-compose.yml          db (immer) · app (--profile full) · adminer (--profile tools)
 ├── Dockerfile                  Multi-Stage-Build auf Basis des Next-Standalone-Outputs
