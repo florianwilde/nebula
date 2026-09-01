@@ -12,6 +12,15 @@ export interface SyncResult {
   ok: boolean;
   message: string;
   fetchedAt?: string;
+  /**
+   * Der Abgleich lief durch, aber einzelne Listen kamen nicht an.
+   *
+   * Getrennt von `ok`, weil beides verschiedene Folgen hat: `ok: false`
+   * setzt syncError, zaehlt Fehlversuche und haelt das Repository beim
+   * naechsten Durchlauf zurueck. Ein unvollstaendiger Abgleich soll nichts
+   * davon ausloesen – der Rest ist ja frisch – aber sichtbar sein.
+   */
+  unvollstaendig?: boolean;
 }
 
 /**
@@ -19,7 +28,9 @@ export interface SyncResult {
  * in die Datenbank. Fehler werden am Repository vermerkt statt geworfen,
  * damit ein kaputtes Repo nicht das ganze Dashboard blockiert.
  */
-export async function syncRepository(repositoryId: string): Promise<SyncResult> {
+export async function syncRepository(
+  repositoryId: string,
+): Promise<SyncResult> {
   const repository = await prisma.repository.findUnique({
     where: { id: repositoryId },
     include: { connection: true },
@@ -33,7 +44,8 @@ export async function syncRepository(repositoryId: string): Promise<SyncResult> 
   if (!ref) {
     return {
       ok: false,
-      message: "Kein Repository hinterlegt – bitte Repo-URL oder Owner/Name setzen.",
+      message:
+        "Kein Repository hinterlegt – bitte Repo-URL oder Owner/Name setzen.",
     };
   }
 
@@ -46,7 +58,8 @@ export async function syncRepository(repositoryId: string): Promise<SyncResult> 
     if (!parsed) {
       return {
         ok: false,
-        message: "Keine Git-Verbindung ausgewaehlt und die Repo-URL ist nicht auswertbar.",
+        message:
+          "Keine Git-Verbindung ausgewaehlt und die Repo-URL ist nicht auswertbar.",
       };
     }
     client = createClient({
@@ -81,10 +94,28 @@ export async function syncRepository(repositoryId: string): Promise<SyncResult> 
 
     // Nach dem Speichern, damit die Meldung den neuen Stand sieht.
     await notifyAfterSync(repository.id);
+
+    /**
+     * Fehlgeschlagene Teile gehoeren in die Meldung.
+     *
+     * Vorher stand hier "Snapshot aktualisiert: 0 Branches, 0 Tags" – und das
+     * war die einzige Spur, wenn saemtliche Listen unterwegs verloren gingen.
+     * Wer das liest, denkt an ein leeres Repository, nicht an einen Fehler.
+     */
+    // Sortiert, damit die Meldung bei jedem Durchlauf gleich aussieht –
+    // die Reihenfolge im Objekt haengt sonst daran, welcher Aufruf zuerst
+    // gescheitert ist.
+    const fehlend = Object.keys(data.missing).sort();
+    const zahlen = fehlend.length
+      ? `Teilweise aktualisiert – nicht geholt: ${fehlend.join(", ")}. ` +
+        `Der vorherige Stand bleibt dafuer stehen.`
+      : `Snapshot aktualisiert: ${data.branches.length} Branches, ${data.tags.length} Tags.`;
+
     return {
       ok: true,
+      unvollstaendig: fehlend.length > 0,
       message:
-        `Snapshot aktualisiert: ${data.branches.length} Branches, ${data.tags.length} Tags.` +
+        zahlen +
         (abgehakt > 0
           ? ` ${abgehakt} Aufgabe(n) abgehakt, weil das Issue geschlossen wurde.`
           : ""),
@@ -127,7 +158,9 @@ export interface ProjectSyncResult extends SyncResult {
  * beim selben Anbieter, und ein Schwung gleichzeitiger Anfragen ist genau
  * das, worauf Rate-Limits reagieren.
  */
-export async function syncProject(projectId: string): Promise<ProjectSyncResult> {
+export async function syncProject(
+  projectId: string,
+): Promise<ProjectSyncResult> {
   const repositories = await prisma.repository.findMany({
     where: { projectId },
     orderBy: [{ position: "asc" }, { createdAt: "asc" }],
@@ -214,7 +247,10 @@ async function maybeRefreshCalendar(
     // Rate-Limit, Zeitueberschreitung, Ausfall: der Kalender ist Beiwerk und
     // soll den Abgleich nicht scheitern lassen. Ohne Zeitstempel versucht es
     // der naechste Durchgang von selbst wieder.
-    console.error("[nebula] Commit-Kalender konnte nicht geholt werden:", error);
+    console.error(
+      "[nebula] Commit-Kalender konnte nicht geholt werden:",
+      error,
+    );
   }
 }
 
@@ -294,7 +330,9 @@ async function noteNewCommits(
   // Zahl als mit einer falschen.
   const index = data.commits.findIndex((commit) => commit.sha === vorher);
   const anzahl = index > 0 ? index : null;
-  const wo = data.defaultBranch ? `${repoTitle(repository)} · ${data.defaultBranch}` : repoTitle(repository);
+  const wo = data.defaultBranch
+    ? `${repoTitle(repository)} · ${data.defaultBranch}`
+    : repoTitle(repository);
   const betreff = shorten(data.commits[0]?.message ?? "", 60);
 
   await recordActivity({
@@ -304,15 +342,37 @@ async function noteNewCommits(
       anzahl === null
         ? `Neue Commits in ${wo}: ${betreff}`
         : `${anzahl} neue${anzahl === 1 ? "r" : ""} Commit${anzahl === 1 ? "" : "s"} in ${wo}: ${betreff}`,
-    meta: { repositoryId: repository.id, from: vorher, to: neuester, count: anzahl },
+    meta: {
+      repositoryId: repository.id,
+      from: vorher,
+      to: neuester,
+      count: anzahl,
+    },
   });
 }
 
 async function persistSnapshot(repository: Repository, data: RepoSnapshotData) {
   const latestCommit = data.commits[0] ?? null;
   const latestRelease =
-    data.releases.find((release) => !release.draft && !release.prerelease) ?? data.releases[0] ?? null;
+    data.releases.find((release) => !release.draft && !release.prerelease) ??
+    data.releases[0] ??
+    null;
   const latestTag = data.tags[0]?.name ?? latestRelease?.tag ?? null;
+
+  /**
+   * Ein Teil, der nicht geholt werden konnte, bleibt so, wie er war.
+   *
+   * Vorher wurde bedingungslos ueberschrieben. Kam eine Liste leer zurueck,
+   * weil der Abruf gescheitert war, ersetzte sie den letzten guten Stand –
+   * ein Klick auf "Jetzt synchronisieren" genuegte, und die Commits eines
+   * Repositories waren weg. Der Snapshot ist ein Zwischenspeicher: ein
+   * alter Stand ist immer brauchbarer als eine leere Liste, die aussieht
+   * wie eine Aussage.
+   */
+  const geholt = <T>(feld: string, wert: T): T | undefined =>
+    feld in data.missing ? undefined : wert;
+
+  const vollstaendig = Object.keys(data.missing).length === 0;
 
   const payload = {
     fullName: data.fullName,
@@ -325,30 +385,55 @@ async function persistSnapshot(repository: Repository, data: RepoSnapshotData) {
     openIssues: data.openIssues,
     openPullRequests: data.openPullRequests,
     sizeKb: data.sizeKb,
-    lastCommitSha: latestCommit?.sha ?? null,
-    lastCommitMessage: latestCommit?.message ?? null,
-    lastCommitAuthor: latestCommit?.author ?? null,
-    lastCommitAt: latestCommit?.date ? new Date(latestCommit.date) : null,
-    latestTag,
-    latestRelease: latestRelease?.name ?? null,
-    latestReleaseAt: latestRelease?.publishedAt ? new Date(latestRelease.publishedAt) : null,
-    branchCount: data.branches.length,
-    tagCount: data.tags.length,
-    branches: data.branches as unknown as object,
-    tags: data.tags as unknown as object,
-    commits: data.commits as unknown as object,
-    releases: data.releases as unknown as object,
-    languages: data.languages as unknown as object,
-    pullRequests: data.pullRequests as unknown as object,
-    issues: data.issues as unknown as object,
-    commitActivity: data.commitActivity as unknown as object,
-    ciState: data.ci?.state ?? null,
-    ciName: data.ci?.name ?? null,
-    ciBranch: data.ci?.branch ?? null,
-    ciUrl: data.ci?.url ?? null,
-    ciFinishedAt: data.ci?.finishedAt ? new Date(data.ci.finishedAt) : null,
+    // Die Commit-Felder haengen alle an derselben Liste – entweder alle
+    // neu oder alle unveraendert. Halb aktualisiert waeren sie in sich
+    // widerspruechlich.
+    lastCommitSha: geholt("commits", latestCommit?.sha ?? null),
+    lastCommitMessage: geholt("commits", latestCommit?.message ?? null),
+    lastCommitAuthor: geholt("commits", latestCommit?.author ?? null),
+    lastCommitAt: geholt(
+      "commits",
+      latestCommit?.date ? new Date(latestCommit.date) : null,
+    ),
+    // latestTag faellt auf den Release-Tag zurueck; steht einer der beiden
+    // Abrufe aus, ist die Ableitung nicht mehr belastbar.
+    latestTag:
+      "tags" in data.missing || "releases" in data.missing
+        ? undefined
+        : latestTag,
+    latestRelease: geholt("releases", latestRelease?.name ?? null),
+    latestReleaseAt: geholt(
+      "releases",
+      latestRelease?.publishedAt ? new Date(latestRelease.publishedAt) : null,
+    ),
+    branchCount: geholt("branches", data.branches.length),
+    tagCount: geholt("tags", data.tags.length),
+    branches: geholt("branches", data.branches as unknown as object),
+    tags: geholt("tags", data.tags as unknown as object),
+    commits: geholt("commits", data.commits as unknown as object),
+    releases: geholt("releases", data.releases as unknown as object),
+    languages: geholt("languages", data.languages as unknown as object),
+    pullRequests: geholt(
+      "pullRequests",
+      data.pullRequests as unknown as object,
+    ),
+    issues: geholt("issues", data.issues as unknown as object),
+    // Die Kurve wird aus den Commits gerechnet – ohne sie waere sie leer.
+    commitActivity: geholt("commits", data.commitActivity as unknown as object),
+    ciState: geholt("ci", data.ci?.state ?? null),
+    ciName: geholt("ci", data.ci?.name ?? null),
+    ciBranch: geholt("ci", data.ci?.branch ?? null),
+    ciUrl: geholt("ci", data.ci?.url ?? null),
+    ciFinishedAt: geholt(
+      "ci",
+      data.ci?.finishedAt ? new Date(data.ci.finishedAt) : null,
+    ),
     pushedAt: data.pushedAt ? new Date(data.pushedAt) : null,
+    missing: data.missing as unknown as object,
     fetchedAt: new Date(),
+    // Nur setzen, wenn wirklich alles ankam. Sonst bleibt der Zeitpunkt
+    // stehen, an dem der Stand zuletzt vollstaendig war.
+    ...(vollstaendig ? { completeAt: new Date() } : {}),
   };
 
   // Vor dem Ueberschreiben lesen – danach ist der alte Stand weg.

@@ -131,7 +131,7 @@ Alle Variablen sind in [`.env.example`](.env.example) dokumentiert.
 | `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | Zugangsdaten des DB-Containers | `nebula` |
 | `POSTGRES_PORT` | Host-Port der Datenbank — wirkt nur mit `docker-compose.dev.yml`, sonst hat die DB keinen | `127.0.0.1:5432` |
 | `ADMINER_PORT` | Host-Port von Adminer (`--profile tools`) | `127.0.0.1:8080` |
-| `GIT_API_TIMEOUT_MS` | Timeout für Git-API-Aufrufe | `15000` |
+| `GIT_API_TIMEOUT_MS` | Timeout für Git-API-Aufrufe, in Millisekunden. Alles unter 1000 oder Unlesbares wird verworfen (mit Warnung im Log) — sonst bräche jeder Aufruf sofort ab | `15000` |
 | `GIT_ALLOW_LOOPBACK` | Git-Instanz auf demselben Rechner erlauben | `false` |
 | `GIT_BLOCK_PRIVATE` | Zugriff ins private LAN sperren | `false` |
 | `GIT_ALLOWED_HOSTS` | Strengster Modus: nur diese Hosts erlauben | leer |

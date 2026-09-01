@@ -1,4 +1,12 @@
-import { getJson, getJsonSafe, normalizeBaseUrl, sendJson, shortSha, toIso } from "./http";
+import {
+  Teilabrufe,
+  getJson,
+  getJsonSafe,
+  normalizeBaseUrl,
+  sendJson,
+  shortSha,
+  toIso,
+} from "./http";
 import {
   CALENDAR_PAGE_SIZE,
   calendarByPaging,
@@ -61,7 +69,11 @@ export class GitLabClient implements GitClient {
     return { number: angelegt.iid, url: angelegt.web_url ?? null };
   }
 
-  async setIssueState(ref: RepoRef, number: number, open: boolean): Promise<void> {
+  async setIssueState(
+    ref: RepoRef,
+    number: number,
+    open: boolean,
+  ): Promise<void> {
     await sendJson(
       `${this.apiBase}/projects/${this.projectPath(ref)}/issues/${number}`,
       "PUT",
@@ -70,7 +82,10 @@ export class GitLabClient implements GitClient {
     );
   }
 
-  async getIssueState(ref: RepoRef, number: number): Promise<"open" | "closed" | null> {
+  async getIssueState(
+    ref: RepoRef,
+    number: number,
+  ): Promise<"open" | "closed" | null> {
     const issue = await getJson<{ state?: string } | null>(
       `${this.apiBase}/projects/${this.projectPath(ref)}/issues/${number}`,
       { headers: this.headers(), allow404: true },
@@ -83,15 +98,31 @@ export class GitLabClient implements GitClient {
   async check(): Promise<ConnectionCheck> {
     try {
       if (!this.token) {
-        await getJson(`${this.apiBase}/projects?per_page=1`, { headers: this.headers() });
-        return { ok: true, message: "Erreichbar (ohne Token – nur oeffentliche Projekte).", user: null };
+        await getJson(`${this.apiBase}/projects?per_page=1`, {
+          headers: this.headers(),
+        });
+        return {
+          ok: true,
+          message: "Erreichbar (ohne Token – nur oeffentliche Projekte).",
+          user: null,
+        };
       }
-      const user = await getJson<{ username: string; name?: string }>(`${this.apiBase}/user`, {
-        headers: this.headers(),
-      });
-      return { ok: true, message: `Verbunden als ${user.username}`, user: user.username };
+      const user = await getJson<{ username: string; name?: string }>(
+        `${this.apiBase}/user`,
+        {
+          headers: this.headers(),
+        },
+      );
+      return {
+        ok: true,
+        message: `Verbunden als ${user.username}`,
+        user: user.username,
+      };
     } catch (error) {
-      return { ok: false, message: error instanceof Error ? error.message : String(error) };
+      return {
+        ok: false,
+        message: error instanceof Error ? error.message : String(error),
+      };
     }
   }
 
@@ -101,7 +132,9 @@ export class GitLabClient implements GitClient {
       ? `${this.apiBase}/projects?membership=true&per_page=100&order_by=last_activity_at${search}`
       : `${this.apiBase}/projects?per_page=50&order_by=last_activity_at${search}`;
 
-    const projects = await getJson<GitLabProject[]>(url, { headers: this.headers() });
+    const projects = await getJson<GitLabProject[]>(url, {
+      headers: this.headers(),
+    });
     return (projects ?? []).map((project) => {
       const path = project.path_with_namespace;
       const segments = path.split("/");
@@ -127,35 +160,83 @@ export class GitLabClient implements GitClient {
     const base = `${this.apiBase}/projects/${this.projectPath(ref)}`;
     const headers = this.headers();
 
-    const project = await getJson<GitLabProject>(`${base}?statistics=true`, { headers });
+    const project = await getJson<GitLabProject>(`${base}?statistics=true`, {
+      headers,
+    });
 
     const defaultBranch = project.default_branch ?? "";
 
-    const [branches, tags, commits, releases, languages, mergeRequests, issues, pipelines] =
-      await Promise.all([
-        getJsonSafe<GitLabBranch[]>(`${base}/repository/branches?per_page=50`, [], { headers }),
-        getJsonSafe<GitLabTag[]>(`${base}/repository/tags?per_page=25`, [], { headers }),
-        // 100 statt 15: die aelteren brauchen wir fuer die Aktivitaetskurve.
-        getJsonSafe<GitLabCommit[]>(`${base}/repository/commits?per_page=100`, [], { headers }),
-        getJsonSafe<GitLabRelease[]>(`${base}/releases?per_page=10`, [], { headers }),
-        getJsonSafe<Record<string, number>>(`${base}/languages`, {}, { headers }),
-        getJsonSafe<GitLabMergeRequest[]>(`${base}/merge_requests?state=opened&per_page=50`, [], {
+    // Sammelt, welche Liste nicht geholt werden konnte und warum.
+    const teil = new Teilabrufe();
+
+    const [
+      branches,
+      tags,
+      commits,
+      releases,
+      languages,
+      mergeRequests,
+      issues,
+      pipelines,
+    ] = await Promise.all([
+      teil.hol<GitLabBranch[]>(
+        "branches",
+        `${base}/repository/branches?per_page=50`,
+        [],
+        { headers },
+      ),
+      teil.hol<GitLabTag[]>("tags", `${base}/repository/tags?per_page=25`, [], {
+        headers,
+      }),
+      // 100 statt 15: die aelteren brauchen wir fuer die Aktivitaetskurve.
+      teil.hol<GitLabCommit[]>(
+        "commits",
+        `${base}/repository/commits?per_page=100`,
+        [],
+        { headers },
+      ),
+      teil.hol<GitLabRelease[]>(
+        "releases",
+        `${base}/releases?per_page=10`,
+        [],
+        { headers },
+      ),
+      teil.hol<Record<string, number>>(
+        "languages",
+        `${base}/languages`,
+        {},
+        { headers },
+      ),
+      teil.hol<GitLabMergeRequest[]>(
+        "pullRequests",
+        `${base}/merge_requests?state=opened&per_page=50`,
+        [],
+        {
           headers,
-        }),
-        getJsonSafe<GitLabIssue[]>(`${base}/issues?state=opened&per_page=50`, [], { headers }),
-        getJsonSafe<GitLabPipeline[]>(
-          `${base}/pipelines?per_page=1${defaultBranch ? `&ref=${encodeURIComponent(defaultBranch)}` : ""}`,
-          [],
-          { headers },
-        ),
-      ]);
+        },
+      ),
+      teil.hol<GitLabIssue[]>(
+        "issues",
+        `${base}/issues?state=opened&per_page=50`,
+        [],
+        { headers },
+      ),
+      teil.hol<GitLabPipeline[]>(
+        "ci",
+        `${base}/pipelines?per_page=1${defaultBranch ? `&ref=${encodeURIComponent(defaultBranch)}` : ""}`,
+        [],
+        { headers },
+      ),
+    ]);
 
     const mappedBranches: BranchInfo[] = branches.map((branch) => ({
       name: branch.name,
       sha: branch.commit?.id ?? null,
       isDefault: Boolean(branch.default),
       protected: Boolean(branch.protected),
-      lastCommitAt: toIso(branch.commit?.committed_date ?? branch.commit?.created_at),
+      lastCommitAt: toIso(
+        branch.commit?.committed_date ?? branch.commit?.created_at,
+      ),
       lastCommitMessage: branch.commit?.title ?? null,
       lastCommitAuthor: branch.commit?.author_name ?? null,
       url: branch.web_url ?? null,
@@ -240,7 +321,10 @@ export class GitLabClient implements GitClient {
       pullRequests: mappedMergeRequests,
       issues: mappedIssues,
       ci,
-      commitActivity: bucketCommitActivity(mappedCommits.map((commit) => commit.date)),
+      commitActivity: bucketCommitActivity(
+        mappedCommits.map((commit) => commit.date),
+      ),
+      missing: teil.fehler,
     };
   }
 
@@ -260,7 +344,9 @@ export class GitLabClient implements GitClient {
           `&since=${encodeURIComponent(seit)}`,
         { headers: this.headers() },
       );
-      return commits.map((commit) => toIso(commit.committed_date ?? commit.created_at));
+      return commits.map((commit) =>
+        toIso(commit.committed_date ?? commit.created_at),
+      );
     });
   }
 
@@ -278,18 +364,27 @@ export class GitLabClient implements GitClient {
       { headers },
     );
     const name = pickReadme(
-      eintraege.filter((eintrag) => eintrag.type === "blob").map((eintrag) => eintrag.name),
+      eintraege
+        .filter((eintrag) => eintrag.type === "blob")
+        .map((eintrag) => eintrag.name),
     );
     if (!name) return null;
 
-    const datei = await getJson<{ content?: string; encoding?: string; file_path?: string }>(
-      `${base}/repository/files/${encodeURIComponent(name)}?ref=HEAD`,
-      { headers },
-    );
+    const datei = await getJson<{
+      content?: string;
+      encoding?: string;
+      file_path?: string;
+    }>(`${base}/repository/files/${encodeURIComponent(name)}?ref=HEAD`, {
+      headers,
+    });
     if (!datei?.content || datei.encoding !== "base64") return null;
 
     const { content, truncated } = capReadme(decodeBase64(datei.content));
-    const projekt = await getJsonSafe<GitLabProject>(base, {} as GitLabProject, { headers });
+    const projekt = await getJsonSafe<GitLabProject>(
+      base,
+      {} as GitLabProject,
+      { headers },
+    );
 
     return {
       content,

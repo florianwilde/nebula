@@ -1,4 +1,12 @@
-import { getJson, getJsonSafe, normalizeBaseUrl, sendJson, shortSha, toIso } from "./http";
+import {
+  Teilabrufe,
+  getJson,
+  getJsonSafe,
+  normalizeBaseUrl,
+  sendJson,
+  shortSha,
+  toIso,
+} from "./http";
 import {
   CALENDAR_PAGE_SIZE,
   calendarByPaging,
@@ -62,7 +70,11 @@ export class GiteaClient implements GitClient {
     return { number: angelegt.number, url: angelegt.html_url ?? null };
   }
 
-  async setIssueState(ref: RepoRef, number: number, open: boolean): Promise<void> {
+  async setIssueState(
+    ref: RepoRef,
+    number: number,
+    open: boolean,
+  ): Promise<void> {
     await sendJson(
       `${this.repoBase(ref)}/issues/${number}`,
       "PATCH",
@@ -71,7 +83,10 @@ export class GiteaClient implements GitClient {
     );
   }
 
-  async getIssueState(ref: RepoRef, number: number): Promise<"open" | "closed" | null> {
+  async getIssueState(
+    ref: RepoRef,
+    number: number,
+  ): Promise<"open" | "closed" | null> {
     const issue = await getJson<{ state?: string } | null>(
       `${this.repoBase(ref)}/issues/${number}`,
       { headers: this.headers(), allow404: true },
@@ -97,9 +112,12 @@ export class GiteaClient implements GitClient {
         };
       }
 
-      const user = await getJson<{ login: string; full_name?: string }>(`${this.apiBase}/user`, {
-        headers: this.headers(),
-      });
+      const user = await getJson<{ login: string; full_name?: string }>(
+        `${this.apiBase}/user`,
+        {
+          headers: this.headers(),
+        },
+      );
       return {
         ok: true,
         message: `Verbunden als ${user.login}${version.version ? ` (Gitea ${version.version})` : ""}`,
@@ -107,7 +125,10 @@ export class GiteaClient implements GitClient {
         version: version.version ?? null,
       };
     } catch (error) {
-      return { ok: false, message: error instanceof Error ? error.message : String(error) };
+      return {
+        ok: false,
+        message: error instanceof Error ? error.message : String(error),
+      };
     }
   }
 
@@ -123,7 +144,9 @@ export class GiteaClient implements GitClient {
     const needle = query?.toLowerCase().trim();
 
     return repos
-      .filter((repo) => !needle || repo.full_name.toLowerCase().includes(needle))
+      .filter(
+        (repo) => !needle || repo.full_name.toLowerCase().includes(needle),
+      )
       .map((repo) => ({
         fullPath: repo.full_name,
         owner: repo.owner?.login ?? repo.full_name.split("/")[0] ?? "",
@@ -144,31 +167,71 @@ export class GiteaClient implements GitClient {
 
     const defaultBranch = repo.default_branch ?? "";
 
-    const [branches, tags, commits, releases, languages, pulls, issues, status] =
-      await Promise.all([
-        getJsonSafe<GiteaBranch[]>(`${base}/branches?limit=50`, [], { headers }),
-        getJsonSafe<GiteaTag[]>(`${base}/tags?limit=25`, [], { headers }),
-        // 100 statt 15: die aelteren brauchen wir fuer die Aktivitaetskurve.
-        getJsonSafe<GiteaCommit[]>(`${base}/commits?limit=100&stat=false`, [], { headers }),
-        getJsonSafe<GiteaRelease[]>(`${base}/releases?limit=10`, [], { headers }),
-        getJsonSafe<Record<string, number>>(`${base}/languages`, {}, { headers }),
-        getJsonSafe<GiteaPull[]>(`${base}/pulls?state=open&limit=50`, [], { headers }),
-        // type=issues, sonst kommen bei Gitea die Pull Requests mit.
-        getJsonSafe<GiteaIssue[]>(`${base}/issues?state=open&type=issues&limit=50`, [], {
+    // Sammelt, welche Liste nicht geholt werden konnte und warum. Frueher
+    // stand hier getJsonSafe, das jeden Fehler in eine leere Liste verwandelt
+    // hat – siehe Teilabrufe.
+    const teil = new Teilabrufe();
+
+    const [
+      branches,
+      tags,
+      commits,
+      releases,
+      languages,
+      pulls,
+      issues,
+      status,
+    ] = await Promise.all([
+      teil.hol<GiteaBranch[]>("branches", `${base}/branches?limit=50`, [], {
+        headers,
+      }),
+      teil.hol<GiteaTag[]>("tags", `${base}/tags?limit=25`, [], { headers }),
+      // 100 statt 15: die aelteren brauchen wir fuer die Aktivitaetskurve.
+      teil.hol<GiteaCommit[]>(
+        "commits",
+        `${base}/commits?limit=100&stat=false`,
+        [],
+        {
           headers,
-        }),
-        // Gitea meldet CI-Ergebnisse als Commit-Status. Das deckt Gitea
-        // Actions und externe Systeme wie Woodpecker gleichermassen ab –
-        // anders als ein reiner Actions-Endpunkt, den aeltere Instanzen
-        // ohnehin nicht kennen.
-        defaultBranch
-          ? getJsonSafe<GiteaCombinedStatus>(
-              `${base}/commits/${encodeURIComponent(defaultBranch)}/status`,
-              {} as GiteaCombinedStatus,
-              { headers },
-            )
-          : Promise.resolve({} as GiteaCombinedStatus),
-      ]);
+        },
+      ),
+      teil.hol<GiteaRelease[]>("releases", `${base}/releases?limit=10`, [], {
+        headers,
+      }),
+      teil.hol<Record<string, number>>(
+        "languages",
+        `${base}/languages`,
+        {},
+        { headers },
+      ),
+      teil.hol<GiteaPull[]>(
+        "pullRequests",
+        `${base}/pulls?state=open&limit=50`,
+        [],
+        {
+          headers,
+        },
+      ),
+      // type=issues, sonst kommen bei Gitea die Pull Requests mit.
+      teil.hol<GiteaIssue[]>(
+        "issues",
+        `${base}/issues?state=open&type=issues&limit=50`,
+        [],
+        { headers },
+      ),
+      // Gitea meldet CI-Ergebnisse als Commit-Status. Das deckt Gitea
+      // Actions und externe Systeme wie Woodpecker gleichermassen ab –
+      // anders als ein reiner Actions-Endpunkt, den aeltere Instanzen
+      // ohnehin nicht kennen.
+      defaultBranch
+        ? teil.hol<GiteaCombinedStatus>(
+            "ci",
+            `${base}/commits/${encodeURIComponent(defaultBranch)}/status`,
+            {} as GiteaCombinedStatus,
+            { headers },
+          )
+        : Promise.resolve({} as GiteaCombinedStatus),
+    ]);
 
     const mappedBranches: BranchInfo[] = branches.map((branch) => ({
       name: branch.name,
@@ -186,7 +249,9 @@ export class GiteaClient implements GitClient {
       sha: tag.commit?.sha ?? tag.id ?? null,
       message: tag.message ?? null,
       date: toIso(tag.commit?.created),
-      url: tag.zipball_url ? `${repo.html_url}/releases/tag/${encodeURIComponent(tag.name)}` : null,
+      url: tag.zipball_url
+        ? `${repo.html_url}/releases/tag/${encodeURIComponent(tag.name)}`
+        : null,
     }));
 
     const mappedCommits: CommitInfo[] = commits.map((commit) => ({
@@ -259,7 +324,10 @@ export class GiteaClient implements GitClient {
       pullRequests: mappedPulls,
       issues: mappedIssues,
       ci,
-      commitActivity: bucketCommitActivity(mappedCommits.map((commit) => commit.date)),
+      commitActivity: bucketCommitActivity(
+        mappedCommits.map((commit) => commit.date),
+      ),
+      missing: teil.fehler,
     };
   }
 
@@ -298,7 +366,9 @@ export class GiteaClient implements GitClient {
       { headers },
     );
     const name = pickReadme(
-      eintraege.filter((eintrag) => eintrag.type === "file").map((eintrag) => eintrag.name),
+      eintraege
+        .filter((eintrag) => eintrag.type === "file")
+        .map((eintrag) => eintrag.name),
     );
     if (!name) return null;
 

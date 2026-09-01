@@ -85,6 +85,16 @@ SSRF-Schutz (`lib/security/ssrf.ts`).
   `100vh` beziehen sich weiter auf das volle. `components/ui/Modal.tsx` hängt
   dafür an `window.visualViewport`; wer ein eigenes Overlay baut, braucht
   dasselbe.
+- **Ein verschluckter Fehler ist schlimmer als ein lauter.** `getJsonSafe` machte aus
+  jedem Fehlschlag eine leere Liste. Damit war ein 403 nicht mehr von „das Repository
+  hat keine Branches" zu unterscheiden: Der Abgleich meldete Erfolg, überschrieb den
+  letzten guten Stand mit Nullen, und die Ursache war von außen nicht zu ermitteln —
+  die Auskunft, die sie benannt hätte, war ja gerade weggeworfen worden. Wo ein
+  Fallback nötig ist, gehört der Grund festgehalten (`Teilabrufe` in `lib/git/http.ts`).
+- **`Number()` auf einer Umgebungsvariable prüft nichts.** `Number("")` ist `0`,
+  `Number("abc")` ist `NaN`, und `setTimeout` löst bei beidem sofort aus. Eine
+  verrutschte Zeile in der `.env` konnte so den kompletten Abgleich stilllegen, ohne
+  dass irgendwo etwas stand.
 - **Blättern über Cursor, nicht über `skip`.** Der Aktivitätsverlauf schreibt
   mehrere Zeilen im selben Augenblick; ein Offset über so eine Grenze hinweg
   überspringt oder verdoppelt lautlos. Muster in `lib/timeline.ts`:

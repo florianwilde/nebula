@@ -1,4 +1,12 @@
-import { getJson, getJsonSafe, normalizeBaseUrl, sendJson, shortSha, toIso } from "./http";
+import {
+  Teilabrufe,
+  getJson,
+  getJsonSafe,
+  normalizeBaseUrl,
+  sendJson,
+  shortSha,
+  toIso,
+} from "./http";
 import type {
   BranchInfo,
   CiInfo,
@@ -31,7 +39,9 @@ export class GitHubClient implements GitClient {
 
   constructor(config: ProviderConfig) {
     const base = normalizeBaseUrl(config.baseUrl || "https://github.com");
-    this.apiBase = /github\.com$/i.test(base) ? "https://api.github.com" : `${base}/api/v3`;
+    this.apiBase = /github\.com$/i.test(base)
+      ? "https://api.github.com"
+      : `${base}/api/v3`;
     this.token = config.token;
   }
 
@@ -61,7 +71,11 @@ export class GitHubClient implements GitClient {
     return { number: angelegt.number, url: angelegt.html_url ?? null };
   }
 
-  async setIssueState(ref: RepoRef, number: number, open: boolean): Promise<void> {
+  async setIssueState(
+    ref: RepoRef,
+    number: number,
+    open: boolean,
+  ): Promise<void> {
     await sendJson(
       `${this.repoBase(ref)}/issues/${number}`,
       "PATCH",
@@ -70,7 +84,10 @@ export class GitHubClient implements GitClient {
     );
   }
 
-  async getIssueState(ref: RepoRef, number: number): Promise<"open" | "closed" | null> {
+  async getIssueState(
+    ref: RepoRef,
+    number: number,
+  ): Promise<"open" | "closed" | null> {
     const issue = await getJson<{ state?: string } | null>(
       `${this.repoBase(ref)}/issues/${number}`,
       { headers: this.headers(), allow404: true },
@@ -82,25 +99,42 @@ export class GitHubClient implements GitClient {
   async check(): Promise<ConnectionCheck> {
     try {
       if (!this.token) {
-        await getJson(`${this.apiBase}/rate_limit`, { headers: this.headers() });
+        await getJson(`${this.apiBase}/rate_limit`, {
+          headers: this.headers(),
+        });
         return {
           ok: true,
-          message: "Erreichbar (ohne Token – nur oeffentliche Repos, striktes Rate-Limit).",
+          message:
+            "Erreichbar (ohne Token – nur oeffentliche Repos, striktes Rate-Limit).",
           user: null,
         };
       }
-      const user = await getJson<{ login: string; name?: string }>(`${this.apiBase}/user`, {
-        headers: this.headers(),
-      });
-      return { ok: true, message: `Verbunden als ${user.login}`, user: user.login };
+      const user = await getJson<{ login: string; name?: string }>(
+        `${this.apiBase}/user`,
+        {
+          headers: this.headers(),
+        },
+      );
+      return {
+        ok: true,
+        message: `Verbunden als ${user.login}`,
+        user: user.login,
+      };
     } catch (error) {
-      return { ok: false, message: error instanceof Error ? error.message : String(error) };
+      return {
+        ok: false,
+        message: error instanceof Error ? error.message : String(error),
+      };
     }
   }
 
   async listRepos(query?: string): Promise<RepoListItem[]> {
     if (!this.token) {
-      throw new GitApiError("Fuer das Auflisten von Repos wird ein Token benoetigt.", 401, this.apiBase);
+      throw new GitApiError(
+        "Fuer das Auflisten von Repos wird ein Token benoetigt.",
+        401,
+        this.apiBase,
+      );
     }
     const repos = await getJson<GitHubRepo[]>(
       `${this.apiBase}/user/repos?per_page=100&sort=pushed&affiliation=owner,collaborator,organization_member`,
@@ -108,7 +142,9 @@ export class GitHubClient implements GitClient {
     );
     const needle = query?.toLowerCase().trim();
     return (repos ?? [])
-      .filter((repo) => !needle || repo.full_name.toLowerCase().includes(needle))
+      .filter(
+        (repo) => !needle || repo.full_name.toLowerCase().includes(needle),
+      )
       .map((repo) => ({
         fullPath: repo.full_name,
         owner: repo.owner?.login ?? repo.full_name.split("/")[0] ?? "",
@@ -129,23 +165,61 @@ export class GitHubClient implements GitClient {
 
     const defaultBranch = repo.default_branch;
 
-    const [branches, tags, commits, releases, languages, pulls, issues, ciRuns] =
-      await Promise.all([
-        getJsonSafe<GitHubBranch[]>(`${base}/branches?per_page=50`, [], { headers }),
-        getJsonSafe<GitHubTag[]>(`${base}/tags?per_page=25`, [], { headers }),
-        // 100 statt 15: die aelteren brauchen wir fuer die Aktivitaetskurve.
-        getJsonSafe<GitHubCommit[]>(`${base}/commits?per_page=100`, [], { headers }),
-        getJsonSafe<GitHubRelease[]>(`${base}/releases?per_page=10`, [], { headers }),
-        getJsonSafe<Record<string, number>>(`${base}/languages`, {}, { headers }),
-        getJsonSafe<GitHubPull[]>(`${base}/pulls?state=open&per_page=50`, [], { headers }),
-        // /issues liefert bei GitHub auch Pull Requests – die filtern wir raus.
-        getJsonSafe<GitHubIssue[]>(`${base}/issues?state=open&per_page=50`, [], { headers }),
-        getJsonSafe<{ workflow_runs?: GitHubRun[] }>(
-          `${base}/actions/runs?per_page=1&branch=${encodeURIComponent(defaultBranch)}`,
-          {},
-          { headers },
-        ),
-      ]);
+    // Sammelt, welche Liste nicht geholt werden konnte und warum.
+    const teil = new Teilabrufe();
+
+    const [
+      branches,
+      tags,
+      commits,
+      releases,
+      languages,
+      pulls,
+      issues,
+      ciRuns,
+    ] = await Promise.all([
+      teil.hol<GitHubBranch[]>("branches", `${base}/branches?per_page=50`, [], {
+        headers,
+      }),
+      teil.hol<GitHubTag[]>("tags", `${base}/tags?per_page=25`, [], {
+        headers,
+      }),
+      // 100 statt 15: die aelteren brauchen wir fuer die Aktivitaetskurve.
+      teil.hol<GitHubCommit[]>("commits", `${base}/commits?per_page=100`, [], {
+        headers,
+      }),
+      teil.hol<GitHubRelease[]>(
+        "releases",
+        `${base}/releases?per_page=10`,
+        [],
+        { headers },
+      ),
+      teil.hol<Record<string, number>>(
+        "languages",
+        `${base}/languages`,
+        {},
+        { headers },
+      ),
+      teil.hol<GitHubPull[]>(
+        "pullRequests",
+        `${base}/pulls?state=open&per_page=50`,
+        [],
+        { headers },
+      ),
+      // /issues liefert bei GitHub auch Pull Requests – die filtern wir raus.
+      teil.hol<GitHubIssue[]>(
+        "issues",
+        `${base}/issues?state=open&per_page=50`,
+        [],
+        { headers },
+      ),
+      teil.hol<{ workflow_runs?: GitHubRun[] }>(
+        "ci",
+        `${base}/actions/runs?per_page=1&branch=${encodeURIComponent(defaultBranch)}`,
+        {},
+        { headers },
+      ),
+    ]);
 
     const mappedBranches: BranchInfo[] = branches.map((branch) => ({
       name: branch.name,
@@ -208,7 +282,10 @@ export class GitHubClient implements GitClient {
 
     // open_issues_count zaehlt bei GitHub PRs mit – hier wieder herausrechnen.
     const openPullRequests = pulls.length;
-    const openIssues = Math.max(0, (repo.open_issues_count ?? 0) - openPullRequests);
+    const openIssues = Math.max(
+      0,
+      (repo.open_issues_count ?? 0) - openPullRequests,
+    );
 
     const run = ciRuns?.workflow_runs?.[0];
     const ci: CiInfo | null = run
@@ -242,7 +319,10 @@ export class GitHubClient implements GitClient {
       pullRequests: mappedPulls,
       issues: mappedIssues,
       ci,
-      commitActivity: bucketCommitActivity(mappedCommits.map((commit) => commit.date)),
+      commitActivity: bucketCommitActivity(
+        mappedCommits.map((commit) => commit.date),
+      ),
+      missing: teil.fehler,
     };
   }
 
@@ -260,9 +340,12 @@ export class GitHubClient implements GitClient {
    */
   async fetchCommitCalendar(ref: RepoRef): Promise<CommitCalendar | null> {
     const base = `${this.apiBase}/repos/${encodeURIComponent(ref.owner)}/${encodeURIComponent(ref.name)}`;
-    const wochen = await getJson<GitHubWeek[]>(`${base}/stats/commit_activity`, {
-      headers: this.headers(),
-    });
+    const wochen = await getJson<GitHubWeek[]>(
+      `${base}/stats/commit_activity`,
+      {
+        headers: this.headers(),
+      },
+    );
 
     if (!Array.isArray(wochen) || wochen.length === 0) {
       // Entweder rechnet GitHub noch, oder das Repository hat keine Commits.
@@ -300,7 +383,9 @@ export class GitHubClient implements GitClient {
 
     let datei: GitHubContent;
     try {
-      datei = await getJson<GitHubContent>(`${base}/readme`, { headers: this.headers() });
+      datei = await getJson<GitHubContent>(`${base}/readme`, {
+        headers: this.headers(),
+      });
     } catch (error) {
       if (error instanceof GitApiError && error.status === 404) return null;
       throw error;
@@ -337,8 +422,12 @@ interface GitHubWeek {
 }
 
 /** GitHub trennt Lauf-Status und Ergebnis; hier auf einen Wert zusammenfuehren. */
-function mapRunState(status: string | null, conclusion: string | null): CiState {
-  if (status === "queued" || status === "waiting" || status === "pending") return "pending";
+function mapRunState(
+  status: string | null,
+  conclusion: string | null,
+): CiState {
+  if (status === "queued" || status === "waiting" || status === "pending")
+    return "pending";
   if (status === "in_progress") return "running";
   switch (conclusion) {
     case "success":
