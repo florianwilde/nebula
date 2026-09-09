@@ -559,6 +559,15 @@ Diese Listen werden gleichzeitig geholt, und einzelne davon können scheitern, w
 der Rest durchgeht — ein 403 wegen fehlender Scopes, ein Rate-Limit, eine
 Zeitüberschreitung.
 
+**Ein zweiter Versuch, bevor etwas als fehlend gilt.** Zeitüberschreitungen und
+Verbindungen, die gar nicht zustande kamen, werden einmal nachgeschlagen — einzeln
+statt im Schwung, weil genau das der beobachtete Fall war: zwei von acht Aufrufen
+liefen in eine Zeitüberschreitung nach 15 Sekunden, während dieselben Aufrufe einzeln
+in 80 Millisekunden antworteten. Nachgeschlagen wird höchstens zweimal je Abgleich —
+acht Zeitüberschreitungen hintereinander wären zwei Minuten. Bei `403`, `404` und `429`
+gibt es keinen zweiten Versuch: fehlende Rechte werden durch Wiederholen nicht besser,
+ein Rate-Limit wird schlimmer.
+
 **Ein gescheiterter Abruf ist keine leere Liste.** Der Unterschied steht am Snapshot: zu
 jedem Feld, das nicht geholt werden konnte, wird der Grund samt HTTP-Status festgehalten.
 Daraus folgt dreierlei:
