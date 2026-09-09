@@ -51,6 +51,9 @@ describe("Teilabrufe", () => {
 
   afterEach(() => {
     vi.unstubAllEnvs();
+    // Ohne das zaehlen die Spies ueber Tests hinweg weiter – und genau an
+    // Aufrufzahlen haengen die Pruefungen hier.
+    vi.restoreAllMocks();
   });
 
   it("meldet nichts, solange alles ankommt", async () => {
@@ -123,5 +126,140 @@ describe("Teilabrufe", () => {
 
     expect(wert).toEqual([]);
     expect(teil.fehler.commits).toBeTruthy();
+  });
+});
+
+/**
+ * Der zweite Versuch.
+ *
+ * Beobachtet an einer laufenden Instanz: zwei von acht Teil-Abrufen liefen
+ * in eine Zeitueberschreitung nach 15 s, waehrend dieselben Aufrufe von
+ * aussen einzeln in 80 ms antworteten. Nicht die Endpunkte sind langsam –
+ * die Achterrunde erwuergt sich gelegentlich selbst.
+ */
+describe("Teilabrufe: Nachschlag", () => {
+  beforeEach(() => {
+    vi.stubEnv("GIT_ALLOWED_HOSTS", "git.example.com");
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    // Ohne das zaehlen die Spies ueber Tests hinweg weiter – und genau an
+    // Aufrufzahlen haengen die Pruefungen hier.
+    vi.restoreAllMocks();
+  });
+
+  /** Antwortet die ersten `fehlschlaege` Male mit Abbruch, danach mit Daten. */
+  function zaehlend(fehlschlaege: number, status = 408) {
+    let aufruf = 0;
+    return vi.spyOn(globalThis, "fetch").mockImplementation(async () => {
+      aufruf += 1;
+      if (aufruf <= fehlschlaege) {
+        if (status === 408) {
+          const abbruch = new Error("aborted");
+          abbruch.name = "AbortError";
+          throw abbruch;
+        }
+        return new Response("nope", { status });
+      }
+      return new Response(JSON.stringify(["da"]), { status: 200 });
+    });
+  }
+
+  it("holt eine Zeitueberschreitung im zweiten Versuch nach", async () => {
+    const fetchSpy = zaehlend(1);
+    const teil = new Teilabrufe();
+
+    const wert = await teil.hol("branches", "https://git.example.com/a", []);
+
+    expect(wert).toEqual(["da"]);
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    // Geglueckt heisst: kein Eintrag. Sonst stuende am Repository ein
+    // Fehler, den es nicht mehr gibt.
+    expect(teil.fehler).toEqual({});
+    expect(teil.unvollstaendig).toBe(false);
+  });
+
+  it("vermerkt es, wenn auch der zweite Versuch scheitert", async () => {
+    const fetchSpy = zaehlend(99);
+    const teil = new Teilabrufe();
+
+    const wert = await teil.hol("commits", "https://git.example.com/a", []);
+
+    expect(wert).toEqual([]);
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    expect(teil.fehler.commits).toContain("408");
+    expect(teil.fehler.commits).toContain("zweiten Versuch");
+  });
+
+  it("schlaegt bei 403 gar nicht erst nach", async () => {
+    // Fehlende Scopes werden durch Wiederholen nicht besser.
+    const fetchSpy = zaehlend(99, 403);
+    const teil = new Teilabrufe();
+
+    await teil.hol("tags", "https://git.example.com/a", []);
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(teil.fehler.tags).not.toContain("zweiten Versuch");
+  });
+
+  it("schlaegt bei 429 nicht nach", async () => {
+    // Sofortiges Wiederholen macht ein Rate-Limit schlimmer, nicht besser.
+    const fetchSpy = zaehlend(99, 429);
+    const teil = new Teilabrufe();
+
+    await teil.hol("issues", "https://git.example.com/a", []);
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("gibt hoechstens zwei Nachschlaege je Abgleich", async () => {
+    // Acht Zeitueberschreitungen zu je 15 s waeren zwei Minuten. Wer weg
+    // ist, soll schnell als weg erkannt werden.
+    const fetchSpy = zaehlend(99);
+    const teil = new Teilabrufe();
+
+    await Promise.all([
+      teil.hol("branches", "https://git.example.com/a", []),
+      teil.hol("tags", "https://git.example.com/b", []),
+      teil.hol("commits", "https://git.example.com/c", []),
+      teil.hol("releases", "https://git.example.com/d", []),
+    ]);
+
+    // Vier erste Versuche, aber nur zwei Nachschlaege.
+    expect(fetchSpy).toHaveBeenCalledTimes(6);
+    expect(Object.keys(teil.fehler).sort()).toEqual([
+      "branches",
+      "commits",
+      "releases",
+      "tags",
+    ]);
+  });
+
+  it("reisst die Kette nicht ab, wenn ein Nachschlag scheitert", async () => {
+    // Der erste Nachschlag geht schief, der zweite muss trotzdem laufen.
+    let aufruf = 0;
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async () => {
+      aufruf += 1;
+      // 1 und 2 sind die ersten Versuche, 3 der erste Nachschlag (scheitert),
+      // 4 der zweite Nachschlag (glueckt).
+      if (aufruf <= 3) {
+        const abbruch = new Error("aborted");
+        abbruch.name = "AbortError";
+        throw abbruch;
+      }
+      return new Response(JSON.stringify(["da"]), { status: 200 });
+    });
+
+    const teil = new Teilabrufe();
+    const [erst, zweit] = await Promise.all([
+      teil.hol("branches", "https://git.example.com/a", []),
+      teil.hol("tags", "https://git.example.com/b", []),
+    ]);
+
+    expect(fetchSpy).toHaveBeenCalledTimes(4);
+    expect(erst).toEqual([]);
+    expect(zweit).toEqual(["da"]);
+    expect(Object.keys(teil.fehler)).toEqual(["branches"]);
   });
 });

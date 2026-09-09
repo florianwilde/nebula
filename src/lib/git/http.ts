@@ -234,6 +234,16 @@ export async function getJsonSafe<T>(
   }
 }
 
+/**
+ * Wie viele zweite Versuche ein Abgleich hoechstens unternimmt.
+ *
+ * Zwei, nicht acht: jede Zeitueberschreitung kostet volle 15 Sekunden, und
+ * acht davon hintereinander waeren zwei Minuten, in denen "Jetzt
+ * synchronisieren" wie ein Absturz aussieht. Wer wirklich weg ist, soll
+ * schnell als weg erkannt werden.
+ */
+const NACHSCHLAG_MAX = 2;
+
 /** Warum ein einzelner Teil-Abruf nicht geklappt hat. */
 export type Teilfehler = Record<string, string>;
 
@@ -252,6 +262,18 @@ export type Teilfehler = Record<string, string>;
 export class Teilabrufe {
   readonly fehler: Teilfehler = {};
 
+  /**
+   * Nachschlaege haengen aneinander, damit sie nacheinander laufen.
+   *
+   * Die Runde selbst ist gleichzeitig – acht Aufrufe auf einmal. Genau das
+   * scheint sie gelegentlich zu erwuergen: beobachtet wurden zwei von acht
+   * mit Zeitueberschreitung nach 15 s, waehrend dieselben Aufrufe einzeln in
+   * 80 ms antworteten. Der zweite Versuch soll deshalb nicht wieder in
+   * denselben Schwung geraten.
+   */
+  private kette: Promise<unknown> = Promise.resolve();
+  private nachgeschlagen = 0;
+
   async hol<T>(
     feld: string,
     url: string,
@@ -262,8 +284,44 @@ export class Teilabrufe {
       const result = await getJson<T>(url, options);
       return (result ?? fallback) as T;
     } catch (error) {
+      if (this.lohntNachschlag(error)) {
+        const zweiter = await this.nachschlag<T>(url, options);
+        if (zweiter.ok) return (zweiter.wert ?? fallback) as T;
+        this.fehler[feld] = `${beschreibe(zweiter.fehler)} (auch im zweiten Versuch)`;
+        return fallback;
+      }
       this.fehler[feld] = beschreibe(error);
       return fallback;
+    }
+  }
+
+  /**
+   * Ein zweiter Versuch hilft nur bei Fehlern, die nichts ueber die Sache
+   * aussagen: Zeitueberschreitung (408) und eine Verbindung, die gar nicht
+   * zustande kam (0). Ein 403 wird durch Wiederholen nicht besser, ein 429
+   * durch sofortiges Wiederholen schlimmer, und ein 404 bleibt ein 404.
+   */
+  private lohntNachschlag(error: unknown): boolean {
+    if (this.nachgeschlagen >= NACHSCHLAG_MAX) return false;
+    if (!(error instanceof GitApiError)) return false;
+    return error.status === 408 || error.status === 0;
+  }
+
+  private async nachschlag<T>(
+    url: string,
+    options: FetchOptions,
+  ): Promise<{ ok: boolean; wert?: T; fehler?: unknown }> {
+    this.nachgeschlagen += 1;
+
+    const versuch = this.kette.then(async () => getJson<T>(url, options));
+    // Auch ein Fehlschlag darf die Kette nicht abreissen lassen, sonst
+    // scheitern die folgenden Nachschlaege gleich mit.
+    this.kette = versuch.catch(() => undefined);
+
+    try {
+      return { ok: true, wert: await versuch };
+    } catch (fehler) {
+      return { ok: false, fehler };
     }
   }
 
