@@ -187,6 +187,11 @@ export class GiteaClient implements GitClient {
       }),
       teil.hol<GiteaTag[]>("tags", `${base}/tags?limit=25`, [], { headers }),
       // 100 statt 15: die aelteren brauchen wir fuer die Aktivitaetskurve.
+      // Gitea liefert davon hoechstens MAX_RESPONSE_ITEMS (Voreinstellung 50).
+      // Das ist hier hinnehmbar - die Kurve kuerzt sich ehrlich auf den
+      // tatsaechlich belegten Zeitraum (siehe bucketCommitActivity), und
+      // blaettern wuerde jeden Abgleich teurer machen. Beim Kalender, der
+      // hoechstens einmal am Tag laeuft, wird dagegen geblaettert.
       teil.hol<GiteaCommit[]>(
         "commits",
         `${base}/commits?limit=100&stat=false`,

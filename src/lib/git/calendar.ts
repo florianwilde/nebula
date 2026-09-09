@@ -16,11 +16,20 @@
 export const CALENDAR_DAYS = 365;
 
 /**
- * Hoechstzahl Seiten, wo seitenweise geholt werden muss. Fuenf Seiten sind
- * 500 Commits – genug fuer die allermeisten Repositories und wenig genug,
- * um kein fremdes Kontingent zu sprengen.
+ * Hoechstzahl Seiten, wo seitenweise geholt werden muss. Genug fuer die
+ * allermeisten Repositories und wenig genug, um kein fremdes Kontingent zu
+ * sprengen.
  */
 export const CALENDAR_MAX_PAGES = 5;
+
+/**
+ * Angefragte Seitengroesse – eine Bitte, keine Zusage.
+ *
+ * Gitea antwortet hoechstens mit MAX_RESPONSE_ITEMS Eintraegen
+ * (Voreinstellung 50), egal was hier steht; GitHub und GitLab erlauben 100.
+ * Wie viele wirklich kommen, entscheidet deshalb erst die erste Antwort –
+ * siehe calendarByPaging.
+ */
 export const CALENDAR_PAGE_SIZE = 100;
 
 export interface CommitCalendar {
@@ -55,6 +64,15 @@ export function calendarSince(now: Date = new Date()): Date {
  * Abgebrochen wird, sobald eine Seite nicht mehr voll ist (dann gibt es
  * nichts weiter), sobald die Seite vollstaendig aus der Zeit vor dem
  * Zeitraum stammt, oder wenn der Deckel greift.
+ *
+ * "Voll" bemisst sich an der **ersten geliefertern Seite**, nicht an dem, was
+ * angefragt wurde. Gitea deckelt jede Antwort auf MAX_RESPONSE_ITEMS
+ * (Voreinstellung 50), unabhaengig vom angefragten limit. Wer gegen die
+ * angefragten 100 vergleicht, haelt bei Gitea jede erste Seite fuer die
+ * letzte – die Heatmap kannte deshalb nur die juengsten 50 Commits und gab
+ * deren aeltesten als Anfang des Zeitraums aus. Bei einem Repository mit 76
+ * Commits stand dort "50 an 2 Tagen seit dem 01.09.", und das las sich wie
+ * eine Aussage ueber das Repository statt ueber die Seitengroesse.
  */
 export async function calendarByPaging(
   ladeSeite: (seite: number) => Promise<Array<string | null>>,
@@ -64,10 +82,17 @@ export async function calendarByPaging(
   const days: Record<string, number> = {};
   let aeltester: number | null = null;
   let gedeckelt = false;
+  /** Was die Gegenseite tatsaechlich als volle Seite ansieht. */
+  let seitengroesse: number | null = null;
 
   for (let seite = 1; seite <= CALENDAR_MAX_PAGES; seite += 1) {
     const daten = await ladeSeite(seite);
     if (daten.length === 0) break;
+
+    // Die erste Antwort setzt den Maßstab. Sie kann kleiner ausfallen als
+    // angefragt; entscheidend ist nur, dass die folgenden Seiten daran
+    // gemessen werden.
+    if (seitengroesse === null) seitengroesse = daten.length;
 
     let innerhalb = 0;
     for (const value of daten) {
@@ -85,10 +110,12 @@ export async function calendarByPaging(
     }
 
     // Nicht mehr voll: das war die letzte Seite.
-    if (daten.length < CALENDAR_PAGE_SIZE) break;
+    if (daten.length < seitengroesse) break;
     // Die ganze Seite lag schon vor dem Zeitraum – weiter zurueck lohnt nicht.
     if (innerhalb === 0) break;
 
+    // Letzte erlaubte Seite war voll und lag im Zeitraum: es gibt Aelteres,
+    // das wir nicht geholt haben. Das gehoert an die Anzeige.
     if (seite === CALENDAR_MAX_PAGES) gedeckelt = true;
   }
 
