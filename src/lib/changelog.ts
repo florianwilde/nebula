@@ -42,6 +42,64 @@ export const KIND_META: Record<ChangeKind, { label: string; className: string }>
 
 export const CHANGELOG: Release[] = [
   {
+    version: "1.11.0",
+    date: "2026-09-10",
+    headline: "Der Abgleich sagt, was er nicht holen konnte — und verliert dabei nichts mehr.",
+    changes: [
+      {
+        kind: "behoben",
+        text:
+          "Ein fehlgeschlagener Teil-Abruf sah aus wie ein leeres Ergebnis. Ein Repository " +
+          "mit 65 Commits meldete „Snapshot aktualisiert: 0 Branches, 0 Tags“ und überschrieb " +
+          "dabei den letzten guten Stand. Jetzt steht am Repository, welcher Teil nicht kam " +
+          "und woran es lag — und die vorhandenen Daten bleiben stehen.",
+      },
+      {
+        kind: "behoben",
+        text:
+          "Die Commit-Heatmap kannte bei Gitea nur die jüngsten 50 Commits und gab deren " +
+          "ältesten als Anfang des Zeitraums aus. Grund war eine Seitengröße, die angefragt " +
+          "statt gemessen wurde: Gitea deckelt jede Antwort auf 50, egal was dasteht. Bei " +
+          "einem Repository mit 76 Commits fehlte damit ein Drittel.",
+      },
+      {
+        kind: "besser",
+        text:
+          "Ein Abruf, der in eine Zeitüberschreitung läuft, wird einmal nachgeschlagen — " +
+          "einzeln statt zusammen mit den sieben anderen. Bei fehlenden Rechten oder einem " +
+          "Rate-Limit passiert das bewusst nicht; das wird durch Wiederholen nicht besser.",
+      },
+      {
+        kind: "neu",
+        text:
+          "Das Aufgabenbrett zeigt je Spalte höchstens so viele Karten, wie unter " +
+          "Admin-Einstellungen eingestellt ist. Der Rest steht hinter „n weitere anzeigen“; " +
+          "die Zahl an der Spalte nennt weiterhin alle.",
+      },
+      {
+        kind: "neu",
+        text:
+          "Eine Aufgabenkarte trägt die Nummer ihres verknüpften Git-Issues. Bisher stand " +
+          "die Verknüpfung nur im Bearbeiten-Dialog.",
+      },
+      {
+        kind: "besser",
+        text:
+          "Die Rechte, die eine Git-Verbindung braucht, stehen Aufruf für Aufruf in der " +
+          "README — getrennt nach reinem Abgleich und zusätzlicher Issue-Anbindung. Der " +
+          "Hinweis unter dem Token-Feld nannte die Rechte für Actions nicht, ohne die bei " +
+          "GitHub kein CI-Zustand ankommt.",
+      },
+      {
+        kind: "behoben",
+        text:
+          "Ein unbrauchbarer Wert in GIT_API_TIMEOUT_MS legte den ganzen Abgleich still: " +
+          "eine leere oder unlesbare Angabe wurde zu 0 ms, und damit brach jeder Aufruf ab, " +
+          "bevor er begann. Jetzt gilt die Vorgabe, mit Warnung im Log.",
+      },
+    ],
+  },
+  {
     version: "1.10.1",
     date: "2026-08-18",
     headline: "Sichtbar, welche Aufgabe ein Issue hat — und nachlesbar, was ein Token dafür braucht.",

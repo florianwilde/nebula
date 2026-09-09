@@ -584,7 +584,7 @@ Das gilt ausdrücklich **nicht** als Fehlschlag: `syncError` bleibt leer, der Z�
 das Zurückhalten wird nicht erhöht, und der nächste Durchlauf versucht es normal wieder.
 Der Rest des Standes ist ja frisch.
 
-> Vor v1.10.2 wurde jeder Fehlschlag in eine leere Liste verwandelt. Ein Repository mit
+> Vor v1.11.0 wurde jeder Fehlschlag in eine leere Liste verwandelt. Ein Repository mit
 > 65 Commits meldete „Snapshot aktualisiert: 0 Branches, 0 Tags", überschrieb dabei den
 > letzten guten Stand, und aus der Oberfläche war nicht zu erkennen, dass überhaupt etwas
 > schiefgegangen war.
