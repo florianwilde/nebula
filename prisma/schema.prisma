@@ -649,6 +649,19 @@ model RepoSnapshot {
   ciUrl        String?
   ciFinishedAt DateTime?
 
+  /// Teil-Abrufe, die beim letzten Abgleich nicht geklappt haben:
+  /// { "branches": "HTTP 403: Zugriff verweigert …" }. Leeres Objekt heisst,
+  /// dass alle Listen wirklich geholt wurden.
+  ///
+  /// Ohne diese Angabe ist eine leere Liste zweideutig – "nicht geholt" sieht
+  /// aus wie "nichts vorhanden". Genau daran ist eine Fehlersuche einmal
+  /// haengen geblieben.
+  missing Json @default("{}")
+
   pushedAt  DateTime?
   fetchedAt DateTime @default(now())
+  /// Wann zuletzt ein Abgleich lief, bei dem alle Teile ankamen. Steht der
+  /// weiter zurueck als fetchedAt, ist ein Teil der Anzeige aelter als sie
+  /// vorgibt.
+  completeAt DateTime?
 }

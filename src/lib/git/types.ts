@@ -99,6 +99,15 @@ export interface RepoSnapshotData extends RepoOverview {
   ci: CiInfo | null;
   /** Commits je Tag der letzten 30 Tage, aeltester zuerst. */
   commitActivity: number[];
+  /**
+   * Teil-Abrufe, die nicht geklappt haben: Feldname -> Grund mit HTTP-Status.
+   * Leer heisst, dass alle Listen wirklich geholt wurden.
+   *
+   * Der Unterschied ist wesentlich: eine leere Liste in `tags` bedeutet mit
+   * einem Eintrag hier "nicht geholt" und ohne ihn "es gibt keine Tags".
+   * Nur im ersten Fall darf der gespeicherte Stand stehen bleiben.
+   */
+  missing: Record<string, string>;
 }
 
 /** Tage, ueber die die Commit-Aktivitaet gebildet wird. */

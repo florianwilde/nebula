@@ -47,7 +47,10 @@ export interface ConnectionWithCount extends ConnectionSafe {
  * repositorySafeSelect. Ob einer eingerichtet ist, reicht die Projektseite
  * getrennt durch.
  */
-export interface RepositoryWithSnapshot extends Omit<Repository, "webhookSecret"> {
+export interface RepositoryWithSnapshot extends Omit<
+  Repository,
+  "webhookSecret"
+> {
   connection: ConnectionSafe | null;
   snapshot: RepoSnapshot | null;
 }
@@ -159,7 +162,8 @@ export function asArray<T>(value: unknown): T[] {
 export function asCalendar(value: unknown): CommitCalendar | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const kandidat = value as Partial<CommitCalendar>;
-  if (typeof kandidat.from !== "string" || typeof kandidat.to !== "string") return null;
+  if (typeof kandidat.from !== "string" || typeof kandidat.to !== "string")
+    return null;
   if (!kandidat.days || typeof kandidat.days !== "object") return null;
   return {
     from: kandidat.from,
@@ -173,6 +177,17 @@ export function asCalendar(value: unknown): CommitCalendar | null {
 export function asRecord(value: unknown): Record<string, number> {
   if (value && typeof value === "object" && !Array.isArray(value)) {
     return value as Record<string, number>;
+  }
+  return {};
+}
+
+/**
+ * Wie asRecord, aber fuer Text – etwa `missing` am Snapshot, das je Feld
+ * den Grund des Fehlschlags traegt.
+ */
+export function asTextRecord(value: unknown): Record<string, string> {
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    return value as Record<string, string>;
   }
   return {};
 }

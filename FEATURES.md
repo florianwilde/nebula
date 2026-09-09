@@ -553,6 +553,33 @@ deshalb ohne Risiko.
 | Releases | bis zu 10, inklusive Pre-Release- und Draft-Kennzeichnung |
 | Sprachen | Verteilung als Balken mit Prozentwerten |
 
+#### Wenn ein Teil nicht ankommt
+
+Diese Listen werden gleichzeitig geholt, und einzelne davon können scheitern, während
+der Rest durchgeht — ein 403 wegen fehlender Scopes, ein Rate-Limit, eine
+Zeitüberschreitung.
+
+**Ein gescheiterter Abruf ist keine leere Liste.** Der Unterschied steht am Snapshot: zu
+jedem Feld, das nicht geholt werden konnte, wird der Grund samt HTTP-Status festgehalten.
+Daraus folgt dreierlei:
+
+- Die vorhandenen Daten **bleiben stehen**. Ein Abgleich, der die Tags nicht holen konnte,
+  ersetzt die gespeicherten nicht durch eine leere Liste. Angezeigt wird dann der letzte
+  vollständige Stand, mit Datum.
+- Die Meldung heißt „Teilweise aktualisiert – nicht geholt: …" statt „Snapshot
+  aktualisiert: 0 Branches, 0 Tags".
+- Auf der Projektseite steht ein Hinweis am Repository, der jedes fehlende Feld mit
+  seinem Grund nennt.
+
+Das gilt ausdrücklich **nicht** als Fehlschlag: `syncError` bleibt leer, der Zähler für
+das Zurückhalten wird nicht erhöht, und der nächste Durchlauf versucht es normal wieder.
+Der Rest des Standes ist ja frisch.
+
+> Vor v1.10.2 wurde jeder Fehlschlag in eine leere Liste verwandelt. Ein Repository mit
+> 65 Commits meldete „Snapshot aktualisiert: 0 Branches, 0 Tags", überschrieb dabei den
+> letzten guten Stand, und aus der Oberfläche war nicht zu erkennen, dass überhaupt etwas
+> schiefgegangen war.
+
 Woher der CI-Status kommt:
 
 | System | Quelle |

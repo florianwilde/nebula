@@ -1,7 +1,37 @@
 import { BlockedHostError, assertAllowedUrl } from "@/lib/security/ssrf";
 import { GitApiError } from "./types";
 
-const DEFAULT_TIMEOUT = Number(process.env.GIT_API_TIMEOUT_MS ?? 15000);
+const TIMEOUT_VORGABE = 15000;
+
+/**
+ * Zeitlimit je Aufruf.
+ *
+ * Bewusst mit Pruefung: Number("") ist 0 und Number("abc") ist NaN – beides
+ * laesst setTimeout sofort ausloesen, und dann bricht jeder ausgehende
+ * Aufruf ab, bevor er begonnen hat. Eine verrutschte Zeile in der .env
+ * legte damit den ganzen Abgleich still, ohne dass irgendwo etwas stand.
+ */
+export function zeitlimit(
+  roh: string | undefined,
+  warnen: (text: string) => void = console.warn,
+): number {
+  const wert = roh?.trim();
+  if (!wert) return TIMEOUT_VORGABE;
+
+  const zahl = Number(wert);
+  // Untergrenze 1000 ms: darunter ist kein Aufruf ueber das Netz zu
+  // schaffen, und wer das eintraegt, hat sich vertan.
+  if (!Number.isFinite(zahl) || zahl < 1000) {
+    warnen(
+      `[nebula] GIT_API_TIMEOUT_MS="${wert}" ist unbrauchbar (Zahl ab 1000 erwartet). ` +
+        `Es gelten ${TIMEOUT_VORGABE} ms.`,
+    );
+    return TIMEOUT_VORGABE;
+  }
+  return zahl;
+}
+
+const DEFAULT_TIMEOUT = zeitlimit(process.env.GIT_API_TIMEOUT_MS);
 
 export interface FetchOptions {
   headers?: Record<string, string>;
@@ -73,7 +103,11 @@ export async function getJson<T>(
 
     if (!response.ok) {
       const body = await response.text().catch(() => "");
-      throw new GitApiError(friendlyMessage(response.status, url, body), response.status, url);
+      throw new GitApiError(
+        friendlyMessage(response.status, url, body),
+        response.status,
+        url,
+      );
     }
 
     const text = await response.text();
@@ -150,7 +184,11 @@ export async function sendJson<T>(
 
     if (!response.ok) {
       const text = await response.text().catch(() => "");
-      throw new GitApiError(friendlyMessage(response.status, url, text), response.status, url);
+      throw new GitApiError(
+        friendlyMessage(response.status, url, text),
+        response.status,
+        url,
+      );
     }
 
     const text = await response.text();
@@ -175,7 +213,14 @@ export async function sendJson<T>(
   }
 }
 
-/** Wie getJson, gibt aber bei jedem Fehler den Fallback zurueck. */
+/**
+ * Wie getJson, gibt aber bei jedem Fehler den Fallback zurueck.
+ *
+ * Nur fuer Abrufe benutzen, bei denen ein Fehlschlag wirklich nichts
+ * bedeutet. Fuer die Listen eines Snapshots ist das falsch – dort ist
+ * "nicht geholt" etwas anderes als "nichts vorhanden". Dafuer gibt es
+ * Teilabrufe.
+ */
 export async function getJsonSafe<T>(
   url: string,
   fallback: T,
@@ -187,6 +232,63 @@ export async function getJsonSafe<T>(
   } catch {
     return fallback;
   }
+}
+
+/** Warum ein einzelner Teil-Abruf nicht geklappt hat. */
+export type Teilfehler = Record<string, string>;
+
+/**
+ * Sammelstelle fuer die Listen eines Snapshots.
+ *
+ * Der Vorgaenger dieser Klasse war ein getJsonSafe je Liste. Das hat jeden
+ * Fehler in eine leere Liste verwandelt, und damit war ein 403 nicht mehr
+ * von einem Repository ohne Branches zu unterscheiden: Der Abgleich meldete
+ * "Snapshot aktualisiert: 0 Branches, 0 Tags", schrieb Nullen ueber den
+ * letzten guten Stand und niemand konnte sehen, woran es lag.
+ *
+ * Der Fallback bleibt – ein einzelner Fehlschlag darf den ganzen Abgleich
+ * nicht abbrechen –, aber der Grund wird festgehalten.
+ */
+export class Teilabrufe {
+  readonly fehler: Teilfehler = {};
+
+  async hol<T>(
+    feld: string,
+    url: string,
+    fallback: T,
+    options: FetchOptions = {},
+  ): Promise<T> {
+    try {
+      const result = await getJson<T>(url, options);
+      return (result ?? fallback) as T;
+    } catch (error) {
+      this.fehler[feld] = beschreibe(error);
+      return fallback;
+    }
+  }
+
+  /** true, sobald mindestens ein Teil-Abruf gescheitert ist. */
+  get unvollstaendig(): boolean {
+    return Object.keys(this.fehler).length > 0;
+  }
+}
+
+/**
+ * Kurzfassung eines Fehlers, wie sie am Repository angezeigt wird.
+ *
+ * getJson gibt ausschliesslich GitApiError heraus – ein blockiertes Ziel
+ * kommt als 403, eine Zeitueberschreitung als 408, ein nicht erreichter
+ * Host als 0. Der Status ist damit die eigentliche Auskunft, und die
+ * uebrigen Zweige sind nur fuer den Fall da, dass sich das einmal aendert.
+ */
+function beschreibe(error: unknown): string {
+  if (error instanceof GitApiError) {
+    return error.status
+      ? `HTTP ${error.status}: ${error.message}`
+      : error.message;
+  }
+  if (error instanceof Error) return `${error.name}: ${error.message}`;
+  return String(error);
 }
 
 export function toIso(value: unknown): string | null {

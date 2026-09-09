@@ -30,13 +30,14 @@ import { RepositoryDialog } from "@/components/RepositoryDialog";
 import { WebhookDialog } from "@/components/WebhookDialog";
 import { Sparkline } from "@/components/Sparkline";
 import { repoTitle } from "@/lib/git/meta";
-import { asArray, asCalendar, asRecord } from "@/types";
+import { asArray, asCalendar, asRecord, asTextRecord } from "@/types";
 import type {
   BranchInfo,
   CommitInfo,
   ConnectionSafe,
   ProjectDetail,
   ReleaseInfo,
+  RepoSnapshot,
   RepositoryWithSnapshot,
   TagInfo,
   TicketInfo,
@@ -69,17 +70,26 @@ export function GitPanel({
   const [tab, setTab] = useState<TabKey>("pulls");
   const [syncing, setSyncing] = useState(false);
   const [importing, setImporting] = useState(false);
-  const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
+  const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(
+    null,
+  );
   const [addOpen, setAddOpen] = useState(false);
   const [webhookOpen, setWebhookOpen] = useState(false);
 
   const repositories = project.repositories;
-  const [selectedId, setSelectedId] = useState<string | null>(repositories[0]?.id ?? null);
+  const [selectedId, setSelectedId] = useState<string | null>(
+    repositories[0]?.id ?? null,
+  );
 
   // Nach dem Entfernen zeigt die Auswahl ins Leere – dann auf das fuehrende
   // zurueckfallen, statt eine leere Ansicht zu zeigen.
-  const repository = repositories.find((entry) => entry.id === selectedId) ?? repositories[0] ?? null;
-  const webhookAktiv = repository ? webhookRepoIds.includes(repository.id) : false;
+  const repository =
+    repositories.find((entry) => entry.id === selectedId) ??
+    repositories[0] ??
+    null;
+  const webhookAktiv = repository
+    ? webhookRepoIds.includes(repository.id)
+    : false;
 
   /** Offene Issues als Aufgaben anlegen – ohne erneuten Abruf beim Provider. */
   async function importIssues() {
@@ -87,13 +97,17 @@ export function GitPanel({
     setImporting(true);
     setMessage(null);
     try {
-      const response = await fetch(`/api/projects/${project.id}/tasks/from-issues`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ repositoryId: repository.id }),
-      });
+      const response = await fetch(
+        `/api/projects/${project.id}/tasks/from-issues`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ repositoryId: repository.id }),
+        },
+      );
       const body = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(body.error ?? "Uebernahme fehlgeschlagen.");
+      if (!response.ok)
+        throw new Error(body.error ?? "Uebernahme fehlgeschlagen.");
       setMessage({
         ok: true,
         text:
@@ -103,7 +117,10 @@ export function GitPanel({
       });
       router.refresh();
     } catch (caught) {
-      setMessage({ ok: false, text: caught instanceof Error ? caught.message : String(caught) });
+      setMessage({
+        ok: false,
+        text: caught instanceof Error ? caught.message : String(caught),
+      });
     } finally {
       setImporting(false);
     }
@@ -130,7 +147,10 @@ export function GitPanel({
         : `/api/projects/${project.id}/sync`;
       const response = await fetch(url, { method: "POST" });
       const payload = await response.json().catch(() => ({}));
-      setMessage({ ok: response.ok, text: payload.message ?? "Unbekannte Antwort." });
+      setMessage({
+        ok: response.ok,
+        text: payload.message ?? "Unbekannte Antwort.",
+      });
       router.refresh();
     } catch (caught) {
       setMessage({
@@ -150,7 +170,9 @@ export function GitPanel({
     ) {
       return;
     }
-    await fetch(`/api/repositories/${entry.id}`, { method: "DELETE" }).catch(() => undefined);
+    await fetch(`/api/repositories/${entry.id}`, { method: "DELETE" }).catch(
+      () => undefined,
+    );
     setSelectedId(null);
     router.refresh();
   }
@@ -160,12 +182,19 @@ export function GitPanel({
       <>
         <div className="glass px-5 py-10 text-center">
           <GitBranch className="mx-auto h-8 w-8 text-slate-600" />
-          <h3 className="mt-3 text-sm font-semibold text-slate-200">Kein Repository verknuepft</h3>
+          <h3 className="mt-3 text-sm font-semibold text-slate-200">
+            Kein Repository verknuepft
+          </h3>
           <p className="mx-auto mt-1 max-w-sm text-sm text-slate-500">
-            Verknuepfe ein Repository, um Branches, Tags, Commits und Releases hier zu sehen.
-            Ein Projekt darf auch mehrere haben – etwa Frontend und Backend.
+            Verknuepfe ein Repository, um Branches, Tags, Commits und Releases
+            hier zu sehen. Ein Projekt darf auch mehrere haben – etwa Frontend
+            und Backend.
           </p>
-          <button type="button" className="btn btn-primary mt-4" onClick={() => setAddOpen(true)}>
+          <button
+            type="button"
+            className="btn btn-primary mt-4"
+            onClick={() => setAddOpen(true)}
+          >
             <Plus className="h-4 w-4" />
             Repository verknuepfen
           </button>
@@ -180,7 +209,10 @@ export function GitPanel({
     );
   }
 
-  const languageTotal = Object.values(languages).reduce((sum, value) => sum + value, 0);
+  const languageTotal = Object.values(languages).reduce(
+    (sum, value) => sum + value,
+    0,
+  );
   const topLanguages = Object.entries(languages)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 5);
@@ -190,7 +222,10 @@ export function GitPanel({
       {/* Auswahl, sobald es mehr als eines gibt. Bei einem einzigen waere eine
           Leiste mit genau einem Knopf nur Ballast. */}
       {repositories.length > 1 ? (
-        <div className="glass flex flex-wrap items-center gap-1.5 p-2" role="tablist">
+        <div
+          className="glass flex flex-wrap items-center gap-1.5 p-2"
+          role="tablist"
+        >
           {repositories.map((entry) => {
             const aktiv = entry.id === repository.id;
             return (
@@ -256,7 +291,11 @@ export function GitPanel({
                 <ExternalLink className="h-3.5 w-3.5" />
               </a>
             ) : null}
-            <CiBadge state={snapshot?.ciState} name={snapshot?.ciName} url={snapshot?.ciUrl} />
+            <CiBadge
+              state={snapshot?.ciState}
+              name={snapshot?.ciName}
+              url={snapshot?.ciUrl}
+            />
           </div>
           <p className="mt-1 text-xs text-slate-500" suppressHydrationWarning>
             {repository.lastSyncedAt
@@ -368,12 +407,22 @@ export function GitPanel({
         </p>
       ) : null}
 
+      <UnvollstaendigerStand snapshot={snapshot} />
+
       {snapshot ? (
         <>
           {/* Kennzahlen */}
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-            <Metric icon={Star} label="Stars" value={formatNumber(snapshot.stars)} />
-            <Metric icon={GitMerge} label="Forks" value={formatNumber(snapshot.forks)} />
+            <Metric
+              icon={Star}
+              label="Stars"
+              value={formatNumber(snapshot.stars)}
+            />
+            <Metric
+              icon={GitMerge}
+              label="Forks"
+              value={formatNumber(snapshot.forks)}
+            />
             <Metric
               icon={GitPullRequest}
               label="Offene PRs/MRs"
@@ -384,11 +433,19 @@ export function GitPanel({
               label="Offene Issues"
               value={formatNumber(snapshot.openIssues)}
             />
-            <Metric icon={GitBranch} label="Branches" value={formatNumber(snapshot.branchCount)} />
+            <Metric
+              icon={GitBranch}
+              label="Branches"
+              value={formatNumber(snapshot.branchCount)}
+            />
             <Metric
               icon={HardDrive}
               label="Groesse"
-              value={snapshot.sizeKb > 1024 ? `${Math.round(snapshot.sizeKb / 1024)} MB` : `${snapshot.sizeKb} KB`}
+              value={
+                snapshot.sizeKb > 1024
+                  ? `${Math.round(snapshot.sizeKb / 1024)} MB`
+                  : `${snapshot.sizeKb} KB`
+              }
             />
           </div>
 
@@ -408,11 +465,15 @@ export function GitPanel({
                       {snapshot.lastCommitSha.slice(0, 7)}
                     </span>
                     <span>{snapshot.lastCommitAuthor ?? "unbekannt"}</span>
-                    <span suppressHydrationWarning>{formatRelative(snapshot.lastCommitAt)}</span>
+                    <span suppressHydrationWarning>
+                      {formatRelative(snapshot.lastCommitAt)}
+                    </span>
                   </p>
                 </>
               ) : (
-                <p className="mt-2 text-sm text-slate-500">Keine Commit-Daten.</p>
+                <p className="mt-2 text-sm text-slate-500">
+                  Keine Commit-Daten.
+                </p>
               )}
             </div>
 
@@ -424,8 +485,11 @@ export function GitPanel({
                 <span className="font-mono text-2xl text-white">
                   {snapshot.latestTag ?? snapshot.latestRelease ?? "–"}
                 </span>
-                {snapshot.latestRelease && snapshot.latestRelease !== snapshot.latestTag ? (
-                  <span className="text-sm text-slate-400">{snapshot.latestRelease}</span>
+                {snapshot.latestRelease &&
+                snapshot.latestRelease !== snapshot.latestTag ? (
+                  <span className="text-sm text-slate-400">
+                    {snapshot.latestRelease}
+                  </span>
                 ) : null}
               </div>
               <p className="mt-1 text-xs text-slate-500">
@@ -470,7 +534,8 @@ export function GitPanel({
                     title={`${name} – ${Math.round((bytes / languageTotal) * 100)}%`}
                     style={{
                       width: `${(bytes / languageTotal) * 100}%`,
-                      backgroundColor: LANGUAGE_COLORS[index % LANGUAGE_COLORS.length],
+                      backgroundColor:
+                        LANGUAGE_COLORS[index % LANGUAGE_COLORS.length],
                     }}
                   />
                 ))}
@@ -480,7 +545,10 @@ export function GitPanel({
                   <span key={name} className="inline-flex items-center gap-1.5">
                     <span
                       className="h-2 w-2 rounded-full"
-                      style={{ backgroundColor: LANGUAGE_COLORS[index % LANGUAGE_COLORS.length] }}
+                      style={{
+                        backgroundColor:
+                          LANGUAGE_COLORS[index % LANGUAGE_COLORS.length],
+                      }}
                     />
                     {name}
                     <span className="text-slate-600">
@@ -537,8 +605,8 @@ export function GitPanel({
                   {issues.length > 0 ? (
                     <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/6 bg-white/2 px-4 py-2">
                       <p className="text-[11px] text-slate-500">
-                        Aus offenen Issues Aufgaben machen. Bereits uebernommene werden
-                        uebersprungen.
+                        Aus offenen Issues Aufgaben machen. Bereits uebernommene
+                        werden uebersprungen.
                       </p>
                       <button
                         type="button"
@@ -555,7 +623,11 @@ export function GitPanel({
                       </button>
                     </div>
                   ) : null}
-                  <TicketList tickets={issues} empty="Keine offenen Issues." icon={CircleDot} />
+                  <TicketList
+                    tickets={issues}
+                    empty="Keine offenen Issues."
+                    icon={CircleDot}
+                  />
                 </>
               ) : null}
               {tab === "branches" ? <BranchList branches={branches} /> : null}
@@ -567,7 +639,8 @@ export function GitPanel({
         </>
       ) : (
         <div className="glass px-5 py-10 text-center text-sm text-slate-500">
-          Noch keine Daten geladen. Mit „Jetzt synchronisieren“ den ersten Snapshot holen.
+          Noch keine Daten geladen. Mit „Jetzt synchronisieren“ den ersten
+          Snapshot holen.
         </div>
       )}
     </div>
@@ -591,7 +664,9 @@ function Metric({
         <Icon className="h-3 w-3" />
         {label}
       </p>
-      <p className="mt-1 text-lg font-semibold tabular-nums text-slate-100">{value}</p>
+      <p className="mt-1 text-lg font-semibold tabular-nums text-slate-100">
+        {value}
+      </p>
     </div>
   );
 }
@@ -639,10 +714,15 @@ function TicketList({
                 ) : null}
               </p>
               <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[11px] text-slate-500">
-                <span className="font-mono text-slate-600">#{ticket.number}</span>
+                <span className="font-mono text-slate-600">
+                  #{ticket.number}
+                </span>
                 <span>{ticket.author ?? "unbekannt"}</span>
                 {ticket.labels.slice(0, 3).map((label) => (
-                  <span key={label} className="rounded bg-white/6 px-1 py-0.5 text-[10px]">
+                  <span
+                    key={label}
+                    className="rounded bg-white/6 px-1 py-0.5 text-[10px]"
+                  >
                     {label}
                   </span>
                 ))}
@@ -650,7 +730,9 @@ function TicketList({
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2 text-[11px] text-slate-500">
-            <span suppressHydrationWarning>{formatRelative(ticket.createdAt)}</span>
+            <span suppressHydrationWarning>
+              {formatRelative(ticket.createdAt)}
+            </span>
             {ticket.url ? (
               <a
                 href={ticket.url}
@@ -677,7 +759,9 @@ function BranchList({ branches }: { branches: BranchInfo[] }) {
         <Row key={branch.name}>
           <div className="flex min-w-0 items-center gap-2">
             <GitBranch className="h-3.5 w-3.5 shrink-0 text-slate-600" />
-            <span className="truncate font-mono text-xs text-slate-200">{branch.name}</span>
+            <span className="truncate font-mono text-xs text-slate-200">
+              {branch.name}
+            </span>
             {branch.isDefault ? (
               <span className="shrink-0 rounded bg-violet-500/15 px-1.5 py-0.5 text-[10px] text-violet-200">
                 default
@@ -689,10 +773,14 @@ function BranchList({ branches }: { branches: BranchInfo[] }) {
           </div>
           <div className="flex shrink-0 items-center gap-3 text-[11px] text-slate-500">
             {branch.lastCommitAt ? (
-              <span suppressHydrationWarning>{formatRelative(branch.lastCommitAt)}</span>
+              <span suppressHydrationWarning>
+                {formatRelative(branch.lastCommitAt)}
+              </span>
             ) : null}
             {branch.sha ? (
-              <span className="font-mono text-slate-600">{branch.sha.slice(0, 7)}</span>
+              <span className="font-mono text-slate-600">
+                {branch.sha.slice(0, 7)}
+              </span>
             ) : null}
           </div>
         </Row>
@@ -709,15 +797,23 @@ function TagList({ tags }: { tags: TagInfo[] }) {
         <Row key={tag.name}>
           <div className="flex min-w-0 items-center gap-2">
             <Tag className="h-3.5 w-3.5 shrink-0 text-slate-600" />
-            <span className="truncate font-mono text-xs text-slate-200">{tag.name}</span>
+            <span className="truncate font-mono text-xs text-slate-200">
+              {tag.name}
+            </span>
             {tag.message ? (
-              <span className="truncate text-[11px] text-slate-500">{tag.message}</span>
+              <span className="truncate text-[11px] text-slate-500">
+                {tag.message}
+              </span>
             ) : null}
           </div>
           <div className="flex shrink-0 items-center gap-3 text-[11px] text-slate-500">
-            {tag.date ? <span suppressHydrationWarning>{formatRelative(tag.date)}</span> : null}
+            {tag.date ? (
+              <span suppressHydrationWarning>{formatRelative(tag.date)}</span>
+            ) : null}
             {tag.sha ? (
-              <span className="font-mono text-slate-600">{tag.sha.slice(0, 7)}</span>
+              <span className="font-mono text-slate-600">
+                {tag.sha.slice(0, 7)}
+              </span>
             ) : null}
           </div>
         </Row>
@@ -735,7 +831,9 @@ function CommitList({ commits }: { commits: CommitInfo[] }) {
           <div className="min-w-0">
             <p className="truncate text-xs text-slate-200">{commit.message}</p>
             <p className="mt-0.5 flex items-center gap-2 text-[11px] text-slate-500">
-              <span className="font-mono text-violet-300/80">{commit.shortSha}</span>
+              <span className="font-mono text-violet-300/80">
+                {commit.shortSha}
+              </span>
               <span>{commit.author ?? "unbekannt"}</span>
             </p>
           </div>
@@ -760,14 +858,17 @@ function CommitList({ commits }: { commits: CommitInfo[] }) {
 }
 
 function ReleaseList({ releases }: { releases: ReleaseInfo[] }) {
-  if (releases.length === 0) return <Empty text="Keine Releases veroeffentlicht." />;
+  if (releases.length === 0)
+    return <Empty text="Keine Releases veroeffentlicht." />;
   return (
     <div>
       {releases.map((release) => (
         <Row key={`${release.tag}-${release.name}`}>
           <div className="flex min-w-0 items-center gap-2">
             <Package className="h-3.5 w-3.5 shrink-0 text-slate-600" />
-            <span className="truncate text-xs text-slate-200">{release.name}</span>
+            <span className="truncate text-xs text-slate-200">
+              {release.name}
+            </span>
             <span className="shrink-0 rounded bg-white/6 px-1.5 py-0.5 font-mono text-[10px] text-slate-400">
               {release.tag}
             </span>
@@ -783,7 +884,9 @@ function ReleaseList({ releases }: { releases: ReleaseInfo[] }) {
             ) : null}
           </div>
           <div className="flex shrink-0 items-center gap-2 text-[11px] text-slate-500">
-            <span suppressHydrationWarning>{formatRelative(release.publishedAt)}</span>
+            <span suppressHydrationWarning>
+              {formatRelative(release.publishedAt)}
+            </span>
             {release.url ? (
               <a
                 href={release.url}
@@ -798,6 +901,61 @@ function ReleaseList({ releases }: { releases: ReleaseInfo[] }) {
           </div>
         </Row>
       ))}
+    </div>
+  );
+}
+
+/**
+ * Teile, die beim letzten Abgleich nicht ankamen.
+ *
+ * Bernstein statt Rot: der Abgleich ist nicht gescheitert, es fehlt nur
+ * etwas – und was danebensteht, ist der letzte gute Stand, keine Null.
+ *
+ * Bis v1.10.1 sah eine nicht geholte Liste genauso aus wie eine leere. Ein
+ * Repository mit 65 Commits meldete "Snapshot aktualisiert: 0 Branches,
+ * 0 Tags", und aus der Oberflaeche war nicht zu erkennen, dass ueberhaupt
+ * etwas schiefgegangen war.
+ */
+function UnvollstaendigerStand({
+  snapshot,
+}: {
+  snapshot: RepoSnapshot | null;
+}) {
+  if (!snapshot) return null;
+
+  const fehlend = asTextRecord(snapshot.missing);
+  // Sortiert: die Reihenfolge im Objekt haengt daran, welcher Aufruf zuerst
+  // gescheitert ist, und das waere bei jedem Abgleich eine andere.
+  const felder = Object.keys(fehlend).sort();
+  if (felder.length === 0) return null;
+
+  return (
+    <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-sm text-amber-100">
+      <p className="flex items-start gap-2">
+        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+        <span>
+          Beim letzten Abgleich nicht geholt:{" "}
+          <strong>{felder.join(", ")}</strong>. Dafuer steht hier weiterhin der
+          vorherige Stand
+          {snapshot.completeAt ? (
+            <>
+              {" "}
+              von{" "}
+              <span suppressHydrationWarning>
+                {formatDateTime(snapshot.completeAt)}
+              </span>
+            </>
+          ) : null}
+          .
+        </span>
+      </p>
+      <ul className="mt-2 space-y-0.5 pl-6 text-[11px] text-amber-200/90">
+        {felder.map((feld) => (
+          <li key={feld}>
+            <span className="font-mono">{feld}</span> — {fehlend[feld]}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
