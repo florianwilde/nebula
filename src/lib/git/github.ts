@@ -185,6 +185,8 @@ export class GitHubClient implements GitClient {
         headers,
       }),
       // 100 statt 15: die aelteren brauchen wir fuer die Aktivitaetskurve.
+      // Kommen weniger an, kuerzt sich die Kurve ehrlich auf den tatsaechlich
+      // belegten Zeitraum (siehe bucketCommitActivity).
       teil.hol<GitHubCommit[]>("commits", `${base}/commits?per_page=100`, [], {
         headers,
       }),

@@ -189,6 +189,8 @@ export class GitLabClient implements GitClient {
         headers,
       }),
       // 100 statt 15: die aelteren brauchen wir fuer die Aktivitaetskurve.
+      // Kommen weniger an, kuerzt sich die Kurve ehrlich auf den tatsaechlich
+      // belegten Zeitraum (siehe bucketCommitActivity).
       teil.hol<GitLabCommit[]>(
         "commits",
         `${base}/repository/commits?per_page=100`,
