@@ -100,6 +100,22 @@ SSRF-Schutz (`lib/security/ssrf.ts`).
   überspringt oder verdoppelt lautlos. Muster in `lib/timeline.ts`:
   `(createdAt, id)` als Cursor, Sortierung identisch zur Bedingung.
 
+## Repository und Releases
+
+Führend ist **GitHub** (`florianwilde/nebula`), entwickelt wird in Claude-Code-
+Sitzungen in der Cloud. Gitea ist ein schreibgeschützter Spiegel — dorthin wird
+nicht gepusht.
+
+**Tags lassen sich aus der Cloud nicht pushen** (HTTP 403, nur Branches gehen).
+Deshalb entsteht ein Release so: Version in `package.json` (und `package-lock.json`)
+anheben, Eintrag oben in `src/lib/changelog.ts` mit derselben Version, `ROADMAP.md`
+nachziehen, alles als `chore(release): vX.Y.Z` auf `main`. Den Rest macht
+`.github/workflows/release.yml`: Tag und Release mit dem Titel aus der Schlagzeile.
+Keinen Tag von Hand anlegen.
+
+Die GitHub-Runner erreichen `git.wilde-server.de` **nicht** — Workflows dürfen nichts
+von dort holen.
+
 ## Migrationen
 
 `prisma migrate dev` ist hier nicht benutzbar (interaktiv). Stattdessen:
