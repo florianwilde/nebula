@@ -133,7 +133,7 @@ export async function getJson<T>(
 }
 
 /**
- * Schreibender Aufruf – POST, PATCH oder PUT.
+ * Schreibender Aufruf – POST, PATCH, PUT oder DELETE.
  *
  * Bewusst dieselbe Schleuse wie getJson: die Basis-URL stammt aus einem
  * Formular, und ohne die Pruefung waere ein schreibender Aufruf der weitaus
@@ -144,7 +144,7 @@ export async function getJson<T>(
  */
 export async function sendJson<T>(
   url: string,
-  method: "POST" | "PATCH" | "PUT",
+  method: "POST" | "PATCH" | "PUT" | "DELETE",
   body: unknown,
   options: FetchOptions = {},
 ): Promise<T> {
@@ -165,7 +165,7 @@ export async function sendJson<T>(
         "User-Agent": "Nebula-Dashboard",
         ...options.headers,
       },
-      body: JSON.stringify(body),
+      body: body === undefined ? undefined : JSON.stringify(body),
       signal: controller.signal,
       cache: "no-store",
       redirect: "manual",

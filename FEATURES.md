@@ -506,15 +506,16 @@ Firmen-Gitea nebeneinander.
 
 #### Nötige Token-Rechte
 
-Nebula liest fast alles nur. Geschrieben wird an **genau zwei Stellen**: `POST …/issues`
-beim Anlegen und `PATCH`/`PUT …/issues/{nr}` beim Schließen oder Wiederöffnen (4.6). Wer
-darauf verzichtet, kommt mit einem rein lesenden Token aus.
+Nebula liest fast alles nur. Bei Issues wird an **genau zwei Stellen** geschrieben:
+`POST …/issues` beim Anlegen und `PATCH`/`PUT …/issues/{nr}` beim Schließen oder
+Wiederöffnen (4.6). Dazu kommt, nur auf Klick, der eigene Webhook (`POST`/`DELETE
+…/hooks`, 4.7). Wer auf beides verzichtet, kommt mit einem rein lesenden Token aus.
 
-| System | Nur Abgleich | Zusätzlich für die Issue-Anbindung |
-| --- | --- | --- |
-| GitHub | *Metadata*, *Contents*, *Issues*, *Pull requests*, *Actions* — je lesend | *Issues: Read and write* |
-| GitLab | `read_api` | `api` |
-| Gitea / Forgejo | `read:repository`, `read:issue`, `read:user` | `write:issue` |
+| System | Nur Abgleich | Zusätzlich für die Issue-Anbindung | Zusätzlich, damit Nebula den Webhook selbst einträgt |
+| --- | --- | --- | --- |
+| GitHub | *Metadata*, *Contents*, *Issues*, *Pull requests*, *Actions* — je lesend | *Issues: Read and write* | *Webhooks: Read and write* |
+| GitLab | `read_api` | `api` | Rolle *Maintainer* |
+| Gitea / Forgejo | `read:repository`, `read:issue`, `read:user` | `write:issue` | `write:repository`, Adminrechte am Repository |
 
 Welcher Aufruf welches Recht verlangt, steht Zeile für Zeile in der
 [README](README.md#welche-rechte-der-token-braucht) — dort ist jeder ausgehende Aufruf
@@ -525,9 +526,9 @@ Code eingeschlossen. Wem das zu weit geht, bleibt bei `read_api`: der Abgleich l
 vollständig, geschlossene Issues werden weiterhin erkannt — nur schreibt Nebula dann
 nicht zurück.
 
-**Nicht verlangt** werden Schreibrechte auf Code, Adminrechte und Rechte zum Anlegen von
-Webhooks. Der Haken wird von Hand im Git-System eingetragen (4.7); das erspart dem Token
-genau die Administrationsrechte, die er sonst bräuchte.
+**Nicht verlangt** werden Schreibrechte auf Code und Adminrechte. Das Recht, Webhooks zu
+verwalten, ist freiwillig: bei GitHub ist es ein eigenes, schmales Recht, ohne das der
+Haken wie bisher von Hand eingetragen wird (4.7).
 
 **Kommentare schreibt Nebula nie** — weder beim Anlegen noch beim Schließen. In den
 Rumpf des angelegten Issues wandert die Aufgabenbeschreibung plus eine Zeile Rückverweis
@@ -747,12 +748,21 @@ zu warten; ein geschlossenes Issue hakt seine Aufgabe ab. Der Zeitplan bleibt al
 Rückfalllösung bestehen.
 
 Einzurichten am Repository (Funksymbol im Git-Bereich): Nebula erzeugt URL und
-Geheimnis, eingetragen wird der Haken im Git-System von Hand. Über die API anzulegen
-wäre machbar, verlangte aber Administrationsrechte am Repository — deutlich mehr, als
-Nebula sonst braucht.
+Geheimnis und **trägt den Haken selbst ein**, mit dem Token der Verbindung. Bei GitHub
+braucht der Token dafür *Webhooks: Read and write*. Das ist ein eigenes Recht, das
+keine Administration des Repositories umfasst. Fehlt es, antwortet das Git-System mit
+403 oder 404. Dann zeigt der Dialog den Grund an, und der Haken wird wie früher von Hand
+eingetragen.
 
-Das Geheimnis ist **genau einmal** zu sehen; danach liegt es verschlüsselt in der
-Datenbank, wie die Zugangstoken, und verlässt den Server nicht mehr.
+Beim Erneuern des Geheimnisses entfernt Nebula den Haken, den es selbst eingetragen hat,
+und trägt einen neuen ein. Sonst säßen danach zwei im Git-System, und einer davon hätte
+ein ungültiges Geheimnis. Erkannt wird der eigene Haken an der ID, die Nebula sich beim
+Eintragen merkt. Fremde Haken fasst es nicht an. Zurücknehmen entfernt den eigenen
+Haken ebenfalls.
+
+Selbst eingetragen, verlässt das Geheimnis den Server nur in Richtung Git-System und ist
+nirgends zu sehen. Von Hand eingetragen, ist es **genau einmal** zu sehen; danach liegt
+es verschlüsselt in der Datenbank, wie die Zugangstoken.
 
 | System | Ausweis | Kopfzeile |
 | --- | --- | --- |
@@ -1037,13 +1047,19 @@ docker exec nebula-db psql -U nebula -d postgres -c "CREATE DATABASE nebula_e2e_
 
 ### 6.5 Fortlaufende Prüfung
 
-`.gitea/workflows/ci.yml` prüft jeden Push und jeden Pull Request: Typen, Unit-Tests,
+`.github/workflows/ci.yml` prüft jeden Push und jeden Pull Request: Typen, Unit-Tests,
 Bau und Ende-zu-Ende-Tests gegen einen frischen PostgreSQL-Dienst. Schlägt etwas fehl,
 wird der Playwright-Bericht als Artefakt abgelegt.
 
-Dafür müssen in der Gitea-Instanz Actions aktiviert sein (`app.ini`: `[actions] ENABLED
-= true`) und ein Runner registriert. Die Syntax ist GitHub-kompatibel — für GitHub die
-Datei nach `.github/workflows/` kopieren.
+GitHub liest die Datei dort. Gitea Actions greift auf denselben Ordner zurück, wenn es
+kein `.gitea/workflows` gibt; dafür müssen Actions aktiviert sein (`app.ini`:
+`[actions] ENABLED = true`) und ein Runner registriert.
+
+`.github/workflows/release.yml` legt auf GitHub zu jedem Tag `v*.*.*` das Release an. Der
+Titel kommt aus dem Änderungsverlauf (`scripts/release-title.mjs`), deshalb ist kein
+persönlicher Token nötig, sondern nur der eingebaute des Workflows. Fehlt der Eintrag
+im Verlauf, schlägt der Lauf fehl. Das ist gewollt, denn dann passen Tag und Verlauf
+nicht zusammen.
 
 ### 6.6 API
 

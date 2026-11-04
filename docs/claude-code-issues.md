@@ -15,8 +15,9 @@ Am Projekt (Projektdialog → Git):
    Claude Code anlegt, als Aufgaben.
 3. **„Neue Aufgaben automatisch als Issue anlegen“** an. Dann sieht Claude Code
    Aufgaben, die du in Nebula erfasst, als Issue.
-4. Optional ein **Webhook** (Git-Panel → „Webhook einrichten“, Events *Pushes* und
-   *Issues*), damit es sofort geht statt beim nächsten Abgleich.
+4. Optional ein **Webhook** (Git-Panel → „Webhook einrichten“), damit es sofort geht
+   statt beim nächsten Abgleich. Hat der Token zusätzlich *Webhooks: Read and write*,
+   trägt Nebula ihn selbst bei GitHub ein.
 
 ## Abschnitt für die CLAUDE.md
 

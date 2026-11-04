@@ -15,6 +15,7 @@ import type {
   CommitInfo,
   ConnectionCheck,
   CreatedIssue,
+  CreatedWebhook,
   GitClient,
   ProviderConfig,
   ReleaseInfo,
@@ -80,6 +81,35 @@ export class GitHubClient implements GitClient {
       `${this.repoBase(ref)}/issues/${number}`,
       "PATCH",
       { state: open ? "open" : "closed" },
+      { headers: this.headers() },
+    );
+  }
+
+  async createWebhook(
+    ref: RepoRef,
+    hook: { url: string; secret: string },
+  ): Promise<CreatedWebhook> {
+    // Verlangt beim fine-grained Token "Webhooks: Read and write" – ein
+    // eigenes Recht, keine Administration des Repositories.
+    const angelegt = await sendJson<{ id: number }>(
+      `${this.repoBase(ref)}/hooks`,
+      "POST",
+      {
+        name: "web",
+        active: true,
+        events: ["push", "issues"],
+        config: { url: hook.url, content_type: "json", secret: hook.secret, insecure_ssl: "0" },
+      },
+      { headers: this.headers() },
+    );
+    return { id: String(angelegt.id) };
+  }
+
+  async deleteWebhook(ref: RepoRef, id: string): Promise<void> {
+    await sendJson(
+      `${this.repoBase(ref)}/hooks/${encodeURIComponent(id)}`,
+      "DELETE",
+      undefined,
       { headers: this.headers() },
     );
   }

@@ -21,6 +21,7 @@ import type {
   CommitInfo,
   ConnectionCheck,
   CreatedIssue,
+  CreatedWebhook,
   GitClient,
   ProviderConfig,
   ReleaseInfo,
@@ -78,6 +79,36 @@ export class GitLabClient implements GitClient {
       `${this.apiBase}/projects/${this.projectPath(ref)}/issues/${number}`,
       "PUT",
       { state_event: open ? "reopen" : "close" },
+      { headers: this.headers() },
+    );
+  }
+
+  async createWebhook(
+    ref: RepoRef,
+    hook: { url: string; secret: string },
+  ): Promise<CreatedWebhook> {
+    // Verlangt "api" und mindestens die Rolle Maintainer. GitLab schickt
+    // das Geheimnis als X-Gitlab-Token mit, statt zu signieren.
+    const angelegt = await sendJson<{ id: number }>(
+      `${this.apiBase}/projects/${this.projectPath(ref)}/hooks`,
+      "POST",
+      {
+        url: hook.url,
+        token: hook.secret,
+        push_events: true,
+        issues_events: true,
+        enable_ssl_verification: true,
+      },
+      { headers: this.headers() },
+    );
+    return { id: String(angelegt.id) };
+  }
+
+  async deleteWebhook(ref: RepoRef, id: string): Promise<void> {
+    await sendJson(
+      `${this.apiBase}/projects/${this.projectPath(ref)}/hooks/${encodeURIComponent(id)}`,
+      "DELETE",
+      undefined,
       { headers: this.headers() },
     );
   }

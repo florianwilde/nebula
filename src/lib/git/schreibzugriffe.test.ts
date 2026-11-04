@@ -5,12 +5,13 @@ import { describe, expect, it } from "vitest";
 /**
  * Waechter ueber eine Zusage in der Dokumentation.
  *
- * README und FEATURES sagen zu, dass Nebula an genau zwei Stellen nach
- * draussen schreibt: ein Issue anlegen und seinen Zustand umsetzen. Auf
- * dieser Zusage steht die Empfehlung, ein rein lesendes Token zu vergeben,
- * solange die Issue-Anbindung nicht gebraucht wird.
+ * README und FEATURES zaehlen auf, wo Nebula nach draussen schreibt: ein
+ * Issue anlegen, seinen Zustand umsetzen und – nur wenn der Token es darf –
+ * den Webhook eintragen und wieder entfernen. Auf dieser Aufzaehlung steht
+ * die Empfehlung, ein rein lesendes Token zu vergeben, solange die
+ * Issue-Anbindung nicht gebraucht wird.
  *
- * Kaeme ein dritter Schreibaufruf dazu, wuerde die Empfehlung still falsch:
+ * Kaeme ein weiterer Schreibaufruf dazu, wuerde die Empfehlung still falsch:
  * niemand bekaeme einen Fehler, nur ein 403 an einer Stelle, die laut
  * Dokumentation gar nicht schreibt. Deshalb wird hier der Quelltext selbst
  * abgeklopft – sendJson ist der einzige Weg aus lib/git heraus, der eine
@@ -26,26 +27,31 @@ function schreibaufrufe(quelltext: string): string[] {
     if (!/\bsendJson[<(]/.test(zeile)) return;
     // sendJson(url, METHODE, …) – Endpunkt und Methode stehen darunter.
     const block = zeilen.slice(i, i + 4).join(" ");
-    const methode = block.match(/"(POST|PATCH|PUT)"/)?.[1];
-    const pfad = block.match(/\/issues[^`"']*/)?.[0] ?? "?";
+    const methode = block.match(/"(POST|PATCH|PUT|DELETE)"/)?.[1];
+    const pfad = block.match(/\/(issues|hooks)[^`"']*/)?.[0] ?? "?";
     gefunden.push(`${methode ?? "?"} ${pfad}`);
   });
   return gefunden;
 }
 
 describe("Schreibzugriffe nach draussen", () => {
-  it("beschraenken sich auf Issues anlegen und Zustand setzen", () => {
+  it("beschraenken sich auf Issues und den eigenen Webhook", () => {
     for (const datei of CLIENTS) {
       const quelltext = readFileSync(join(__dirname, datei), "utf8");
       const aufrufe = schreibaufrufe(quelltext);
 
-      expect(aufrufe.length, `${datei}: Anzahl Schreibaufrufe`).toBe(2);
+      expect(aufrufe.length, `${datei}: Anzahl Schreibaufrufe`).toBe(4);
       for (const aufruf of aufrufe) {
-        expect(aufruf, `${datei}: ${aufruf}`).toMatch(/^(POST|PATCH|PUT) \/issues/);
+        expect(aufruf, `${datei}: ${aufruf}`).toMatch(
+          /^((POST|PATCH|PUT) \/issues|(POST|DELETE) \/hooks)/,
+        );
       }
-      // Genau einer legt an, genau einer setzt um.
-      expect(aufrufe.filter((a) => a.startsWith("POST")).length, datei).toBe(1);
-      expect(aufrufe.filter((a) => /^(PATCH|PUT)/.test(a)).length, datei).toBe(1);
+      // Issues: genau einer legt an, genau einer setzt um.
+      expect(aufrufe.filter((a) => a.startsWith("POST /issues")).length, datei).toBe(1);
+      expect(aufrufe.filter((a) => /^(PATCH|PUT) \/issues/.test(a)).length, datei).toBe(1);
+      // Webhook: genau einer traegt ein, genau einer entfernt.
+      expect(aufrufe.filter((a) => a.startsWith("POST /hooks")).length, datei).toBe(1);
+      expect(aufrufe.filter((a) => a.startsWith("DELETE /hooks")).length, datei).toBe(1);
     }
   });
 

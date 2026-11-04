@@ -430,6 +430,11 @@ model Repository {
   /// Wann zuletzt ein gueltiger Webhook ankam – die einzige Rueckmeldung
   /// darueber, ob der Haken im Git-System wirklich funktioniert.
   webhookLastAt DateTime?
+  /// ID des Hakens im Git-System, wenn Nebula ihn selbst eingetragen hat.
+  /// Damit laesst er sich beim Erneuern oder Zuruecknehmen wieder
+  /// entfernen, statt dass sich alte Haken mit ungueltigem Geheimnis
+  /// ansammeln. NULL heisst: von Hand eingetragen oder gar nicht.
+  webhookRemoteId String?
 
   snapshot RepoSnapshot?
 
