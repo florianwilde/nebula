@@ -1055,11 +1055,18 @@ GitHub liest die Datei dort. Gitea Actions greift auf denselben Ordner zurück, 
 kein `.gitea/workflows` gibt; dafür müssen Actions aktiviert sein (`app.ini`:
 `[actions] ENABLED = true`) und ein Runner registriert.
 
-`.github/workflows/release.yml` legt auf GitHub zu jedem Tag `v*.*.*` das Release an. Der
-Titel kommt aus dem Änderungsverlauf (`scripts/release-title.mjs`), deshalb ist kein
-persönlicher Token nötig, sondern nur der eingebaute des Workflows. Fehlt der Eintrag
-im Verlauf, schlägt der Lauf fehl. Das ist gewollt, denn dann passen Tag und Verlauf
-nicht zusammen.
+`.github/workflows/release.yml` legt auf GitHub Release und Tag an, sobald auf `main` eine
+neue Version in `package.json` landet. Ausgelöst wird es also nicht durch einen
+gepushten Tag. Der Grund: Claude-Code-Sitzungen in der Cloud dürfen Branches pushen,
+aber keine Tags. Ein von Hand gepushter Tag funktioniert trotzdem. Der Titel kommt aus
+dem Änderungsverlauf (`scripts/release-title.mjs`). Ein persönlicher Token ist nicht
+nötig, der eingebaute des Workflows reicht. Fehlt der Eintrag im Verlauf, schlägt der
+Lauf fehl. Das ist gewollt, denn dann passen Version und Verlauf nicht zusammen.
+
+Das führende Repository liegt auf GitHub (`florianwilde/nebula`). Gitea
+(`git.wilde-server.de/florian.wilde/nebula`) ist ein Pull-Mirror davon und
+schreibgeschützt. Der Stand bis v1.12.0 samt den Release-Titeln liegt im Archiv
+`florian.wilde/nebula-archiv`.
 
 ### 6.6 API
 

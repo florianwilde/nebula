@@ -1,16 +1,27 @@
-# Legt zu jedem Versions-Tag das Release an.
+# Legt zu jeder neuen Version das Release an – samt Tag.
+#
+# Ausloeser ist eine neue Versionsnummer in package.json auf main, nicht ein
+# gepushter Tag. Entwickelt wird in Claude-Code-Sitzungen in der Cloud, und
+# deren Git-Zugang darf Branches pushen, aber keine Tags. Den Tag legt hier
+# GitHub selbst an, mit dem eingebauten Token des Workflows.
+#
+# Ein von Hand gepushter Tag funktioniert weiterhin. Ein Tag, den dieser
+# Workflow anlegt, loest ihn nicht ein zweites Mal aus: Ereignisse, die der
+# eingebaute Token erzeugt, starten keine Workflows.
 #
 # Der Titel kommt aus dem Aenderungsverlauf (scripts/release-title.mjs), die
 # Beschreibung bleibt leer wie bei den bisherigen Releases – was sich geaendert
 # hat, steht in der Anwendung unter der Versionsnummer.
 #
-# Laeuft nur auf GitHub. Gitea liest denselben Ordner mit, hat aber kein
-# gh-Werkzeug; dort entstehen die Releases ueber den Spiegel.
+# Laeuft nur auf GitHub. Gitea liest denselben Ordner mit, ist aber nur noch
+# Spiegel und bekommt Tags von dort.
 
 name: Release
 
 on:
   push:
+    branches: [main]
+    paths: [package.json]
     tags: ["v*.*.*"]
 
 permissions:
@@ -23,17 +34,27 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Titel aus dem Aenderungsverlauf
-        id: titel
-        run: echo "titel=$(node scripts/release-title.mjs "$GITHUB_REF_NAME")" >> "$GITHUB_OUTPUT"
+      - name: Version bestimmen
+        id: version
+        run: |
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            tag="$GITHUB_REF_NAME"
+          else
+            tag="v$(node -p "require('./package.json').version")"
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "titel=$(node scripts/release-title.mjs "$tag")" >> "$GITHUB_OUTPUT"
 
       - name: Release anlegen
         env:
           GH_TOKEN: ${{ github.token }}
-          TITEL: ${{ steps.titel.outputs.titel }}
+          TAG: ${{ steps.version.outputs.tag }}
+          TITEL: ${{ steps.version.outputs.titel }}
         run: |
-          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
-            echo "Release $GITHUB_REF_NAME gibt es schon."
+          # Eine Aenderung an package.json ohne neue Version (etwa eine neue
+          # Abhaengigkeit) findet das Release schon vor und tut nichts.
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG gibt es schon."
           else
-            gh release create "$GITHUB_REF_NAME" --title "$TITEL" --notes ""
+            gh release create "$TAG" --target "$GITHUB_SHA" --title "$TITEL" --notes ""
           fi
