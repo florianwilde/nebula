@@ -1,0 +1,39 @@
+# Legt zu jedem Versions-Tag das Release an.
+#
+# Der Titel kommt aus dem Aenderungsverlauf (scripts/release-title.mjs), die
+# Beschreibung bleibt leer wie bei den bisherigen Releases – was sich geaendert
+# hat, steht in der Anwendung unter der Versionsnummer.
+#
+# Laeuft nur auf GitHub. Gitea liest denselben Ordner mit, hat aber kein
+# gh-Werkzeug; dort entstehen die Releases ueber den Spiegel.
+
+name: Release
+
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    if: github.server_url == 'https://github.com'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Titel aus dem Aenderungsverlauf
+        id: titel
+        run: echo "titel=$(node scripts/release-title.mjs "$GITHUB_REF_NAME")" >> "$GITHUB_OUTPUT"
+
+      - name: Release anlegen
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TITEL: ${{ steps.titel.outputs.titel }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            echo "Release $GITHUB_REF_NAME gibt es schon."
+          else
+            gh release create "$GITHUB_REF_NAME" --title "$TITEL" --notes ""
+          fi

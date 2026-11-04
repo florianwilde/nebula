@@ -34,6 +34,8 @@ if (!treffer) {
   process.exit(1);
 }
 
-// Der Punkt am Ende gehoert in den Satz, nicht in einen Titel.
-const schlagzeile = JSON.parse(`"${treffer[1]}"`).replace(/\.$/, "");
+// Wie bei den bisherigen Releases nur der erste Teil der Schlagzeile: was
+// nach dem Gedankenstrich kommt, ist Nachsatz. Der Punkt am Ende gehoert in
+// den Satz, nicht in einen Titel.
+const schlagzeile = JSON.parse(`"${treffer[1]}"`).split(" — ")[0].replace(/\.$/, "");
 console.log(`v${version} — ${schlagzeile}`);
