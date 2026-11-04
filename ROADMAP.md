@@ -7,7 +7,7 @@ Stück für Stück abarbeiten. Reihenfolge ist ein Vorschlag, keine Festlegung.
 
 Was bereits steht, listet [FEATURES.md](FEATURES.md).
 
-**Stand:** v1.12.0. Alle Issues aus dem Dashboard sind abgearbeitet.
+**Stand:** v1.13.0. Alle Issues aus dem Dashboard sind abgearbeitet.
 
 ---
 
@@ -66,7 +66,7 @@ Voraussetzung, falls du das Projekt veröffentlichen willst.
 
 ## 3 · Aufgefallen beim Bauen
 
-Beobachtungen aus der Arbeit an v1.6.0 bis v1.12.0 — festgehalten, damit sie
+Beobachtungen aus der Arbeit an v1.6.0 bis v1.13.0 — festgehalten, damit sie
 nicht verloren gehen. Nichts davon ist dringend.
 
 ### 3.1 Anwendungsname bricht in der Kopfleiste ab `S`
@@ -108,7 +108,8 @@ Beide stehen im Änderungsverlauf, existierten aber nie in der
 `package.json` — dort springt die Historie von 0.1.0 auf 0.4.0. Nachgetragen
 wurden sie in dem Commit, der den Verlauf einführte, und der liegt *nach*
 0.4.0. Es gibt also keinen ehrlichen Commit, an dem ein Tag hängen könnte.
-Die übrigen 21 Fassungen haben seit dem 18.08.2026 ein Release in Gitea.
+Die übrigen 21 Fassungen haben seit dem 18.08.2026 ein Release in Gitea, heute im
+Archiv `florian.wilde/nebula-archiv`. Ab v1.13.0 entstehen die Releases auf GitHub.
 
 ---
 
@@ -181,6 +182,7 @@ Damit klar ist, was **nicht** kommt und warum:
 | **v1.10.1** Issue-Kennzeichen auf der Aufgabenkarte, Token-Rechte Aufruf für Aufruf belegt | ✓ |
 | **v1.11.0** Karten je Spalte begrenzen; der Abgleich verschluckt keine Fehler mehr und verliert dabei nichts | ✓ |
 | **v1.12.0** Issues werden von selbst zu Aufgaben und Aufgaben zu Issues — je Projekt einschaltbar | ✓ |
+| **v1.13.0** Nebula trägt den Webhook selbst ein; Umzug nach GitHub, Releases aus der Version | ✓ |
 
 Zur Entscheidung beim Export: Git-Tokens gehen **nicht** mit. Die Verbindung wird nur
 beschrieben, das Token ist nach dem Import neu zu hinterlegen. Snapshots bleiben
