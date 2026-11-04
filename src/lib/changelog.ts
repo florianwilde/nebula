@@ -42,6 +42,33 @@ export const KIND_META: Record<ChangeKind, { label: string; className: string }>
 
 export const CHANGELOG: Release[] = [
   {
+    version: "1.13.0",
+    date: "2026-11-04",
+    headline: "Den Webhook trägt Nebula jetzt selbst ein.",
+    changes: [
+      {
+        kind: "neu",
+        text:
+          "„Webhook einrichten“ trägt den Haken mit dem Token der Verbindung gleich im " +
+          "Git-System ein, statt URL und Geheimnis zum Abschreiben zu zeigen. Bei GitHub " +
+          "braucht der Token dafür „Webhooks: Read and write“; fehlt das Recht, bleibt es " +
+          "beim Eintragen von Hand.",
+      },
+      {
+        kind: "besser",
+        text:
+          "Ein neues Geheimnis ersetzt den selbst eingetragenen Haken, statt einen zweiten " +
+          "danebenzulegen, und Zurücknehmen entfernt ihn auch im Git-System.",
+      },
+      {
+        kind: "besser",
+        text:
+          "Nebula liegt jetzt auf GitHub, Gitea spiegelt. Releases entstehen von selbst, " +
+          "sobald eine neue Version auf main landet.",
+      },
+    ],
+  },
+  {
     version: "1.12.0",
     date: "2026-11-04",
     headline: "Aufgaben und Issues finden von selbst zueinander — in beide Richtungen.",
