@@ -304,6 +304,8 @@ Labels und ein Link zurück ins Git-System.
   legt deshalb **keine Dubletten** an, auch wenn die Aufgabe inzwischen verschoben oder
   umbenannt wurde.
 - Ohne Repo-Stand meldet der Server das mit einem Hinweis statt still nichts zu tun.
+- Wer nicht klicken will, schaltet am Projekt **„Neue Issues automatisch als Aufgaben
+  übernehmen“** ein. Dann geschieht dasselbe bei jedem Abgleich (siehe 4.6).
 
 ### Fortschritt aus Aufgaben
 
@@ -664,10 +666,36 @@ verknüpften Repository an. Nummer und Adresse landen an der Aufgabe (`sourceIss
 v0.9.0 füllt, samt Eindeutigkeit je Repository gegen Dubletten). In den Rumpf kommt ein
 Rückverweis auf das Projekt.
 
-Ausdrücklich **per Knopf und nie nebenbei**: was in ein fremdes System geschrieben wird,
+Grundsätzlich **per Knopf und nie nebenbei**: was in ein fremdes System geschrieben wird,
 soll jemand gewollt haben. Danach wandert der Zustand allerdings mit — erledigt schließt
 das Issue, ein Zurückziehen öffnet es wieder. Schlägt der Aufruf fehl, zieht die Aufgabe
 trotzdem um; ein nicht erreichbares Git-System darf das Abhaken nicht verhindern.
+
+**Automatisch in beide Richtungen** (je Projekt im Projektdialog einzuschalten, beides
+standardmäßig aus):
+
+- **Neue Aufgaben als Issue anlegen.** Jede neu angelegte Aufgabe, ob im Dialog oder per
+  Schnellerfassung, bekommt gleich ihr Issue im führenden Repository. Eine erledigt
+  angelegte Aufgabe bekommt keines. Scheitert der Aufruf, bleibt die Aufgabe
+  trotzdem stehen; der Verlauf hält den Grund fest, und der Knopf holt es nach.
+  Wiederkehrende Aufgaben legen für ihre nächste Fassung kein neues Issue an.
+- **Neue Issues als Aufgaben übernehmen.** Jeder Abgleich übernimmt die offenen Issues,
+  die noch keine Aufgabe haben, aus allen Repositories des Projekts. Mit Webhook geht es
+  sofort: ein neues Issue ohne Aufgabe stößt den Abgleich an. Titel und Labels kommen
+  auch dann aus der API, nicht aus dem Webhook-Rumpf. Beim Einschalten kommen alle
+  bereits offenen Issues herein.
+
+Zusammen ergibt das einen Kreislauf, in dem Git der gemeinsame Ort ist: Ein Issue, das
+ein Agent wie Claude Code anlegt, erscheint als Aufgabe. Eine Aufgabe aus Nebula steht
+als Issue bereit. Ein Merge mit `Closes #12` schließt das Issue und hakt die Aufgabe ab.
+Eine Vorlage für die Projektanweisungen steht in
+[docs/claude-code-issues.md](docs/claude-code-issues.md).
+
+**Doppelt angelegt wird dabei nichts**, auch nicht im Wettlauf: Nebula legt ein Issue
+an, der Webhook meldet es, und der Abgleich dahinter könnte es übernehmen, bevor die
+Nummer an der ursprünglichen Aufgabe gespeichert ist. Die Eindeutigkeit je Repository
+lässt dann das Speichern scheitern. Nebula verwirft die eben übernommene Dublette und
+verknüpft die ursprüngliche Aufgabe, denn die trägt Beschreibung und Zustand.
 
 **Git → Nebula** auf zwei Wegen, die sich ergänzen:
 

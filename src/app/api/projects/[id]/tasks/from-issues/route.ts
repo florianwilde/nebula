@@ -1,11 +1,10 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { recordActivity } from "@/lib/activity";
-import { repoTitle } from "@/lib/repositories";
 import { requireUserApi } from "@/lib/auth/guard";
 import { prisma } from "@/lib/db";
 import { jsonError, readJsonBody } from "@/lib/security/request";
-import { nextPosition, ownedProject, refreshDerivedProgress } from "@/lib/tasks";
+import { ownedProject } from "@/lib/tasks";
+import { importIssuesAsTasks } from "@/lib/tasks/issues";
 import { asArray, type TicketInfo } from "@/types";
 import { formatZodError } from "@/lib/validation";
 
@@ -30,7 +29,8 @@ const schema = z.object({
  * Bereits uebernommene Issues werden uebersprungen: die Nummer steht an der
  * Aufgabe und ist je Projekt eindeutig. Ein zweiter Aufruf legt also keine
  * Dubletten an, auch wenn die Aufgabe inzwischen verschoben oder umbenannt
- * wurde.
+ * wurde. Derselbe Weg laeuft beim Abgleich von selbst, wenn das Projekt
+ * autoImportIssues gesetzt hat.
  */
 export async function POST(request: Request, { params }: Params) {
   const auth = await requireUserApi();
@@ -86,58 +86,12 @@ export async function POST(request: Request, { params }: Params) {
     return NextResponse.json({ created: 0, skipped: 0, tasks: [] });
   }
 
-  const vorhanden = await prisma.task.findMany({
-    where: {
-      projectId: id,
-      sourceRepositoryId: repository.id,
-      sourceIssue: { in: auswahl.map((issue) => issue.number) },
-    },
-    select: { sourceIssue: true },
+  const angelegt = await importIssuesAsTasks({
+    projectId: id,
+    repository,
+    issues: auswahl,
+    userId: auth.user.id,
   });
-  const bekannt = new Set(vorhanden.map((task) => task.sourceIssue));
-
-  const neu = auswahl.filter((issue) => !bekannt.has(issue.number));
-  let position = await nextPosition(id, "TODO");
-
-  const angelegt = [];
-  for (const issue of neu) {
-    angelegt.push(
-      await prisma.task.create({
-        data: {
-          projectId: id,
-          title: issue.title.slice(0, 200),
-          // Der Link ist das Wichtigste – der Text steht im Git-System.
-          description: issue.url ? `[Issue #${issue.number}](${issue.url})` : null,
-          status: "TODO",
-          position: position++,
-          labels: issue.labels.slice(0, 8),
-          sourceIssue: issue.number,
-          sourceUrl: issue.url,
-          sourceRepositoryId: repository.id,
-        },
-      }),
-    );
-  }
-
-  if (angelegt.length > 0) {
-    await refreshDerivedProgress(id);
-    await prisma.project.update({ where: { id }, data: { updatedAt: new Date() } });
-    // Ein Eintrag fuer den Vorgang, nicht einer je Aufgabe: sonst besteht der
-    // Verlauf nach einer Uebernahme aus nichts anderem mehr.
-    await recordActivity({
-      projectId: id,
-      userId: auth.user.id,
-      kind: "TASKS_IMPORTED",
-      summary:
-        angelegt.length === 1
-          ? `1 Issue aus ${repoTitle(repository)} als Aufgabe übernommen`
-          : `${angelegt.length} Issues aus ${repoTitle(repository)} als Aufgaben übernommen`,
-      meta: {
-        repositoryId: repository.id,
-        numbers: angelegt.map((task) => task.sourceIssue),
-      },
-    });
-  }
 
   return NextResponse.json({
     created: angelegt.length,

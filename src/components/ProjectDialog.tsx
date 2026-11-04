@@ -60,6 +60,8 @@ interface FormState {
   repoName: string;
   autoSync: boolean;
   progressFromTasks: boolean;
+  autoImportIssues: boolean;
+  autoCreateIssues: boolean;
   /** Nur beim Anlegen: aus welcher Vorlage Notizen und Aufgaben kommen. */
   templateId: string;
 }
@@ -80,6 +82,8 @@ const EMPTY: FormState = {
   repoName: "",
   autoSync: true,
   progressFromTasks: false,
+  autoImportIssues: false,
+  autoCreateIssues: false,
   templateId: "",
 };
 
@@ -184,6 +188,8 @@ export function ProjectDialog({ open, onClose, connections, project }: ProjectDi
             repoName: project.repositories[0]?.repoName ?? "",
             autoSync: project.repositories[0]?.autoSync ?? true,
             progressFromTasks: project.progressFromTasks,
+            autoImportIssues: project.autoImportIssues,
+            autoCreateIssues: project.autoCreateIssues,
             templateId: "",
           }
         : EMPTY,
@@ -254,6 +260,8 @@ export function ProjectDialog({ open, onClose, connections, project }: ProjectDi
       repoName: form.repoName,
       autoSync: form.autoSync,
       progressFromTasks: form.progressFromTasks,
+      autoImportIssues: form.autoImportIssues,
+      autoCreateIssues: form.autoCreateIssues,
       // Nur beim Anlegen; beim Bearbeiten kennt das Schema das Feld nicht.
       ...(isEdit ? {} : { templateId: form.templateId || null }),
     };
@@ -590,6 +598,37 @@ export function ProjectDialog({ open, onClose, connections, project }: ProjectDi
               <span className="mt-0.5 block text-[11px] text-slate-600">
                 Wirkt nur, wenn der Abgleich im Adminbereich eingeschaltet ist. Manuell
                 synchronisieren geht unabhaengig davon immer.
+              </span>
+            </span>
+          </label>
+
+          <label className="flex cursor-pointer items-start gap-2.5 text-sm text-slate-400">
+            <input
+              type="checkbox"
+              checked={form.autoImportIssues}
+              onChange={(event) => update("autoImportIssues", event.target.checked)}
+              className="mt-0.5 h-4 w-4 accent-violet-500"
+            />
+            <span>
+              Neue Issues automatisch als Aufgaben übernehmen
+              <span className="mt-0.5 block text-[11px] text-slate-600">
+                Bei jedem Abgleich und sofort per Webhook. Beim ersten Abgleich kommen alle
+                offenen Issues herein, die noch keine Aufgabe haben.
+              </span>
+            </span>
+          </label>
+
+          <label className="flex cursor-pointer items-start gap-2.5 text-sm text-slate-400">
+            <input
+              type="checkbox"
+              checked={form.autoCreateIssues}
+              onChange={(event) => update("autoCreateIssues", event.target.checked)}
+              className="mt-0.5 h-4 w-4 accent-violet-500"
+            />
+            <span>
+              Neue Aufgaben automatisch als Issue anlegen
+              <span className="mt-0.5 block text-[11px] text-slate-600">
+                Im führenden Repository. Braucht eine Verbindung mit Schreibrecht auf Issues.
               </span>
             </span>
           </label>

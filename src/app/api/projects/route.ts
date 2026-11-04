@@ -102,6 +102,8 @@ export async function POST(request: Request) {
       tags: data.tags,
       favorite: data.favorite,
       progressFromTasks: data.progressFromTasks,
+      autoImportIssues: data.autoImportIssues,
+      autoCreateIssues: data.autoCreateIssues,
       // Hinten an die Statusspalte des Bretts.
       position: await nextProjectPosition(auth.user.id, data.status),
       notes: { create: notes },

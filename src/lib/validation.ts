@@ -33,6 +33,10 @@ export const projectCreateSchema = z.object({
   autoSync: z.boolean().default(true),
   /** Fortschritt aus dem Verhaeltnis erledigter Aufgaben berechnen. */
   progressFromTasks: z.boolean().default(false),
+  /** Neue Issues beim Abgleich von selbst als Aufgaben uebernehmen. */
+  autoImportIssues: z.boolean().default(false),
+  /** Neue Aufgaben gleich als Issue im fuehrenden Repository anlegen. */
+  autoCreateIssues: z.boolean().default(false),
   /**
    * Aus welcher Vorlage. Die Stammdaten hat die Oberflaeche bereits in die
    * Felder oben uebernommen – hier zaehlen nur noch Notizen und Aufgaben,

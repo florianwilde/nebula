@@ -83,6 +83,8 @@ export async function PATCH(request: Request, { params }: Params) {
     "tags",
     "favorite",
     "progressFromTasks",
+    "autoImportIssues",
+    "autoCreateIssues",
   ] as const) {
     if (data[key] !== undefined) update[key] = data[key];
   }

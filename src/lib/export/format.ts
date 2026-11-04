@@ -86,6 +86,8 @@ export const exportedProjectSchema = z.object({
   notes: z.array(exportedNoteSchema).max(500).optional().default([]),
   tasks: z.array(exportedTaskSchema).max(1000).optional().default([]),
   progressFromTasks: z.boolean().optional().default(false),
+  autoImportIssues: z.boolean().optional().default(false),
+  autoCreateIssues: z.boolean().optional().default(false),
   createdAt: z.string().optional(),
 });
 

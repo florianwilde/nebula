@@ -4,6 +4,7 @@ import { requireUserApi } from "@/lib/auth/guard";
 import { prisma } from "@/lib/db";
 import { jsonError, readJsonBody } from "@/lib/security/request";
 import { nextPosition, ownedProject, refreshDerivedProgress } from "@/lib/tasks";
+import { createIssueForTask } from "@/lib/tasks/issues";
 import { formatZodError, taskCreateSchema } from "@/lib/validation";
 
 export const dynamic = "force-dynamic";
@@ -31,7 +32,11 @@ export async function POST(request: Request, { params }: Params) {
   if (!auth.ok) return auth.response;
 
   const { id } = await params;
-  if (!(await ownedProject(id, auth.user.id))) {
+  const project = await prisma.project.findFirst({
+    where: { ownerId: auth.user.id, id },
+    select: { id: true, autoCreateIssues: true },
+  });
+  if (!project) {
     return jsonError("Projekt nicht gefunden", 404);
   }
 
@@ -48,7 +53,7 @@ export async function POST(request: Request, { params }: Params) {
 
   const { title, description, status, dueDate, labels, recurrence } = parsed.data;
 
-  const task = await prisma.task.create({
+  let task = await prisma.task.create({
     data: {
       projectId: id,
       title,
@@ -75,5 +80,31 @@ export async function POST(request: Request, { params }: Params) {
     meta: { taskId: task.id },
   });
 
-  return NextResponse.json({ task }, { status: 201 });
+  /**
+   * Will das Projekt jede neue Aufgabe auch im Git-System haben, entsteht
+   * das Issue gleich mit. Eine erledigt angelegte Aufgabe bekommt keines –
+   * ein Issue, das sofort wieder zugeht, will niemand lesen.
+   *
+   * Scheitert das, bleibt die Aufgabe trotzdem stehen: ein nicht
+   * erreichbares Git-System darf das Erfassen nicht verhindern. Der Knopf
+   * im Dialog holt es nach, und der Verlauf haelt fest, warum es fehlt.
+   */
+  let issueError: string | undefined;
+  if (project.autoCreateIssues && task.status !== "DONE") {
+    const result = await createIssueForTask(task.id, { userId: auth.user.id });
+    if (result.ok) {
+      task = result.task;
+    } else {
+      issueError = result.error;
+      await recordActivity({
+        projectId: id,
+        userId: auth.user.id,
+        kind: "TASK_ADDED",
+        summary: `Kein Issue zu „${shorten(task.title, 40)}“: ${shorten(result.error, 80)}`,
+        meta: { taskId: task.id, issueError: result.error },
+      });
+    }
+  }
+
+  return NextResponse.json({ task, ...(issueError ? { issueError } : {}) }, { status: 201 });
 }

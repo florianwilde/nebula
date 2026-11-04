@@ -24,7 +24,9 @@ const MAX_BODY = 512 * 1024;
  * Absichtlich sparsam in dem, was er tut:
  *
  *   push    – stoesst denselben Abgleich an wie der Zeitgeber
- *   issues  – geschlossen oder wieder geoeffnet wandert an die Aufgabe
+ *   issues  – geschlossen oder wieder geoeffnet wandert an die Aufgabe;
+ *             ein neues Issue stoesst den Abgleich an, wenn das Projekt
+ *             neue Issues von selbst uebernimmt
  *
  * Alles andere wird angenommen und liegen gelassen. Ein Webhook, der mit
  * einem Fehler antwortet, wird von den Systemen wiederholt und irgendwann
@@ -52,7 +54,7 @@ export async function POST(request: Request, { params }: Params) {
 
   const repository = await prisma.repository.findUnique({
     where: { id: repositoryId },
-    include: { connection: true },
+    include: { connection: true, project: { select: { autoImportIssues: true } } },
   });
 
   // Unbekanntes Repository und fehlendes Geheimnis sind dieselbe Antwort:
@@ -114,6 +116,16 @@ export async function POST(request: Request, { params }: Params) {
       select: { id: true, status: true, projectId: true },
     });
     if (!task) {
+      /**
+       * Ein Issue ohne Aufgabe – meist ein neues. Will das Projekt neue
+       * Issues uebernehmen, laeuft der Abgleich: der holt Titel und Labels
+       * aus der API und legt die Aufgabe an. Aus dem Rumpf wird auch hier
+       * nichts uebernommen, der Webhook ist nur der Anstoss.
+       */
+      if (ereignis.open && repository.project.autoImportIssues) {
+        await syncRepository(repository.id).catch(() => undefined);
+        return NextResponse.json({ ok: true, handled: "issue", matched: false, synced: true });
+      }
       return NextResponse.json({ ok: true, handled: "issue", matched: false });
     }
 

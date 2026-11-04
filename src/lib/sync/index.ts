@@ -5,7 +5,7 @@ import { clientForConnection, createClient, parseRepoUrl } from "@/lib/git";
 import type { GitClient } from "@/lib/git/types";
 import { notifyAfterSync } from "@/lib/notify";
 import { repoTitle } from "@/lib/repositories";
-import { reconcileLinkedIssues } from "@/lib/tasks/issues";
+import { importIssuesAsTasks, reconcileLinkedIssues } from "@/lib/tasks/issues";
 import type { RepoSnapshotData } from "@/lib/git/types";
 
 export interface SyncResult {
@@ -33,7 +33,7 @@ export async function syncRepository(
 ): Promise<SyncResult> {
   const repository = await prisma.repository.findUnique({
     where: { id: repositoryId },
-    include: { connection: true },
+    include: { connection: true, project: { select: { autoImportIssues: true } } },
   });
 
   if (!repository) {
@@ -92,6 +92,30 @@ export async function syncRepository(
       data.issues.map((issue) => issue.number),
     );
 
+    /**
+     * Neue Issues von selbst als Aufgaben uebernehmen, wenn das Projekt es
+     * will. Damit landet ein Issue, das woanders angelegt wurde – von Hand
+     * oder von einem Agenten –, ohne Klick im Brett.
+     *
+     * Nur mit frisch geholter Liste: kam sie nicht an, ist sie leer, und
+     * daraus folgt nichts.
+     */
+    let uebernommen = 0;
+    if (repository.project.autoImportIssues && !("issues" in data.missing)) {
+      try {
+        const neu = await importIssuesAsTasks({
+          projectId: repository.projectId,
+          repository,
+          issues: data.issues,
+        });
+        uebernommen = neu.length;
+      } catch (error) {
+        // Der Snapshot ist gespeichert; an der Uebernahme soll der Abgleich
+        // nicht scheitern. Der naechste Lauf versucht es erneut.
+        console.error("[sync] Issues nicht uebernommen:", error);
+      }
+    }
+
     // Nach dem Speichern, damit die Meldung den neuen Stand sieht.
     await notifyAfterSync(repository.id);
 
@@ -118,7 +142,8 @@ export async function syncRepository(
         zahlen +
         (abgehakt > 0
           ? ` ${abgehakt} Aufgabe(n) abgehakt, weil das Issue geschlossen wurde.`
-          : ""),
+          : "") +
+        (uebernommen > 0 ? ` ${uebernommen} neue(s) Issue(s) als Aufgabe uebernommen.` : ""),
       fetchedAt: new Date().toISOString(),
     };
   } catch (error) {
