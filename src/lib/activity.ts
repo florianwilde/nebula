@@ -73,6 +73,8 @@ const FIELD_LABELS: Record<string, string> = {
   favorite: "Favorit",
   autoSync: "Automatischer Abgleich",
   progressFromTasks: "Fortschritt aus Aufgaben",
+  autoImportIssues: "Issues automatisch übernehmen",
+  autoCreateIssues: "Aufgaben automatisch als Issue",
   connectionId: "Git-Verbindung",
   repoUrl: "Repository",
   repoOwner: "Repository",

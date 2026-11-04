@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { issueShouldBeOpen, statusForIssueState } from "./issues";
+import { issueShouldBeOpen, issuesToImport, statusForIssueState } from "./issues";
 
 describe("issueShouldBeOpen", () => {
   it("haelt das Issue offen, solange die Aufgabe nicht erledigt ist", () => {
@@ -39,5 +39,27 @@ describe("statusForIssueState", () => {
     const hin = issueShouldBeOpen("DOING");
     expect(statusForIssueState(hin, "DOING")).toBe("DOING");
     expect(statusForIssueState(true, statusForIssueState(false, "DOING"))).toBe("TODO");
+  });
+});
+
+describe("issuesToImport", () => {
+  const issue = (number: number) => ({
+    number,
+    title: `Issue ${number}`,
+    author: null,
+    createdAt: null,
+    url: null,
+    draft: false,
+    labels: [],
+  });
+
+  it("laesst bereits uebernommene Issues aus", () => {
+    const neu = issuesToImport([issue(1), issue(2), issue(3)], [2, null]);
+    expect(neu.map((eintrag) => eintrag.number)).toEqual([1, 3]);
+  });
+
+  it("legt eine doppelt gemeldete Nummer nur einmal an", () => {
+    const neu = issuesToImport([issue(4), issue(4)], []);
+    expect(neu).toHaveLength(1);
   });
 });

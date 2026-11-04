@@ -176,6 +176,8 @@ export async function POST(request: Request) {
       tags: incoming.tags,
       favorite: incoming.favorite,
       progressFromTasks: incoming.progressFromTasks,
+      autoImportIssues: incoming.autoImportIssues,
+      autoCreateIssues: incoming.autoCreateIssues,
     };
 
     const tasks = incoming.tasks.map((task, index) => ({

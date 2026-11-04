@@ -68,7 +68,8 @@ export function TaskDialog({
    * Legt zur Aufgabe ein Issue im verknuepften Repository an.
    *
    * Ausdruecklich per Knopf und nicht beim Speichern: was in ein fremdes
-   * System geschrieben wird, soll jemand gewollt haben.
+   * System geschrieben wird, soll jemand gewollt haben. Wer es fuer jede
+   * neue Aufgabe will, stellt das am Projekt ein (autoCreateIssues).
    */
   async function createIssue() {
     if (!task) return;

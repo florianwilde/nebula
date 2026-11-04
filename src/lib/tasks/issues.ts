@@ -1,8 +1,10 @@
-import type { TaskStatus } from "@prisma/client";
+import { Prisma, type Task, type TaskStatus } from "@prisma/client";
 import { recordActivity, shorten } from "@/lib/activity";
+import { APP_URL } from "@/lib/config";
 import { prisma } from "@/lib/db";
-import { clientForConnection } from "@/lib/git";
-import type { GitClient, RepoRef } from "@/lib/git/types";
+import { GitApiError, clientForConnection } from "@/lib/git";
+import type { CreatedIssue, GitClient, RepoRef, TicketInfo } from "@/lib/git/types";
+import { repoTitle } from "@/lib/git/meta";
 import { nextPosition, refreshDerivedProgress, spawnRecurrence } from "@/lib/tasks";
 
 /**
@@ -197,4 +199,268 @@ export async function reconcileLinkedIssues(
   }
 
   return abgehakt;
+}
+
+// ── Issues als Aufgaben uebernehmen ──────────────────────────
+
+/**
+ * Welche Issues noch keine Aufgabe haben. Rein, damit sich die Auswahl
+ * ohne Datenbank pruefen laesst.
+ */
+export function issuesToImport(
+  issues: TicketInfo[],
+  bekannt: Iterable<number | null>,
+): TicketInfo[] {
+  const schon = new Set(bekannt);
+  const gesehen = new Set<number>();
+  return issues.filter((issue) => {
+    // Doppelte Nummern in einer Liste gaebe es nur bei einer kaputten
+    // Antwort – dann aber nicht als zwei Aufgaben.
+    if (schon.has(issue.number) || gesehen.has(issue.number)) return false;
+    gesehen.add(issue.number);
+    return true;
+  });
+}
+
+/**
+ * Legt zu Issues eines Repositories Aufgaben an, sofern es sie noch nicht
+ * gibt. Ein Weg fuer den Klick im Git-Panel und fuer die automatische
+ * Uebernahme beim Abgleich.
+ *
+ * Die Eindeutigkeit je Repository steht in der Datenbank. Kommt ein
+ * zweiter Weg zuvor – etwa das automatische Anlegen eines Issues, dessen
+ * Nummer gerade erst gespeichert wird –, faellt die einzelne Aufgabe aus
+ * und der Rest laeuft weiter.
+ */
+export async function importIssuesAsTasks(input: {
+  projectId: string;
+  repository: {
+    id: string;
+    label: string | null;
+    repoOwner: string | null;
+    repoName: string | null;
+    repoUrl: string | null;
+  };
+  issues: TicketInfo[];
+  /** Fehlt bei der automatischen Uebernahme – das hat kein Mensch getan. */
+  userId?: string;
+}): Promise<Task[]> {
+  const { projectId, repository } = input;
+  if (input.issues.length === 0) return [];
+
+  const vorhanden = await prisma.task.findMany({
+    where: {
+      projectId,
+      sourceRepositoryId: repository.id,
+      sourceIssue: { in: input.issues.map((issue) => issue.number) },
+    },
+    select: { sourceIssue: true },
+  });
+  const neu = issuesToImport(
+    input.issues,
+    vorhanden.map((task) => task.sourceIssue),
+  );
+  if (neu.length === 0) return [];
+
+  let position = await nextPosition(projectId, "TODO");
+  const angelegt: Task[] = [];
+  for (const issue of neu) {
+    try {
+      angelegt.push(
+        await prisma.task.create({
+          data: {
+            projectId,
+            title: issue.title.slice(0, 200),
+            // Der Link ist das Wichtigste – der Text steht im Git-System.
+            description: issue.url ? `[Issue #${issue.number}](${issue.url})` : null,
+            status: "TODO",
+            position: position++,
+            labels: issue.labels.slice(0, 8),
+            sourceIssue: issue.number,
+            sourceUrl: issue.url,
+            sourceRepositoryId: repository.id,
+          },
+        }),
+      );
+    } catch (error) {
+      if (isUniqueViolation(error)) continue;
+      throw error;
+    }
+  }
+
+  if (angelegt.length > 0) {
+    await refreshDerivedProgress(projectId);
+    await prisma.project.update({ where: { id: projectId }, data: { updatedAt: new Date() } });
+    // Ein Eintrag fuer den Vorgang, nicht einer je Aufgabe: sonst besteht der
+    // Verlauf nach einer Uebernahme aus nichts anderem mehr.
+    const titel = repoTitle(repository);
+    await recordActivity({
+      projectId,
+      userId: input.userId,
+      kind: "TASKS_IMPORTED",
+      summary:
+        (angelegt.length === 1
+          ? `1 Issue aus ${titel} als Aufgabe übernommen`
+          : `${angelegt.length} Issues aus ${titel} als Aufgaben übernommen`) +
+        (input.userId ? "" : " (automatisch)"),
+      meta: {
+        repositoryId: repository.id,
+        numbers: angelegt.map((task) => task.sourceIssue),
+        ...(input.userId ? {} : { source: "abgleich" }),
+      },
+    });
+  }
+
+  return angelegt;
+}
+
+function isUniqueViolation(error: unknown): boolean {
+  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
+}
+
+// ── Aufgabe als Issue anlegen ────────────────────────────────
+
+export type CreateIssueResult =
+  | { ok: true; task: Task; issue: CreatedIssue }
+  | {
+      ok: false;
+      status: number;
+      error: string;
+      issue?: { number: number | null; url: string | null };
+    };
+
+/**
+ * Legt zu einer Aufgabe ein Issue im verknuepften Repository an.
+ *
+ * Der Besitz muss vorher geprueft sein – hier wird nur noch die Aufgabe
+ * selbst geladen. Aufrufer sind der Knopf im Dialog und das automatische
+ * Anlegen neuer Aufgaben.
+ *
+ * **Wettlauf mit der Uebernahme.** Das Git-System meldet das neue Issue per
+ * Webhook, und der Abgleich dahinter koennte es als Aufgabe uebernehmen,
+ * bevor die Nummer hier gespeichert ist. Dann stuende das Issue zweimal in
+ * Nebula. Die Eindeutigkeit je Repository faengt das: scheitert das
+ * Speichern daran, wird die eben uebernommene Dublette verworfen und die
+ * urspruengliche Aufgabe verknuepft – sie traegt Beschreibung und Zustand,
+ * die Dublette nur den Titel.
+ */
+export async function createIssueForTask(
+  taskId: string,
+  options: { repositoryId?: string; userId?: string } = {},
+): Promise<CreateIssueResult> {
+  const task = await prisma.task.findUnique({
+    where: { id: taskId },
+    select: {
+      id: true,
+      title: true,
+      description: true,
+      projectId: true,
+      sourceIssue: true,
+      sourceUrl: true,
+      project: { select: { name: true } },
+    },
+  });
+  if (!task) return { ok: false, status: 404, error: "Aufgabe nicht gefunden" };
+
+  // Schon verknuepft: nicht noch einmal anlegen. Ein zweites Issue zur
+  // selben Aufgabe waere genau die Dublette, die die Uebernahme vermeidet.
+  if (task.sourceIssue !== null) {
+    return {
+      ok: false,
+      status: 409,
+      error: "Diese Aufgabe haengt bereits an einem Issue.",
+      issue: { number: task.sourceIssue, url: task.sourceUrl },
+    };
+  }
+
+  // Die Besitzerbedingung laeuft ueber das Projekt der Aufgabe – eine
+  // fremde Repository-ID trifft hier also nichts.
+  const repository = await prisma.repository.findFirst({
+    where: {
+      projectId: task.projectId,
+      ...(options.repositoryId ? { id: options.repositoryId } : {}),
+    },
+    orderBy: [{ position: "asc" }, { createdAt: "asc" }],
+    include: { connection: true },
+  });
+
+  if (!repository) {
+    return { ok: false, status: 422, error: "Das Projekt hat kein verknuepftes Repository." };
+  }
+  if (!repository.connection) {
+    return {
+      ok: false,
+      status: 422,
+      error:
+        "Das Repository haengt an keiner Git-Verbindung – ohne Token laesst sich nichts anlegen.",
+    };
+  }
+  if (!repository.repoOwner || !repository.repoName) {
+    return { ok: false, status: 422, error: "Am Repository fehlen Owner oder Name." };
+  }
+
+  const client = clientForConnection(repository.connection);
+
+  // Rueckverweis in den Rumpf: wer das Issue im Git-System liest, soll
+  // wissen, wo es herkommt und wo der Rest der Notizen liegt.
+  const rumpf = [
+    task.description?.trim() || null,
+    `_Angelegt aus [${task.project.name}](${APP_URL}/projects/${task.projectId}) in Nebula._`,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+
+  let issue: CreatedIssue;
+  try {
+    issue = await client.createIssue(
+      { owner: repository.repoOwner, name: repository.repoName },
+      { title: task.title, body: rumpf },
+    );
+  } catch (error) {
+    // Der Aufruf ging nach draussen; die Meldung des Git-Systems ist
+    // hilfreicher als ein pauschales "hat nicht geklappt".
+    return {
+      ok: false,
+      status: 502,
+      error:
+        error instanceof GitApiError
+          ? `Issue konnte nicht angelegt werden: ${error.message}`
+          : "Issue konnte nicht angelegt werden.",
+    };
+  }
+
+  const verknuepfen = {
+    sourceIssue: issue.number,
+    sourceUrl: issue.url,
+    sourceRepositoryId: repository.id,
+  };
+
+  let aktualisiert: Task;
+  try {
+    aktualisiert = await prisma.task.update({ where: { id: task.id }, data: verknuepfen });
+  } catch (error) {
+    if (!isUniqueViolation(error)) throw error;
+    aktualisiert = await prisma.$transaction(async (tx) => {
+      await tx.task.deleteMany({
+        where: {
+          projectId: task.projectId,
+          sourceRepositoryId: repository.id,
+          sourceIssue: issue.number,
+          id: { not: task.id },
+        },
+      });
+      return tx.task.update({ where: { id: task.id }, data: verknuepfen });
+    });
+    await refreshDerivedProgress(task.projectId);
+  }
+
+  await recordActivity({
+    projectId: task.projectId,
+    userId: options.userId,
+    kind: "TASK_ADDED",
+    summary: `Issue #${issue.number} angelegt zu: ${shorten(task.title, 50)}`,
+    meta: { taskId: task.id, issue: issue.number, url: issue.url },
+  });
+
+  return { ok: true, task: aktualisiert, issue };
 }

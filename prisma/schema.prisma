@@ -348,6 +348,15 @@ model Project {
   /// von Hand zu schieben. Nur sinnvoll, wenn es ueberhaupt Aufgaben gibt.
   progressFromTasks Boolean @default(false)
 
+  /// Neue offene Issues beim Abgleich von selbst als Aufgaben uebernehmen,
+  /// statt auf den Klick im Git-Panel zu warten. Gilt fuer alle
+  /// Repositories des Projekts.
+  autoImportIssues Boolean @default(false)
+  /// Jede neu angelegte Aufgabe gleich als Issue im fuehrenden Repository
+  /// anlegen. Zusammen mit autoImportIssues laufen beide Richtungen ohne
+  /// Zutun – Git bleibt der Ort, an dem Aufgaben entstehen und enden.
+  autoCreateIssues Boolean @default(false)
+
   /// Wann zuletzt wegen Stillstands gemeldet wurde. Erneut gemeldet wird
   /// erst, wenn danach wieder ein Commit kam und es dann wieder still wurde.
   /// Bleibt am Projekt: Stillstand ist eine Aussage ueber das Vorhaben, nicht

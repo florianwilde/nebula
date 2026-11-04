@@ -72,6 +72,8 @@ export function toExportedProject(project: ProjectForExport): ExportedProject {
       createdAt: task.createdAt.toISOString(),
     })),
     progressFromTasks: project.progressFromTasks,
+    autoImportIssues: project.autoImportIssues,
+    autoCreateIssues: project.autoCreateIssues,
     createdAt: project.createdAt.toISOString(),
   };
 }
