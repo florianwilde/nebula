@@ -1,11 +1,11 @@
 # Prueft jeden Push und jeden Pull Request.
 #
-# Die Datei liegt unter .gitea/workflows und wird von Gitea Actions gelesen.
-# Die Syntax ist mit GitHub Actions kompatibel – wer das Repo dorthin
-# spiegelt, kopiert sie nach .github/workflows.
+# Die Datei liegt unter .github/workflows: GitHub liest sie dort, und Gitea
+# Actions faellt auf denselben Ordner zurueck, wenn es kein .gitea/workflows
+# gibt. Ein Ort fuer beide, statt zwei Fassungen, die auseinanderlaufen.
 #
-# Voraussetzung: In der Gitea-Instanz muessen Actions aktiviert sein
-# (app.ini: [actions] ENABLED = true) und mindestens ein Runner registriert.
+# Fuer Gitea muessen Actions aktiviert sein (app.ini: [actions] ENABLED = true)
+# und mindestens ein Runner registriert.
 
 name: CI
 

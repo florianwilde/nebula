@@ -188,10 +188,11 @@ Ohne Token gehen nur öffentliche Repositories, mit strengem Rate-Limit.
 
 ### Welche Rechte der Token braucht
 
-Nebula liest fast alles nur. Geschrieben wird an **genau zwei Stellen**: wenn du eine
-Aufgabe als Issue anlegst, und wenn eine Aufgabe auf `DONE` wandert und Nebula das
-verknüpfte Issue schließt. Alles andere sind `GET`-Aufrufe. Deshalb lohnt es, zwei Fälle
-zu unterscheiden:
+Nebula liest fast alles nur. Geschrieben wird an **genau zwei Stellen**, wenn es um
+Issues geht: wenn eine Aufgabe als Issue angelegt wird, und wenn eine Aufgabe auf `DONE`
+wandert und Nebula das verknüpfte Issue schließt. Dazu kommt, nur auf Klick und nur wenn
+der Token es darf, der eigene Webhook. Alles andere sind `GET`-Aufrufe. Deshalb lohnt es,
+drei Fälle zu unterscheiden:
 
 **Fall A — nur Abgleich.** Branches, Tags, Commits, Releases, CI-Zustand, README,
 Heatmap, offene Issues und PRs anzeigen. Rein lesend.
@@ -199,11 +200,15 @@ Heatmap, offene Issues und PRs anzeigen. Rein lesend.
 **Fall B — zusätzlich die Issue-Anbindung.** Eine Aufgabe als Issue anlegen; wird das
 Issue geschlossen, hakt Nebula die Aufgabe ab und schließt sie umgekehrt mit.
 
-| System | Fall A (nur lesen) | Fall B zusätzlich |
-| --- | --- | --- |
-| **GitHub** | Fine-grained Token: *Metadata: Read*, *Contents: Read*, *Issues: Read*, *Pull requests: Read*, *Actions: Read* | *Issues: **Read and write*** |
-| **GitLab** | `read_api` | `api` — **es gibt nichts dazwischen** |
-| **Gitea / Forgejo** | `read:repository`, `read:issue`, `read:user` | `write:issue` |
+**Fall C — zusätzlich den Webhook selbst eintragen.** Ein Klick auf „Webhook einrichten“
+trägt den Haken im Git-System ein, statt URL und Geheimnis zum Abschreiben anzuzeigen.
+Ganz freiwillig: fehlt das Recht, bleibt es beim Eintragen von Hand.
+
+| System | Fall A (nur lesen) | Fall B zusätzlich | Fall C zusätzlich |
+| --- | --- | --- | --- |
+| **GitHub** | Fine-grained Token: *Metadata: Read*, *Contents: Read*, *Issues: Read*, *Pull requests: Read*, *Actions: Read* | *Issues: **Read and write*** | *Webhooks: **Read and write*** |
+| **GitLab** | `read_api` | `api` — **es gibt nichts dazwischen** | Rolle *Maintainer* |
+| **Gitea / Forgejo** | `read:repository`, `read:issue`, `read:user` | `write:issue` | `write:repository` und Adminrechte am Repository |
 
 #### Jeder Aufruf einzeln
 
@@ -232,6 +237,8 @@ will, ob hier etwas fehlt, greppt dort nach `getJson`, `getJsonSafe` und `sendJs
 | `GET …/actions/runs` | CI-Zustand des Default-Branch | Actions: Read |
 | `POST …/issues` | **Aufgabe als Issue anlegen** | Issues: Read and write |
 | `PATCH …/issues/{nr}` | **Issue schließen oder wieder öffnen** | Issues: Read and write |
+| `POST …/hooks` | **Webhook eintragen** (nur auf Klick) | Webhooks: Read and write |
+| `DELETE …/hooks/{id}` | **selbst eingetragenen Webhook entfernen** | Webhooks: Read and write |
 
 Dass `/tags` und `/stats/commit_activity` unter *Metadata* fallen und nicht unter
 *Contents*, ist nicht zu erraten — es steht so in
@@ -254,6 +261,8 @@ Dass `/tags` und `/stats/commit_activity` unter *Metadata* fallen und nicht unte
 | `GET …/pipelines` | CI-Zustand des Default-Branch | `read_api` |
 | `POST …/issues` | **Aufgabe als Issue anlegen** | `api` |
 | `PUT …/issues/{nr}` (`state_event`) | **Issue schließen oder wieder öffnen** | `api` |
+| `POST …/hooks` | **Webhook eintragen** (nur auf Klick) | `api`, Rolle Maintainer |
+| `DELETE …/hooks/{id}` | **selbst eingetragenen Webhook entfernen** | `api`, Rolle Maintainer |
 
 **Gitea / Forgejo** — `{Basis-URL}/api/v1`, Header `Authorization: token …`
 
@@ -271,6 +280,8 @@ Dass `/tags` und `/stats/commit_activity` unter *Metadata* fallen und nicht unte
 | `GET …/issues/{nr}` | Abgleich: ist das verknüpfte Issue noch offen? | `read:issue` |
 | `POST …/issues` | **Aufgabe als Issue anlegen** | `write:issue` |
 | `PATCH …/issues/{nr}` | **Issue schließen oder wieder öffnen** | `write:issue` |
+| `POST …/hooks` | **Webhook eintragen** (nur auf Klick) | `write:repository`, Adminrechte am Repository |
+| `DELETE …/hooks/{id}` | **selbst eingetragenen Webhook entfernen** | `write:repository`, Adminrechte am Repository |
 
 `write:issue` schließt `read:issue` mit ein — Gitea versteht `write:` als „lesen und
 schreiben". Beide anzuhaken schadet nicht, nötig ist es nicht.
@@ -283,8 +294,9 @@ schreiben". Beide anzuhaken schadet nicht, nötig ist es nicht.
   nicht mehr an.
 - **Kein Code.** Nichts wird committet, gepusht, gemergt oder getaggt. Nebula ist eine
   Übersicht, keine Entwicklungsumgebung.
-- **Keine Webhooks anlegen.** Den Haken trägst du selbst im Git-System ein — genau
-  deshalb verlangt Nebula dafür keine Administrationsrechte.
+- **Keine fremden Webhooks.** Nebula trägt höchstens seinen eigenen Haken ein, nur auf
+  Klick, und entfernt auch nur diesen — erkannt an der ID, die es sich beim Eintragen
+  merkt. Darf der Token das nicht, trägst du den Haken selbst ein.
 - **Keine Labels, keine Meilensteine, keine Zuweisungen.**
 - **Keine Adminrechte**, keine Organisations- oder Benutzerverwaltung.
 

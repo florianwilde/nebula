@@ -21,6 +21,7 @@ import type {
   CommitInfo,
   ConnectionCheck,
   CreatedIssue,
+  CreatedWebhook,
   GitClient,
   ProviderConfig,
   ReleaseInfo,
@@ -79,6 +80,34 @@ export class GiteaClient implements GitClient {
       `${this.repoBase(ref)}/issues/${number}`,
       "PATCH",
       { state: open ? "open" : "closed" },
+      { headers: this.headers() },
+    );
+  }
+
+  async createWebhook(
+    ref: RepoRef,
+    hook: { url: string; secret: string },
+  ): Promise<CreatedWebhook> {
+    // Verlangt write:repository und Adminrechte am Repository.
+    const angelegt = await sendJson<{ id: number }>(
+      `${this.repoBase(ref)}/hooks`,
+      "POST",
+      {
+        type: "gitea",
+        active: true,
+        events: ["push", "issues"],
+        config: { url: hook.url, content_type: "json", secret: hook.secret },
+      },
+      { headers: this.headers() },
+    );
+    return { id: String(angelegt.id) };
+  }
+
+  async deleteWebhook(ref: RepoRef, id: string): Promise<void> {
+    await sendJson(
+      `${this.repoBase(ref)}/hooks/${encodeURIComponent(id)}`,
+      "DELETE",
+      undefined,
       { headers: this.headers() },
     );
   }

@@ -10,12 +10,9 @@ import { formatRelative } from "@/lib/utils";
 /**
  * Einrichtung des Webhooks fuer ein Repository.
  *
- * Der Haken wird im Git-System von Hand eingetragen. Ihn ueber die API
- * anzulegen waere machbar, verlangte aber Administrationsrechte am
- * Repository – deutlich mehr, als Nebula sonst braucht, und es waere ein
- * Recht, das die meisten Token gar nicht haben.
- *
- * Das Geheimnis ist genau einmal zu sehen: danach liegt nur noch die
+ * Nebula versucht, den Haken mit dem Token der Verbindung selbst
+ * einzutragen. Darf der Token das nicht, bleibt es beim Eintragen von Hand –
+ * dann ist das Geheimnis genau einmal zu sehen: danach liegt nur noch die
  * verschluesselte Fassung in der Datenbank, wie bei den Zugangstoken.
  */
 
@@ -57,6 +54,10 @@ export function WebhookDialog({
   const [fehler, setFehler] = useState<string | null>(null);
   const [geheimnis, setGeheimnis] = useState<string | null>(null);
   const [url, setUrl] = useState<string | null>(null);
+  /** Nebula hat den Haken selbst eingetragen. */
+  const [selbst, setSelbst] = useState(false);
+  /** Warum das Eintragen nicht geklappt hat – Anlass fuers Eintragen von Hand. */
+  const [hinweis, setHinweis] = useState<string | null>(null);
   const [kopiert, setKopiert] = useState<string | null>(null);
 
   // Ohne Verbindung ist das System unbekannt. Dann lieber allgemein bleiben,
@@ -74,8 +75,10 @@ export function WebhookDialog({
       });
       const nutzlast = await antwort.json().catch(() => ({}));
       if (!antwort.ok) throw new Error(nutzlast.error ?? "Fehlgeschlagen.");
-      setGeheimnis(nutzlast.secret);
-      setUrl(nutzlast.url);
+      setSelbst(Boolean(nutzlast.registered));
+      setHinweis(nutzlast.registerError ?? null);
+      setGeheimnis(nutzlast.secret ?? null);
+      setUrl(nutzlast.url ?? null);
       router.refresh();
     } catch (gefangen) {
       setFehler(gefangen instanceof Error ? gefangen.message : String(gefangen));
@@ -90,9 +93,13 @@ export function WebhookDialog({
     }
     setBusy(true);
     try {
-      await fetch(`/api/repositories/${repositoryId}/webhook`, { method: "DELETE" });
+      await fetch(`/api/repositories/${repositoryId}/webhook`, {
+        method: "DELETE",
+      });
       setGeheimnis(null);
       setUrl(null);
+      setSelbst(false);
+      setHinweis(null);
       router.refresh();
       onClose();
     } finally {
@@ -119,7 +126,20 @@ export function WebhookDialog({
       description={`Damit meldet ${repositoryTitle} Aenderungen sofort, statt auf den naechsten Abgleich zu warten.`}
     >
       <div className="space-y-4">
-        {eingerichtet && !geheimnis ? (
+        {selbst ? (
+          <div className="rounded-lg border border-emerald-500/25 bg-emerald-500/8 px-3 py-2.5">
+            <p className="flex items-center gap-2 text-sm text-emerald-100">
+              <Check className="h-4 w-4 shrink-0" />
+              Im Git-System eingetragen — es ist nichts weiter zu tun.
+            </p>
+            <p className="mt-1 text-xs text-emerald-300/70">
+              Ein früher von Hand eingetragener Haken mit altem Geheimnis kann im Git-System
+              gelöscht werden; seine Aufrufe werden ab jetzt abgewiesen.
+            </p>
+          </div>
+        ) : null}
+
+        {eingerichtet && !geheimnis && !selbst ? (
           <div className="rounded-lg border border-emerald-500/25 bg-emerald-500/8 px-3 py-2.5">
             <p className="flex items-center gap-2 text-sm text-emerald-100">
               <Radio className="h-4 w-4 shrink-0" />
@@ -135,7 +155,12 @@ export function WebhookDialog({
 
         {geheimnis && url ? (
           <div className="space-y-3">
-            <Feld label="URL" wert={url} kopiert={kopiert === "url"} onCopy={() => kopieren(url, "url")} />
+            <Feld
+              label="URL"
+              wert={url}
+              kopiert={kopiert === "url"}
+              onCopy={() => kopieren(url, "url")}
+            />
             <Feld
               label="Geheimnis (Secret)"
               wert={geheimnis}
@@ -144,31 +169,39 @@ export function WebhookDialog({
             />
             <p className="rounded-lg border border-amber-500/25 bg-amber-500/8 px-3 py-2 text-xs text-amber-200">
               Das Geheimnis ist <strong>jetzt zum einzigen Mal</strong> zu sehen. Danach liegt es
-              nur noch verschluesselt in der Datenbank. Verloren? Dann hier ein neues erzeugen —
-              das alte gilt dann nicht mehr.
+              nur noch verschluesselt in der Datenbank. Verloren? Dann hier ein neues erzeugen — das
+              alte gilt dann nicht mehr.
             </p>
           </div>
         ) : null}
 
-        <div className="rounded-lg border border-white/8 bg-white/2 px-3 py-2.5 text-xs text-slate-400">
-          <p className="font-semibold text-slate-300">Im Git-System eintragen</p>
-          {anleitung ? (
-            <>
-              <p className="mt-1">{anleitung.pfad}</p>
-              <p className="mt-0.5">{anleitung.ereignisse}</p>
-            </>
-          ) : (
-            <p className="mt-1">
-              In den Einstellungen des Repositories unter „Webhooks“, mit den Ausloesern
-              Push und Issues. Ist eine Git-Verbindung hinterlegt, steht hier der genaue
-              Pfad fuer das jeweilige System.
-            </p>
-          )}
-          <p className="mt-2 text-slate-500">
-            Nebula wertet nur Push und Issues aus. Alles andere wird angenommen und liegen
-            gelassen — ein Fehler wuerde das Git-System sonst zum Wiederholen bringen.
+        {hinweis ? (
+          <p className="rounded-lg border border-white/8 bg-white/2 px-3 py-2 text-xs text-slate-400">
+            {hinweis}
           </p>
-        </div>
+        ) : null}
+
+        {selbst ? null : (
+          <div className="rounded-lg border border-white/8 bg-white/2 px-3 py-2.5 text-xs text-slate-400">
+            <p className="font-semibold text-slate-300">Im Git-System eintragen</p>
+            {anleitung ? (
+              <>
+                <p className="mt-1">{anleitung.pfad}</p>
+                <p className="mt-0.5">{anleitung.ereignisse}</p>
+              </>
+            ) : (
+              <p className="mt-1">
+                In den Einstellungen des Repositories unter „Webhooks“, mit den Ausloesern Push und
+                Issues. Ist eine Git-Verbindung hinterlegt, steht hier der genaue Pfad fuer das
+                jeweilige System.
+              </p>
+            )}
+            <p className="mt-2 text-slate-500">
+              Nebula wertet nur Push und Issues aus. Alles andere wird angenommen und liegen
+              gelassen — ein Fehler wuerde das Git-System sonst zum Wiederholen bringen.
+            </p>
+          </div>
+        )}
 
         {fehler ? (
           <p className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">
@@ -193,7 +226,7 @@ export function WebhookDialog({
 
           <div className="flex gap-2">
             <button type="button" className="btn btn-ghost" onClick={onClose} disabled={busy}>
-              {geheimnis ? "Fertig" : "Schliessen"}
+              {geheimnis || selbst ? "Fertig" : "Schliessen"}
             </button>
             <button type="button" className="btn btn-primary" onClick={erzeugen} disabled={busy}>
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Radio className="h-4 w-4" />}

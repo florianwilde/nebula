@@ -182,6 +182,11 @@ export interface CreatedIssue {
   url: string | null;
 }
 
+/** Ein von Nebula eingetragener Webhook. */
+export interface CreatedWebhook {
+  id: string;
+}
+
 export interface GitClient {
   readonly provider: ProviderKind;
   /** Prueft Erreichbarkeit und Token-Gueltigkeit. */
@@ -189,9 +194,8 @@ export interface GitClient {
   /**
    * Legt ein Issue an und liefert Nummer und Adresse zurueck.
    *
-   * Der einzige schreibende Aufruf in dieser Schnittstelle. Er wird nie
-   * nebenbei ausgeloest, sondern immer von Hand angestossen – was nach
-   * aussen geht, soll jemand gewollt haben.
+   * Angestossen von Hand oder, wenn das Projekt es eingestellt hat, beim
+   * Anlegen einer Aufgabe – was nach aussen geht, soll jemand gewollt haben.
    */
   createIssue(ref: RepoRef, issue: { title: string; body?: string | null }): Promise<CreatedIssue>;
   /**
@@ -210,6 +214,17 @@ export interface GitClient {
    * null heisst: gibt es nicht (mehr).
    */
   getIssueState(ref: RepoRef, number: number): Promise<"open" | "closed" | null>;
+  /**
+   * Traegt den Webhook fuer Push und Issues im Git-System ein.
+   *
+   * Nur auf ausdruecklichen Klick ("Webhook einrichten") und nur, wenn der
+   * Token es darf – sonst kommt ein 403/404, und der Haken wird wie bisher
+   * von Hand eingetragen. Gibt die ID des Hakens im Git-System zurueck,
+   * damit er sich spaeter wieder entfernen laesst.
+   */
+  createWebhook(ref: RepoRef, hook: { url: string; secret: string }): Promise<CreatedWebhook>;
+  /** Entfernt einen Haken, den Nebula selbst eingetragen hat. */
+  deleteWebhook(ref: RepoRef, id: string): Promise<void>;
   /** Repos, auf die der Token Zugriff hat (fuer die Auswahl beim Verknuepfen). */
   listRepos(query?: string): Promise<RepoListItem[]>;
   /** Vollstaendiger Stand eines Repositories. */
