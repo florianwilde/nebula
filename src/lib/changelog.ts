@@ -42,6 +42,34 @@ export const KIND_META: Record<ChangeKind, { label: string; className: string }>
 
 export const CHANGELOG: Release[] = [
   {
+    version: "1.12.0",
+    date: "2026-11-04",
+    headline: "Aufgaben und Issues finden von selbst zueinander — in beide Richtungen.",
+    changes: [
+      {
+        kind: "neu",
+        text:
+          "Neue Issues werden auf Wunsch von selbst zu Aufgaben: bei jedem Abgleich und mit " +
+          "Webhook sofort. Ein Issue, das ein Agent wie Claude Code anlegt, steht damit ohne " +
+          "Klick im Brett. Einzuschalten je Projekt im Projektdialog.",
+      },
+      {
+        kind: "neu",
+        text:
+          "Umgekehrt legt Nebula auf Wunsch zu jeder neuen Aufgabe gleich das Issue im " +
+          "führenden Repository an. Klappt das nicht, bleibt die Aufgabe stehen, und der " +
+          "Verlauf nennt den Grund.",
+      },
+      {
+        kind: "besser",
+        text:
+          "Auch wenn beides gleichzeitig greift, entsteht keine Dublette: meldet der Webhook " +
+          "ein eben angelegtes Issue schneller zurück, als Nebula seine Nummer speichert, " +
+          "bleibt die ursprüngliche Aufgabe mit Beschreibung und Zustand stehen.",
+      },
+    ],
+  },
+  {
     version: "1.11.0",
     date: "2026-09-10",
     headline: "Der Abgleich sagt, was er nicht holen konnte — und verliert dabei nichts mehr.",
